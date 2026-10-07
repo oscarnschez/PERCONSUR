@@ -1,0 +1,130 @@
+/*
+ * PERCONSUR — arranque de la aplicación.
+ * Orden: base de datos → ajustes/empresas/catálogos → migración del sistema anterior → rutas.
+ */
+import { startRouter, route, go } from './core/router.js';
+import { openDB } from './services/db.js';
+import { loadSettings, getSetting } from './services/settings.js';
+import { loadCompanies } from './services/companies.js';
+import { loadCatalogs, seedIfNeeded } from './services/catalogs.js';
+import { reconcileMirrors } from './services/drafts.js';
+import { autoMigrate } from './services/migration.js';
+import { applyTheme } from './services/theme.js';
+import { registerSW, onUpdateReady, applyUpdate, warmCache } from './services/pwa.js';
+import { tryLibs } from './services/libs.js';
+import { icon } from './ui/components/icons.js';
+import { toast } from './ui/components/toast.js';
+import { actionSheet } from './ui/components/sheet.js';
+import { openNewSheet, draftRoute, discardDraft } from './ui/flows.js';
+import { homeScreen, pendingDrafts } from './ui/screens/home.js';
+import { documentsScreen } from './ui/screens/documents.js';
+import { docDetailScreen } from './ui/screens/docDetail.js';
+import { doneScreen } from './ui/screens/done.js';
+import { catalogsScreen, catalogListScreen, isoScreen } from './ui/screens/catalogs.js';
+import { settingsScreen, companyScreen } from './ui/screens/settings.js';
+import { puertoWizard } from './ui/screens/puertoWizard.js';
+import { campoWizard } from './ui/screens/campoWizard.js';
+import { getCompany } from './services/companies.js';
+
+/* Barra inferior */
+function mountTabbar() {
+  const nav = document.createElement('nav');
+  nav.className = 'tabbar';
+  nav.setAttribute('aria-label', 'Navegación principal');
+  nav.innerHTML = `
+    <a href="#/" data-tab="home">${icon.home}<span>Inicio</span></a>
+    <a href="#/documentos" data-tab="docs">${icon.docs}<span>Documentos</span></a>
+    <button type="button" class="tab-new" data-tab="new" aria-label="Nuevo documento"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
+    <a href="#/catalogos" data-tab="cat">${icon.catalog}<span>Catálogos</span></a>
+    <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>`;
+  document.body.appendChild(nav);
+  nav.querySelector('.tab-new').addEventListener('click', openNewSheet);
+  window.addEventListener('routechange', (e) => {
+    nav.querySelectorAll('[data-tab]').forEach((a) => { const on = a.dataset.tab === e.detail.tab; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+  });
+}
+
+/* Teclado abierto (iOS no cambia el tamaño del layout): se ocultan las barras fijas para que nada quede debajo */
+function watchKeyboard() {
+  const vv = window.visualViewport; if (!vv) return;
+  const root = document.documentElement;
+  const check = () => {
+    const open = window.innerHeight - vv.height > 140 && !!document.activeElement && document.activeElement.matches('input,textarea,select');
+    root.classList.toggle('kb-open', open);
+  };
+  vv.addEventListener('resize', check);
+  document.addEventListener('focusin', (e) => {
+    setTimeout(check, 50);
+    const t = e.target;
+    if (t.matches('input.in,textarea.in') && root.classList.contains('kb-open') || /iP(hone|od)/.test(navigator.userAgent)) {
+      setTimeout(() => { if (document.activeElement === t) t.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 320);
+    }
+  });
+  document.addEventListener('focusout', () => setTimeout(check, 80));
+}
+
+function routes() {
+  route('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
+  route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'docs' });
+  route('/doc/:id', docDetailScreen, { name: 'doc', tabs: true, tab: 'docs' });
+  route('/listo/:id', doneScreen, { name: 'done' });
+  route('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'cat' });
+  route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'cat' });
+  route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'cat' });
+  route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/puerto/:company/:step', puertoWizard, { name: 'wizard' });
+  route('/campo/:step', campoWizard, { name: 'wizard' });
+}
+
+/* "Tienes un documento sin terminar" al abrir la app */
+async function offerRecovery() {
+  const path = (location.hash.replace(/^#/, '') || '/');
+  if (path !== '/') return;
+  const pend = await pendingDrafts();
+  if (!pend.length) return;
+  const d = pend[0], isP = d.type === 'puerto';
+  const v = await actionSheet({
+    title: 'Tienes un documento sin terminar',
+    message: `${isP ? 'Nota de entrega | ' + getCompany(d.company).short : 'Asignación de unidades'} | Folio ${d.data.folio}${pend.length > 1 ? ` (y ${pend.length - 1} más en Inicio)` : ''}`,
+    actions: [{ label: 'Continuar', value: 'go', style: 'primary' }, { label: 'Descartar', value: 'del', style: 'destructive' }],
+    cancel: 'Ahora no',
+  });
+  if (v === 'go') go(draftRoute(d));
+  if (v === 'del') { await discardDraft(d.id); go('/', { replace: true }); }
+}
+
+async function boot() {
+  const splash = document.getElementById('splash');
+  const t0 = performance.now();
+  try {
+    await openDB();
+    await loadSettings();
+    applyTheme();
+    await Promise.all([loadCompanies(), loadCatalogs()]);
+    await seedIfNeeded();
+    await reconcileMirrors();
+    const mig = await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
+    routes();
+    mountTabbar();
+    watchKeyboard();
+    startRouter(document.getElementById('view'));
+    if (!('switch' in document.createElement('input'))) document.documentElement.classList.add('sw-fallback');
+    if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
+    tryLibs(['qrcode']);
+    const wait = Math.max(0, 550 - (performance.now() - t0));
+    setTimeout(() => { splash.classList.add('out'); setTimeout(() => splash.remove(), 300); offerRecovery(); }, wait);
+  } catch (e) {
+    console.error(e);
+    splash.querySelector('.sp-msg').textContent = 'No se pudo abrir el almacenamiento del dispositivo. Si usas navegación privada, ábrela en una pestaña normal.';
+    splash.classList.add('err');
+    return;
+  }
+  registerSW();
+  onUpdateReady(() => toast('Hay una nueva versión de la app', { type: 'info', action: { label: 'Actualizar', fn: applyUpdate } }));
+  window.addEventListener('load', warmCache);
+  if (document.readyState === 'complete') warmCache();
+  window.addEventListener('online', () => toast('Conexión restablecida', { type: 'info' }));
+  window.addEventListener('offline', () => toast('Sin conexión. Puedes seguir trabajando.', { type: 'info', ms: 3500 }));
+}
+boot();
