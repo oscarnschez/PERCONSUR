@@ -89,6 +89,13 @@ export function computeOperator(rec, { from = null, to = null, today = todayStr(
   const trips = live(rec.trips).filter((t) => inRange(t.date));
   const loans = live(rec.loans).filter((l) => inRange(l.date));
   const adjs = live(rec.adjustments).filter((a) => inRange(a.date));
+  /* Todo lo registrado en el periodo, aunque quede después del corte (para la actividad y los avisos) */
+  const inPeriod = (d) => !from || !isDate(d) || d >= from;
+  const regTrips = live(rec.trips).filter((t) => inPeriod(t.date) && (!to || !isDate(t.date) || t.date <= to));
+  const outside = (arr, kept) => arr.filter((x) => !kept.includes(x));
+  const exTrips = outside(regTrips, trips);
+  const exLoans = outside(live(rec.loans).filter((l) => inPeriod(l.date) && (!to || l.date <= to)), loans);
+  const exAdjs = outside(live(rec.adjustments).filter((a) => inPeriod(a.date) && (!to || a.date <= to)), adjs);
 
   const fullPeriod = !from && !to;
   const satFrom = isDate(st.startDate) ? (from && from > st.startDate ? from : st.startDate) : null;
@@ -122,6 +129,13 @@ export function computeOperator(rec, { from = null, to = null, today = todayStr(
       expanded: trips.filter((t) => t.isExpanded).length, expandedAmount: sum(trips, (t) => t.expandedCommission),
       adjustments: adjs.length,
     },
+    /* Actividad registrada: todos los viajes, incluidos los posteriores al corte */
+    registered: {
+      trips: regTrips.length, puerto: regTrips.filter((t) => t.division === 'puerto').length, campo: regTrips.filter((t) => t.division === 'campo').length,
+      fares: sum(regTrips, (t) => t.fare), expanded: regTrips.filter((t) => t.isExpanded).length, expandedAmount: sum(regTrips, (t) => t.expandedCommission),
+    },
+    /* Registros que NO entran en el balance por tener fecha posterior al corte */
+    excluded: { trips: exTrips.length, loans: exLoans.length, adjustments: exAdjs.length, dates: [...exTrips, ...exLoans, ...exAdjs].map((x) => x.date).filter(isDate).sort() },
     warnings: [
       ...(!isDate(st.startDate) ? ['Configura la fecha de inicio para contabilizar los sábados.'] : []),
       ...(isDate(st.startDate) && baseCut < st.startDate ? ['La fecha de corte es anterior a la fecha de inicio: no se contabilizan sábados.'] : []),

@@ -72,6 +72,7 @@ export async function statementScreen({ id }) {
       if (fichaCut && cut !== fichaCut) notes.push(`La ficha del operador usa corte al ${fmtDate(fichaCut)}.`);
       if (r.sat.manualIgnored) notes.push(`El ajuste manual de sábados (${r.sat.manualValue}) corresponde al corte de la ficha; a esta fecha se calculan automáticamente: ${r.sat.count}.`);
       if (cut > todayStr()) notes.push('La fecha de corte es posterior a hoy.');
+      if (r.excluded.trips) notes.push(`${r.excluded.trips} viaje${r.excluded.trips === 1 ? '' : 's'} con fecha posterior al corte no se incluye${r.excluded.trips === 1 ? '' : 'n'}.`);
       $('[data-cutnote]').innerHTML = notes.map(esc).join('<br>');
     } catch (e) {
       console.error(e);

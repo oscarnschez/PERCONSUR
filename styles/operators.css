@@ -137,3 +137,7 @@ button.mv-row:active{background:var(--fill)}
 .row.issued{min-height:58px}
 .row.issued .icon-btn{color:var(--tint)}
 .stmt-vw .eo-page{margin:0 0 12px}
+
+.op-excl{align-items:flex-start}
+.op-excl b{display:block;font-weight:600;margin-bottom:2px}
+.link-btn{display:inline-block;margin-top:6px;padding:6px 0;border:0;background:none;color:var(--tint);font-weight:600;font-size:14.5px;text-decoration:underline;text-underline-offset:2px}

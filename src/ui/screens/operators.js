@@ -55,7 +55,7 @@ export async function operatorsScreen() {
         return `<a class="row op-row" href="#/operadores/${esc(o.id)}">
           <span class="av">${esc(initials(o.name))}</span>
           <span class="row-tx"><span class="row-l1"><b>${esc(o.name)}</b>${r.settings.minEnabled ? '<span class="st st-min">Mínimo</span>' : ''}</span>
-            <span class="row-l2">${companies.length > 1 ? esc(o.companyShort) + ' | ' : ''}${plural(r.stats.trips, 'viaje', 'viajes')} | ${money(r.comp.commissions)} en comisiones</span></span>
+            <span class="row-l2">${companies.length > 1 ? esc(o.companyShort) + ' | ' : ''}${plural(r.registered.trips, 'viaje', 'viajes')} | ${money(r.comp.commissions)} en comisiones</span>${r.excluded.trips ? `<span class="row-l3 warn-t">${plural(r.excluded.trips, 'viaje', 'viajes')} después del corte</span>` : ''}</span>
           <span class="op-bal ${amtCls(r.balance)}"><small>Balance</small><b>${money(r.balance)}</b></span>
         </a>`;
       }).join('')}</div>` : '<div class="empty"><p>No hay operadores con ese filtro.</p></div>';
@@ -105,6 +105,20 @@ function moveRow(m) {
     <span class="mv-tx"><b>${esc(m.title)}</b><small>${esc(fmtDate(m.date))}${sub ? ' | ' + esc(sub) : ''}${m.after ? ' | Después del corte' : ''}</small></span>${amt}</${tap ? 'button' : 'div'}>`;
 }
 
+/* Aviso: registros con fecha posterior al corte (se ven en las listas, pero no entran en el balance) */
+function excludedNotice(r) {
+  const e = r.excluded;
+  if (!e.trips && !e.loans && !e.adjustments) return '';
+  const parts = [e.trips && plural(e.trips, 'viaje', 'viajes'), e.loans && plural(e.loans, 'préstamo', 'préstamos'), e.adjustments && plural(e.adjustments, 'ajuste', 'ajustes')].filter(Boolean);
+  const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' y ' + parts.at(-1) : parts[0];
+  const total = e.trips + e.loans + e.adjustments;
+  const why = r.cutoffIsToday
+    ? `tiene${total === 1 ? '' : 'n'} fecha posterior a hoy (${fmtDate(e.dates.at(-1))}). Revisa la fecha capturada.`
+    : `tiene${total === 1 ? '' : 'n'} fecha posterior al corte del ${fmtDate(r.cutoff)} fijado en «Calcular hasta».`;
+  return `<div class="op-warn op-excl">${icon.alert}<span><b>${esc(list)} no ${total === 1 ? 'entra' : 'entran'} en el balance</b> porque ${esc(why)}
+    ${r.cutoffIsToday ? '' : '<button type="button" class="link-btn" data-settings>Cambiar a «Hoy» en Configuración</button>'}</span></div>`;
+}
+
 export async function operatorScreen({ id }, q) {
   const op = ops.operatorById(id);
   if (!op) { toast('Ese operador ya no está en el catálogo.', { type: 'info' }); go('/operadores', { replace: true }); return null; }
@@ -129,6 +143,7 @@ export async function operatorScreen({ id }, q) {
       </div>
       <button type="button" class="btn-secondary block stmt-btn" data-stmt>${icon.file}<span>Generar PDF</span><small>Estado de cuenta</small></button>
       ${r.warnings.map((w) => `<p class="op-warn">${icon.alert}<span>${esc(w)}</span></p>`).join('')}
+      ${excludedNotice(r)}
       <section class="grp"><div class="grp-h"><h3>Configuración</h3><button type="button" class="btn-ghost sm" data-settings>${icon.edit}<span>Editar</span></button></div>
         <div class="grp-b"><dl class="sumlist">
           <div><dt>Fecha de inicio</dt><dd>${isDate(st.startDate) ? esc(fmtDate(st.startDate)) : '<i>Sin configurar</i>'}</dd></div>
@@ -140,12 +155,12 @@ export async function operatorScreen({ id }, q) {
         </dl></div></section>
       <section class="grp"><div class="grp-h"><h3>Actividad</h3></div>
         <div class="tiles">
-          <div class="tile"><small>Viajes</small><b>${r.stats.trips}</b></div>
-          <div class="tile"><small>Puerto</small><b>${r.stats.puerto}</b></div>
-          <div class="tile"><small>Campo</small><b>${r.stats.campo}</b></div>
-          <div class="tile wide"><small>Tarifas acumuladas</small><b>${money(r.stats.fares)}</b></div>
-          <div class="tile wide"><small>Comisiones ampliadas</small><b>${r.stats.expanded}${r.stats.expandedAmount ? ` <span class="muted">| ${money(r.stats.expandedAmount, { sign: true })}</span>` : ''}</b></div>
-        </div></section>
+          <div class="tile"><small>Viajes</small><b>${r.registered.trips}</b></div>
+          <div class="tile"><small>Puerto</small><b>${r.registered.puerto}</b></div>
+          <div class="tile"><small>Campo</small><b>${r.registered.campo}</b></div>
+          <div class="tile wide"><small>Tarifas acumuladas</small><b>${money(r.registered.fares)}</b></div>
+          <div class="tile wide"><small>Comisiones ampliadas</small><b>${r.registered.expanded}${r.registered.expandedAmount ? ` <span class="muted">| ${money(r.registered.expandedAmount, { sign: true })}</span>` : ''}</b></div>
+        </div>${r.excluded.trips ? `<p class="grp-note">${plural(r.stats.trips, 'viaje entra', 'viajes entran')} en el balance; ${plural(r.excluded.trips, 'viaje queda', 'viajes quedan')} después del corte.</p>` : ''}</section>
       <div class="seg wide op-tabs" role="tablist">${[['viajes', 'Viajes'], ['prestamos', 'Préstamos'], ['movimientos', 'Movimientos']].map(([k, l]) => `<button type="button" role="tab" class="seg-b${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
       <div class="op-tab">${tab === 'viajes' ? tripsTab(trips, r) : tab === 'prestamos' ? loansTab(loans, r) : movesTab(rec, r)}</div>`;
     window.scrollTo(0, y);
@@ -256,6 +271,7 @@ export async function summaryScreen() {
         <div class="tile wide"><small>Tarifas acumuladas</small><b>${money(total.stats.fares)}</b></div>
         <div class="tile wide"><small>Comisiones ampliadas aplicadas</small><b>${total.stats.expanded}${total.stats.expandedAmount ? ` <span class="muted">| ${money(total.stats.expandedAmount, { sign: true })}</span>` : ''}</b></div>
       </div>
+      ${(() => { const n = list.reduce((a, x) => a + x.r.excluded.trips, 0); return n ? `<p class="op-warn">${icon.alert}<span>${plural(n, 'viaje registrado queda', 'viajes registrados quedan')} después del corte de su operador y no ${n === 1 ? 'entra' : 'entran'} en estos totales.</span></p>` : ''; })()}
       ${manualNote ? '<p class="grp-note">En periodos parciales, los sábados de operadores con ajuste manual se calculan automáticamente dentro del periodo.</p>' : ''}
       <div class="sec-hrow"><h2 class="sec-h">Por operador</h2><button type="button" class="btn-ghost sm" data-csv>${icon.download}<span>Exportar CSV</span></button></div>
       <div class="list">${list.map(({ o, r }) => `<a class="row op-row" href="#/operadores/${esc(o.id)}"><span class="av">${esc(initials(o.name))}</span>

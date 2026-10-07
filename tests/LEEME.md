@@ -10,6 +10,7 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 e2e.py` — recorrido completo emulando iPhone: migración, Puerto, Campo, catálogos, respaldo, modo oscuro. Capturas en `shots/`.
 - `python3 auth.py` — acceso: la app no carga antes de iniciar sesión, contraseña incorrecta, sesión, bloqueo por intentos, cerrar sesión.
 - `python3 operators.py` — módulo Operadores: fórmula del balance con los ejemplos oficiales, comisión ampliada, validaciones, resumen, CSV, respaldo.
+- `python3 activity.py` — Actividad cuenta todos los viajes registrados y avisa los que quedan después del corte.
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).
 - `python3 upgrade.py` — actualización de la base de datos v1 → v2 sin pérdida de datos.
 - `python3 offline.py` — sin conexión con el service worker activo.
