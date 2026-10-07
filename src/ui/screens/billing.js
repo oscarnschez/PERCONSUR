@@ -15,8 +15,8 @@ import { icon } from '../components/icons.js';
 import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { formSheet, fail, readMoney, moneyIn, openTripForm } from './operatorForms.js';
-import { operatorById } from '../../services/operators.js';
-import { tripTaxes } from '../../domain/operators/taxes.js';
+import { operatorById, setTripsTaxes } from '../../services/operators.js';
+import { tripTaxes, computeTaxes } from '../../domain/operators/taxes.js';
 
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 const payTag = (paid, f = false) => `<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? (f ? 'Pagada' : 'Pagado') : 'Por cobrar'}</span>`;
@@ -37,7 +37,7 @@ export async function billingScreen() {
   await billing.loadBilling();
   let div = getSetting('cobDiv', 'puerto') === 'campo' ? 'campo' : 'puerto';
   let status = 'todos', per = 'todo', text = '', shown = 30;
-  /* Modo «marcar varios»: se eligen viajes por cobrar de la lista filtrada y se pagan juntos */
+  /* Modo «seleccionar varios»: se eligen viajes de la lista filtrada para marcarlos pagados o cambiarles impuestos */
   let selecting = false, pool = [];
   const sel = new Set();
   const custom = { from: '', to: '' };
@@ -61,9 +61,9 @@ export async function billingScreen() {
     const scoped = filterItems(all, { division: div, from: range.from, to: range.to, text });
     let list = filterItems(scoped, { status });
     const dueN = list.filter((it) => !it.paid).length;
-    if (selecting && !dueN) { selecting = false; sel.clear(); }
+    if (selecting && !list.length) { selecting = false; sel.clear(); }
     if (selecting) {
-      list = list.filter((it) => !it.paid); pool = list;
+      pool = list;
       const ids = new Set(list.map((it) => it.id)); [...sel].forEach((id) => { if (!ids.has(id)) sel.delete(id); });
     }
     const sm = summarize(scoped);
@@ -78,12 +78,12 @@ export async function billingScreen() {
       </div>
       <div class="total-line cob-total"><span>Total por cobrar | ${div === 'campo' ? 'Campo' : 'Puerto'}</span><b class="${sm.due ? 'cob-due' : ''}">${money(sm.due)}</b></div>`;
     const none = !all.some((it) => it.division === div);
-    const selAmount = pool.filter((it) => sel.has(it.id)).reduce((a, it) => a + it.amount, 0);
+    const picked = pool.filter((it) => sel.has(it.id)), selAmount = picked.reduce((a, it) => a + it.amount, 0), selDue = picked.filter((it) => !it.paid).length;
     const head = selecting
       ? `<div class="cob-selbar"><div class="sb-info"><b>${plural(sel.size, 'viaje seleccionado', 'viajes seleccionados')}</b><b class="mono">${money(selAmount)}</b></div>
-          <div class="sb-acts"><button type="button" class="btn-ghost sm" data-selall>${sel.size === list.length ? 'Quitar selección' : `Seleccionar los ${list.length}`}</button><button type="button" class="btn-ghost sm" data-selcancel>Cancelar</button><button type="button" class="btn-primary sm" data-selpay ${sel.size ? '' : 'disabled'}>${icon.check}<span>Marcar pagados</span></button></div>
-          ${sel.size ? '' : '<small>Toca los viajes por cobrar que quieras marcar. Los filtros de arriba acotan la lista.</small>'}</div>`
-      : `<div class="sec-hrow"><h2 class="sec-h">${plural(list.length, 'viaje', 'viajes')}</h2>${dueN > 1 ? `<button type="button" class="btn-ghost sm" data-selmode>${icon.check}<span>Marcar varios</span></button>` : ''}</div>`;
+          <div class="sb-acts"><button type="button" class="btn-ghost sm" data-selall>${sel.size === list.length ? 'Quitar selección' : `Seleccionar los ${list.length}`}</button><button type="button" class="btn-ghost sm" data-selcancel>Cancelar</button><button type="button" class="btn-secondary sm" data-seltax ${sel.size ? '' : 'disabled'}>${icon.edit}<span>Impuestos</span></button><button type="button" class="btn-primary sm" data-selpay ${selDue ? '' : 'disabled'}>${icon.check}<span>Marcar pagados${selDue && selDue !== sel.size ? ` (${selDue})` : ''}</span></button></div>
+          ${sel.size ? (selDue !== sel.size ? `<small>${plural(sel.size - selDue, 'viaje seleccionado ya está pagado', 'viajes seleccionados ya están pagados')}: «Marcar pagados» no ${sel.size - selDue === 1 ? 'lo' : 'los'} toca.</small>` : '') : '<small>Toca los viajes que quieras. Puedes aplicarles impuestos o marcarlos como pagados. Los filtros de arriba acotan la lista.</small>'}</div>`
+      : `<div class="sec-hrow"><h2 class="sec-h">${plural(list.length, 'viaje', 'viajes')}</h2>${list.length > 1 ? `<button type="button" class="btn-ghost sm" data-selmode>${icon.check}<span>Seleccionar varios</span></button>` : ''}</div>`;
     listEl.innerHTML = list.length
       ? `${head}<div class="trip-list">${list.slice(0, shown).map((it) => card(it, selecting ? sel.has(it.id) : null)).join('')}</div>${list.length > shown ? `<button type="button" class="btn-ghost block" data-more>Mostrar más (${list.length - shown})</button>` : ''}`
       : `<div class="empty"><p>${none ? `Aún no hay viajes de División ${div === 'campo' ? 'Campo' : 'Puerto'} registrados en Operadores.` : 'No hay viajes con ese filtro.'}</p></div>`;
@@ -102,8 +102,12 @@ export async function billingScreen() {
   on(root, 'click', '[data-selmode]', () => { selecting = true; sel.clear(); draw(); });
   on(root, 'click', '[data-selcancel]', () => { selecting = false; sel.clear(); draw(); });
   on(root, 'click', '[data-selall]', () => { if (sel.size === pool.length) sel.clear(); else pool.forEach((it) => sel.add(it.id)); draw(); });
-  on(root, 'click', '[data-selpay]', () => {
+  on(root, 'click', '[data-seltax]', () => {
     const chosen = pool.filter((it) => sel.has(it.id));
+    if (chosen.length) openBulkTaxForm(chosen, () => { selecting = false; sel.clear(); draw(); });
+  });
+  on(root, 'click', '[data-selpay]', () => {
+    const chosen = pool.filter((it) => sel.has(it.id) && !it.paid);
     if (chosen.length) openBulkPaymentForm(chosen, () => { selecting = false; sel.clear(); draw(); });
   });
   root.addEventListener('change', (e) => { const t = e.target; if (t.dataset.c) { custom[t.dataset.c] = t.value; draw(); } });
@@ -178,6 +182,48 @@ function openPaymentForm(it, onSaved) {
       sh.close(); toast(it.paid ? 'Pago actualizado' : `Viaje pagado | ${money(it.amount)}`); onSaved && onSaved(); return true;
     },
   });
+}
+
+/*
+ * Impuestos de varios viajes a la vez. Cada concepto se deja «sin cambiar», se aplica o se quita en todos los
+ * seleccionados; lo que no se toca conserva la configuración de cada viaje. La comisión nunca cambia.
+ */
+function openBulkTaxForm(chosen, onSaved) {
+  const n = chosen.length, change = { applyVat: null, applyIsr: null, applyVatWithholding: null };
+  const ROWS = [['applyVat', 'IVA 16%', 'Se suma al total'], ['applyIsr', 'ISR 4%', 'Retención: se resta del total'], ['applyVatWithholding', 'Retención IVA 4%', 'Solo cuando aplique; nunca se activa sola']];
+  const result = (it) => { const cur = tripTaxes(it.trip), pick = (k) => (typeof change[k] === 'boolean' ? change[k] : cur[k]); return computeTaxes(it.trip.fare, { applyVat: pick('applyVat'), applyIsr: pick('applyIsr'), applyVatWithholding: pick('applyVatWithholding') }, it.trip); };
+  const differs = (it) => { const a = tripTaxes(it.trip), b = result(it); return a.applyVat !== b.applyVat || a.applyIsr !== b.applyIsr || a.applyVatWithholding !== b.applyVatWithholding; };
+  const { form } = formSheet({
+    title: 'Impuestos de varios viajes', saveLabel: `Aplicar a ${plural(n, 'viaje', 'viajes')}`,
+    html: `<div class="cob-state due"><span><b>${plural(n, 'viaje seleccionado', 'viajes seleccionados')}</b><small>Tarifas base</small></span><b>${money(chosen.reduce((a, it) => a + it.fareBase, 0))}</b></div>
+      ${ROWS.map(([k, l, sub]) => `<div class="fld"><span class="fl">${l}</span><div class="seg" data-tax="${k}">${[['', 'No cambiar'], ['1', 'Aplicar'], ['0', 'Quitar']].map(([v, t]) => `<button type="button" class="seg-b${v === '' ? ' on' : ''}" data-v="${v}" aria-pressed="${v === ''}">${t}</button>`).join('')}</div><span class="fhint">${sub}</span></div>`).join('')}
+      <section class="cm-prev" data-bprev aria-live="polite"></section>
+      <p class="grp-note">Cada impuesto se calcula sobre la tarifa base de cada viaje. La comisión de los operadores y sus balances no cambian. Para corregir un viaje en particular, ábrelo y usa «Editar viaje e impuestos».</p>`,
+    async onSubmit(f, sh) {
+      if (Object.values(change).every((v) => v === null)) { toast('Elige al menos un impuesto para aplicar o quitar.', { type: 'warn', ms: 3500 }); return false; }
+      let done = 0;
+      try { done = await setTripsTaxes(chosen.map((it) => it.id), change); }
+      catch (e) { toast(e.message || 'No se pudieron actualizar todos los viajes. Revisa la lista.', { type: 'warn', ms: 4500 }); onSaved && onSaved(); return false; }
+      sh.close(); toast(done ? `Impuestos actualizados en ${plural(done, 'viaje', 'viajes')}` : 'Los viajes ya tenían esa configuración', { type: done ? 'ok' : 'info' }); onSaved && onSaved(); return true;
+    },
+  });
+  const prev = form.querySelector('[data-bprev]');
+  function preview() {
+    const before = chosen.reduce((a, it) => a + tripTaxes(it.trip).totalAfterTaxes, 0), r = chosen.map(result), sum = (k) => r.reduce((a, x) => a + x[k], 0), after = sum('totalAfterTaxes');
+    const nChange = chosen.filter(differs).length;
+    prev.innerHTML = `<div class="cm-head"><span>Resultado en ${n === 1 ? 'el viaje' : `los ${n} viajes`}</span></div>
+      <dl class="cm-rows fin"><div><dt>Tarifas base</dt><dd>${money(sum('fareBase'))}</dd></div>
+        <div><dt>IVA</dt><dd>${money(sum('vatAmount'), { sign: true })}</dd></div><div><dt>ISR</dt><dd>${money(-sum('isrAmount'))}</dd></div><div><dt>Retención IVA</dt><dd>${money(-sum('vatWithholdingAmount'))}</dd></div>
+        <div class="tot"><dt>Total después de impuestos</dt><dd><b>${money(after)}</b></dd></div></dl>
+      <p class="cm-note">${after === before ? 'El total no cambia' : `Total actual: ${money(before)} | diferencia ${money(after - before, { sign: true })}`}. ${nChange ? plural(nChange, 'viaje cambia', 'viajes cambian') : 'Ningún viaje cambia'}${nChange && nChange !== n ? `; ${plural(n - nChange, 'ya está así', 'ya están así')}` : ''}.</p>`;
+  }
+  form.querySelectorAll('[data-tax] .seg-b').forEach((b) => b.addEventListener('click', () => {
+    const k = b.parentElement.dataset.tax, v = b.dataset.v;
+    change[k] = v === '' ? null : v === '1';
+    b.parentElement.querySelectorAll('.seg-b').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    preview();
+  }));
+  preview();
 }
 
 /* Pago de varios viajes a la vez: misma fecha y misma referencia de pago para todos */

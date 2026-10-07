@@ -16,6 +16,7 @@ import * as db from './db.js';
 import { listAll } from './catalogs.js';
 import { getCompany } from './companies.js';
 import { DEFAULT_SETTINGS, settingsOf, computeOperator, todayStr } from '../domain/operators/balance.js';
+import { tripTaxes, taxFields } from '../domain/operators/taxes.js';
 
 const cache = { settings: new Map(), trips: [], loans: [], adjustments: [], statements: [] };
 const STORE = { trips: db.S.operatorTrips, loans: db.S.operatorLoans, adjustments: db.S.operatorAdjustments };
@@ -82,6 +83,24 @@ async function softDelete(kind, id) {
 }
 export const saveTrip = (t) => saveRecord('trips', { documentId: null, source: 'manual', ...t });
 export const deleteTrip = (id) => softDelete('trips', id);
+/*
+ * Cambia los impuestos de varios viajes a la vez. change = { applyVat, applyIsr, applyVatWithholding }, cada uno
+ * true (aplicar), false (quitar) o null/undefined (no cambiar). Solo toca los campos fiscales: tarifa, gastos y
+ * comisión quedan igual. Los viajes que ya estaban así no se reescriben. Devuelve cuántos viajes cambiaron.
+ */
+export async function setTripsTaxes(tripIds, change) {
+  let n = 0;
+  for (const id of tripIds) {
+    const t = cache.trips.find((x) => x.id === id && !x.deletedAt);
+    if (!t) continue;
+    const cur = tripTaxes(t), pick = (k) => (typeof change[k] === 'boolean' ? change[k] : cur[k]);
+    const flags = { applyVat: pick('applyVat'), applyIsr: pick('applyIsr'), applyVatWithholding: pick('applyVatWithholding') };
+    if (flags.applyVat === cur.applyVat && flags.applyIsr === cur.applyIsr && flags.applyVatWithholding === cur.applyVatWithholding) continue;
+    await saveRecord('trips', { id: t.id, operatorId: t.operatorId, ...taxFields(t.fare, flags, t) });
+    n += 1;
+  }
+  return n;
+}
 /* Cambia solo la Referencia de un viaje (importaciones). No toca tarifa, gastos ni comisión; deja rastro en revisions. */
 export function setTripReference(tripId, reference, source = '') {
   const t = cache.trips.find((x) => x.id === tripId && !x.deletedAt);
