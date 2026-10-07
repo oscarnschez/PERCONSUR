@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PERCONSUR</title>
+<meta name="description" content="PERCONSUR: notas de entrega (División Puerto) y asignación de unidades (División Campo).">
+<meta name="application-name" content="PERCONSUR">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="PERCONSUR">
+<meta name="format-detection" content="telephone=no">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#F4F5F8">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png">
+<link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,700..800&display=swap">
+<link rel="stylesheet" href="./styles/tokens.css">
+<link rel="stylesheet" href="./styles/base.css">
+<link rel="stylesheet" href="./styles/components.css">
+<link rel="stylesheet" href="./styles/screens.css">
+<link rel="stylesheet" href="./styles/documents.css">
+<script>
+  /* Aplica el tema elegido antes del primer pintado (evita destello) */
+  try { var t = localStorage.getItem('pcs-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+</head>
+<body>
+<div id="splash" role="status" aria-label="Abriendo PERCONSUR">
+  <div class="sp-inner">
+    <img src="./assets/brand/perconsur-mark.png" alt="" class="sp-mark">
+    <span class="wordmark sp-word">PERCONSUR</span>
+    <div class="sp-band"><i></i></div>
+    <p class="sp-msg"></p>
+  </div>
+</div>
+<main id="view"></main>
+<noscript><p style="padding:24px;font-family:-apple-system,Arial">PERCONSUR necesita JavaScript activado.</p></noscript>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
