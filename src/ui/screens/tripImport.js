@@ -9,6 +9,9 @@ import { el, on } from '../../core/dom.js';
 import { back, query } from '../../core/router.js';
 import * as ops from '../../services/operators.js';
 import * as billing from '../../services/billing.js';
+import { save as saveCatalog } from '../../services/catalogs.js';
+import { commissionFor, ruleFromSettings } from '../../domain/operators/balance.js';
+import { nameCase } from '../../domain/shared/format.js';
 import { esc } from '../../domain/shared/format.js';
 import { money } from '../../domain/operators/money.js';
 import { fmtDate } from '../../domain/operators/balance.js';
@@ -54,12 +57,12 @@ export async function tripImportScreen() {
     if (row.refState === 'uncertain' && refEdit.get(row.rec.n)) return cleanContainer(refEdit.get(row.rec.n));
     return '';
   };
-  const changes = (row) => !!refToSet(row) || (row.state === 'ok' && row.markPaid);
-  const pending = (row) => (row.state !== 'ok') || (row.refState === 'conflict' && !replace.has(row.rec.n)) || (row.refState === 'uncertain' && !refEdit.has(row.rec.n));
+  const changes = (row) => row.state === 'create' || !!refToSet(row) || (row.state === 'ok' && row.markPaid);
+  const pending = (row) => (row.state !== 'ok' && row.state !== 'create') || (row.refState === 'conflict' && !replace.has(row.rec.n)) || (row.refState === 'uncertain' && !refEdit.has(row.rec.n));
   const totals = () => ({ ...summarizePlan(rows), refs: rows.filter((r) => refToSet(r)).length, review: rows.filter(pending).length, change: rows.filter(changes).length });
 
   function rowHTML(row) {
-    const rec = row.rec, found = row.state === 'ok';
+    const rec = row.rec, found = row.state === 'ok', isNew = row.state === 'create';
     const st = rec.paid ? '<span class="pay-tag paid">Pagado</span>' : `<span class="pay-tag none">${rec.status ? esc(rec.status) : 'Sin estatus'}</span>`;
     const acts = [];
     if (found) {
@@ -72,7 +75,8 @@ export async function tripImportScreen() {
       else if (rec.paid && row.alreadyPaid) acts.push('Ya estaba pagado');
       else if (!rec.paid) acts.push(row.alreadyPaid ? 'El pago registrado en la app no se modifica' : 'Queda por cobrar');
     }
-    const badge = pending(row) ? '<span class="st st-borrador">Revisar</span>' : changes(row) ? '<span class="st st-generado">Actualizar</span>' : '<span class="st">Sin cambios</span>';
+    if (isNew) { acts.push('Registrar viaje nuevo'); acts.push(`Comisión 15 %: ${money(Math.round(rec.fare * 0.15))}`); acts.push('Gastos de viaje: $0.00'); acts.push(rec.paid ? 'Marcar como pagado' : 'Queda por cobrar'); }
+    const badge = isNew ? '<span class="st st-generado">Crear</span>' : pending(row) ? '<span class="st st-borrador">Revisar</span>' : changes(row) ? '<span class="st st-generado">Actualizar</span>' : '<span class="st">Sin cambios</span>';
     let ctl = '';
     if (row.state === 'ambiguous' || row.manual) {
       ctl = `<label class="fld imp-ctl"><span class="fl">${esc(row.reason || 'Elige el viaje que corresponde')}</span><span class="sel-w"><select class="in" data-choice="${rec.n}">
@@ -88,7 +92,7 @@ export async function tripImportScreen() {
     }
     return `<div class="imp-row${pending(row) ? ' rev' : ''}" data-n="${rec.n}">
       <div class="imp-top"><b class="mono">${rec.container ? esc(rec.container) : 'Sin número'}</b>${st}<span class="imp-date">${esc(fmtDate(rec.date) || 'Sin fecha')}</span>${badge}</div>
-      <div class="imp-l2">${found ? `Viaje encontrado: ${esc(row.trip.origin)} → ${esc(row.trip.destination)} | ${money(row.trip.fare)}` : row.state === 'ambiguous' ? 'Coincidencia ambigua' : esc(row.reason || 'No encontrado')}</div>
+      <div class="imp-l2">${isNew ? `Viaje nuevo: ${esc(rec.origin)} → ${esc(rec.destination)} | ${money(rec.fare)}` : found ? `Viaje encontrado: ${esc(row.trip.origin)} → ${esc(row.trip.destination)} | ${money(row.trip.fare)}` : row.state === 'ambiguous' ? 'Coincidencia ambigua' : esc(row.reason || 'No encontrado')}</div>
       ${acts.length ? `<div class="imp-l3">${acts.map(esc).join(' | ')}</div>` : ''}${rec.note ? `<div class="imp-l3">${esc(rec.note)}</div>` : ''}
       ${ctl}</div>`;
   }
@@ -108,17 +112,19 @@ export async function tripImportScreen() {
     rows.forEach((row) => { const k = row.rec.operator; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(row); });
     const show = (row) => filter === 'todos' || (filter === 'revision' ? pending(row) : filter === 'cambios' ? changes(row) : !changes(row) && !pending(row));
     const tile = (label, v, cls = '') => `<div class="tile"><small>${label}</small><b class="${cls}">${v}</b></div>`;
-    body.innerHTML = `${done ? `<section class="ok-box stmt-ok">${icon.check}<span><b>Importación completada</b><small>${plural(done.trips, 'viaje actualizado', 'viajes actualizados')} | ${plural(done.refs, 'referencia agregada', 'referencias agregadas')} | ${plural(done.paid, 'viaje marcado como pagado', 'viajes marcados como pagados')}${t.review ? ` | ${plural(t.review, 'registro requiere', 'registros requieren')} revisión` : ''}</small></span></section>
+    body.innerHTML = `${done ? `<section class="ok-box stmt-ok">${icon.check}<span><b>Importación completada</b><small>${done.newTrips ? `${plural(done.newOps, 'operador agregado', 'operadores agregados')} | ${plural(done.newTrips, 'viaje registrado', 'viajes registrados')} | ` : ''}${done.trips ? `${plural(done.trips, 'viaje actualizado', 'viajes actualizados')} | ${plural(done.refs, 'referencia agregada', 'referencias agregadas')} | ` : ''} ${plural(done.paid, 'viaje marcado como pagado', 'viajes marcados como pagados')}${t.review ? ` | ${plural(t.review, 'registro requiere', 'registros requieren')} revisión` : ''}</small></span></section>
         ${t.review ? `<button type="button" class="btn-secondary block imp-pend" data-f="revision">${icon.alert}<span>Revisar pendientes (${t.review})</span></button>` : ''}` : ''}
-      <div class="tiles imp-tiles">${tile('Registros detectados', t.detected)}${tile('Viajes encontrados', t.found)}${tile('Referencias a agregar', t.refs)}${tile('Viajes a marcar como pagados', t.pay, t.pay ? 'pos' : '')}${tile('Requieren revisión', t.review, t.review ? 'cob-due' : '')}</div>
+      <div class="tiles imp-tiles">${t.newTrips ? tile('Operadores nuevos', t.newOps, t.newOps ? 'pos' : '') + tile('Viajes nuevos', t.newTrips, 'pos') : ''}${tile('Registros detectados', t.detected)}${tile('Viajes encontrados', t.found)}${tile('Referencias a agregar', t.refs)}${tile('Viajes a marcar como pagados', t.pay, t.pay ? 'pos' : '')}${tile('Requieren revisión', t.review, t.review ? 'cob-due' : '')}</div>
       ${source ? `<p class="grp-note">Origen: ${esc(source)}</p>` : ''}
       <div class="chips filters">${FILTERS.map(([k, l]) => `<button type="button" class="chip${filter === k ? ' on' : ''}" data-f="${k}">${l}</button>`).join('')}</div>
       ${[...groups].map(([name, list]) => {
         const vis = list.filter(show);
         const op = list[0].op;
-        return vis.length ? `<div class="grp-h solo"><h3>${esc(op ? op.name : name)}</h3><span class="count">${op ? plural(vis.length, 'registro', 'registros') : 'No está en el catálogo'}</span></div><div class="imp-list">${vis.map(rowHTML).join('')}</div>` : '';
+        const nu = list.find((r) => r.state === 'create' && r.newOp), pf = nu && nu.rec.profile;
+        return vis.length ? `<div class="grp-h solo"><h3>${esc(op ? op.name : nu ? nameCase(name) : name)}</h3><span class="count">${op ? plural(vis.length, 'registro', 'registros') : nu ? 'Operador nuevo' : 'No está en el catálogo'}</span></div>
+          ${nu ? `<p class="grp-note imp-newop">Se dará de alta en el catálogo de ${esc(nu.rec.company === 'perconsur' ? 'PERCONSUR' : nu.rec.company.toUpperCase())}${pf ? ` con RFC <b class="mono">${esc(pf.rfc || '—')}</b>, CURP <b class="mono">${esc(pf.curp || '—')}</b> y licencia <b class="mono">${esc(pf.license || '—')}</b>` : ''}. La fecha de inicio y el monto semanal se configuran después en su ficha.</p>` : ''}<div class="imp-list">${vis.map(rowHTML).join('')}</div>` : '';
       }).join('') || '<div class="empty"><p>No hay registros con ese filtro.</p></div>'}
-      <p class="grp-note center">Solo se actualizan la Referencia y el estatus de pago. No se crean viajes ni cambian tarifas, gastos, comisiones o balances. Los viajes marcados como pagados quedan sin fecha de pago, porque el archivo no la trae.</p>`;
+      <p class="grp-note center">${t.newTrips ? 'Los viajes nuevos se registran con la tarifa del archivo, comisión del 15 % y gastos de viaje en cero. En los viajes que ya existen solo' : 'Solo'} se actualizan la Referencia y el estatus de pago${t.newTrips ? '' : '. No se crean viajes ni cambian tarifas, gastos, comisiones o balances'}. Los viajes marcados como pagados quedan sin fecha de pago, porque el archivo no la trae.</p>`;
     bar.innerHTML = `<button type="button" class="btn-secondary" data-act="cancel">${icon.close}<span>${done ? 'Cerrar' : 'Cancelar'}</span></button>
       <button type="button" class="btn-primary" data-act="apply" ${t.change ? '' : 'disabled'}>${icon.check}<span>Aplicar cambios${t.change ? ` (${t.change})` : ''}</span></button>`;
   }
@@ -131,24 +137,44 @@ export async function tripImportScreen() {
   async function apply() {
     const todo = rows.filter(changes);
     if (!todo.length) return;
-    const ids = todo.map((r) => r.trip.id);
+    const ids = todo.filter((r) => r.trip).map((r) => r.trip.id);
     if (new Set(ids).size !== ids.length) { toast('Elegiste el mismo viaje para dos registros. Corrige la selección.', { type: 'warn', ms: 4500 }); return; }
-    const nRef = todo.filter((r) => refToSet(r)).length, toPay = todo.filter((r) => r.markPaid), left = rows.filter(pending).length;
-    const v = await actionSheet({ title: 'Aplicar cambios', message: `${plural(todo.length, 'viaje', 'viajes')} por actualizar: ${plural(nRef, 'referencia', 'referencias')} y ${plural(toPay.length, 'viaje marcado como pagado', 'viajes marcados como pagados')}.${left ? ` ${plural(left, 'registro queda', 'registros quedan')} para revisión y no se ${left === 1 ? 'modifica' : 'modifican'}.` : ''}`,
+    const creates = todo.filter((r) => r.state === 'create'), updates = todo.filter((r) => r.state === 'ok');
+    const newOpNames = [...new Set(creates.filter((r) => r.newOp).map((r) => r.rec.operator))];
+    const nRef = updates.filter((r) => refToSet(r)).length, toPay = todo.filter((r) => r.markPaid), left = rows.filter(pending).length;
+    const v = await actionSheet({ title: 'Aplicar cambios', message: `${creates.length ? `${newOpNames.length ? plural(newOpNames.length, 'operador nuevo', 'operadores nuevos') + ' y ' : ''}${plural(creates.length, 'viaje nuevo', 'viajes nuevos')}. ` : ''}${updates.length ? `${plural(updates.length, 'viaje', 'viajes')} por actualizar: ${plural(nRef, 'referencia', 'referencias')}. ` : ''}${plural(toPay.length, 'viaje marcado como pagado', 'viajes marcados como pagados')}.${left ? ` ${plural(left, 'registro queda', 'registros quedan')} para revisión y no se ${left === 1 ? 'modifica' : 'modifican'}.` : ''}`,
       actions: [{ label: 'Aplicar cambios', value: true, style: 'primary' }] });
     if (!v) return;
     busy(true, 'Actualizando viajes…', '');
-    let refs = 0, paid = 0;
+    let refs = 0, paid = 0, newOps = 0, newTrips = 0;
     try {
-      for (const r of todo) { const ref = refToSet(r); if (ref) { await ops.setTripReference(r.trip.id, ref, IMPORT_SOURCE); refs += 1; } }
-      paid = await billing.setTripsPaid(toPay.map((r) => r.trip.id), { paidDate: '', reference: '', source: IMPORT_SOURCE });
+      /* Altas: primero los operadores, después sus viajes */
+      const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const payIds = toPay.filter((r) => r.trip).map((r) => r.trip.id);
+      for (const r of creates) {
+        const rec = r.rec;
+        let op = ops.operatorList().find((o) => fold(o.name) === fold(rec.operator));
+        if (!op) {
+          const pf = rec.profile || {};
+          op = await saveCatalog('operators', { company: rec.company, name: nameCase(rec.operator), rfc: pf.rfc || '', curp: pf.curp || '', license: { number: pf.license || '', type: '', issued: '', expires: '' }, source: IMPORT_SOURCE });
+          newOps += 1;
+        }
+        const c = commissionFor(rec.fare, ruleFromSettings(ops.settingsFor(op.id)));
+        const t = await ops.saveTrip({ operatorId: op.id, division: 'puerto', date: rec.date, reference: rec.container, referenceSource: IMPORT_SOURCE, origin: rec.origin, destination: rec.destination,
+          fare: rec.fare, travelExpenses: 0, commissionRate: c.rate, minEnabled: !!ops.settingsFor(op.id).minEnabled, minAmount: ops.settingsFor(op.id).minAmount,
+          baseCommission: c.base, expandedCommission: c.adjustment, finalCommission: c.final, isExpanded: c.expanded, notes: '', source: IMPORT_SOURCE });
+        newTrips += 1;
+        if (rec.paid) payIds.push(t.id);
+      }
+      for (const r of updates) { const ref = refToSet(r); if (ref) { await ops.setTripReference(r.trip.id, ref, IMPORT_SOURCE); refs += 1; } }
+      paid = await billing.setTripsPaid(payIds, { paidDate: '', reference: '', source: IMPORT_SOURCE });
     } catch (e) {
       busy(false); console.error(e);
       toast('No se pudieron aplicar todos los cambios. Revisa la vista previa: muestra lo que falta.', { type: 'warn', ms: 6000 });
       plan(); draw(); return;
     }
     busy(false);
-    done = { trips: todo.length, refs, paid };
+    done = { trips: updates.length, refs, paid, newOps, newTrips };
     replace.clear(); refEdit.clear();
     plan(); draw(); window.scrollTo(0, 0);
     toast('Importación completada');
