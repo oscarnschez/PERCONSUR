@@ -1,0 +1,43 @@
+/*
+ * Tokens de diseño PERCONSUR.
+ * Paleta: blanco y gris muy claro de base, azul corporativo para marca y navegación,
+ * naranja corporativo solo para acciones principales y acentos.
+ * Tipografía: la del sistema (SF Pro en iPhone) para la interfaz; Archivo condensada solo para el logotipo.
+ * Motivo gráfico: la banda corrugada azul/naranja de los documentos (puerta de contenedor).
+ */
+:root{
+  --blue:#354FA3; --blue-d:#233878; --blue-m:#4A63B5; --blue-t:#EEF1F8; --tint:#354FA3;
+  --orange:#F26F22; --orange-d:#D65B15; --orange-t:#FEF3EC;
+  --canvas:#F4F5F8; --surface:#FFFFFF; --surface-2:#F5F6F9; --fill:#E9EBF0;
+  --ink:#1A2233; --ink-2:#4A5468; --muted:#7A8395; --line:#E3E6ED; --line-2:#D3D8E2;
+  --ok:#1E7A4C; --ok-t:#E6F3EB; --warn:#B4441A; --warn-t:#FDF1E9; --danger:#C62828; --danger-t:#FCECEC;
+  --wa:#1FAF55;
+  --shadow-1:0 1px 2px rgba(20,30,55,.06);
+  --shadow-2:0 8px 28px rgba(20,30,55,.14);
+  --r-xs:8px; --r-sm:10px; --r:14px; --r-lg:18px;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-brand:"Archivo","Arial Narrow",Arial,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
+  --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
+  --tab-h:56px; --bar-h:68px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --tint:#93A7EE; --blue-t:#1A2442; --orange:#FF7A33; --orange-d:#E8661F; --orange-t:#2C1D14;
+    --canvas:#0E1219; --surface:#161B25; --surface-2:#1C2230; --fill:#242B3A;
+    --ink:#E8EBF2; --ink-2:#B6BDCC; --muted:#8A93A6; --line:#252C3A; --line-2:#323B4D;
+    --ok:#5BC98E; --ok-t:#13281D; --warn:#FF9A62; --warn-t:#2B1A10; --danger:#FF6B6B; --danger-t:#2C1515;
+    --shadow-1:none; --shadow-2:0 10px 32px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --tint:#93A7EE; --blue-t:#1A2442; --orange:#FF7A33; --orange-d:#E8661F; --orange-t:#2C1D14;
+  --canvas:#0E1219; --surface:#161B25; --surface-2:#1C2230; --fill:#242B3A;
+  --ink:#E8EBF2; --ink-2:#B6BDCC; --muted:#8A93A6; --line:#252C3A; --line-2:#323B4D;
+  --ok:#5BC98E; --ok-t:#13281D; --warn:#FF9A62; --warn-t:#2B1A10; --danger:#FF6B6B; --danger-t:#2C1515;
+  --shadow-1:none; --shadow-2:0 10px 32px rgba(0,0,0,.5);
+  color-scheme:dark;
+}

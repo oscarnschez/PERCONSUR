@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Exportar datos del sistema anterior | PERCONSUR</title>
+<style>
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#F4F5F8;color:#1A2233;padding:calc(env(safe-area-inset-top) + 24px) 20px 40px}
+  main{max-width:520px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 8px} p{line-height:1.45;color:#4A5468}
+  .box{background:#fff;border:1px solid #E3E6ED;border-radius:14px;padding:16px;margin:16px 0}
+  ul{padding-left:20px;margin:8px 0;color:#1A2233;font-size:15px}
+  button{width:100%;min-height:52px;border:0;border-radius:12px;background:#F26F22;color:#fff;font-size:17px;font-weight:600}
+  button:disabled{opacity:.4}
+  small{color:#7A8395}
+</style>
+</head>
+<body>
+<main>
+  <h1>Exportar datos del sistema anterior</h1>
+  <p>Esta página lee los datos que el generador de documentos anterior (NER 3.0) guardó en este navegador: borradores, fotos del borrador, consecutivos de folio y placas recordadas. Crea un archivo que después importas en la app nueva desde <b>Ajustes → Importar respaldo</b>.</p>
+  <p><small>Debe abrirse desde el mismo sitio (dominio) donde usabas el sistema anterior y en el mismo navegador; los datos locales no se comparten entre sitios. No modifica ni borra nada.</small></p>
+  <div class="box" id="box">Buscando datos…</div>
+  <button type="button" id="go" disabled>Exportar archivo</button>
+</main>
+<script>
+  var keys = {};
+  try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); if (k && k.indexOf('ner-') === 0) keys[k] = localStorage.getItem(k); } } catch (e) {}
+  var names = Object.keys(keys), box = document.getElementById('box'), go = document.getElementById('go');
+  if (!names.length) box.innerHTML = 'No se encontraron datos del sistema anterior en este sitio y navegador.';
+  else {
+    box.innerHTML = '<b>' + names.length + ' elementos encontrados:</b><ul>' + names.map(function (n) { return '<li>' + n.replace(/[<>&]/g, '') + ' <small>(' + Math.round((keys[n] || '').length / 1024) + ' KB)</small></li>'; }).join('') + '</ul>';
+    go.disabled = false;
+  }
+  go.addEventListener('click', function () {
+    var json = JSON.stringify({ format: 'ner-legacy', exportedAt: new Date().toISOString(), origin: location.origin, keys: keys });
+    var file = new File([json], 'PERCONSUR-datos-anteriores.json', { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: file.name }).catch(function () {}); return; }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 3000);
+  });
+</script>
+</body>
+</html>

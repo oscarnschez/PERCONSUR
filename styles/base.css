@@ -1,0 +1,45 @@
+*,*::before,*::after{box-sizing:border-box}
+html{overflow-x:clip;-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--canvas);scroll-padding-top:calc(var(--sat) + 72px);scroll-padding-bottom:calc(var(--sab) + 96px)}
+body{margin:0;min-height:100%;overflow-x:clip;background:var(--canvas);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.4;-webkit-font-smoothing:antialiased;
+  -webkit-tap-highlight-color:transparent;overscroll-behavior-y:none;padding-left:var(--sal);padding-right:var(--sar)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-user-select:none;user-select:none}
+a{color:var(--tint);text-decoration:none}
+[hidden]{display:none!important}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--orange) 70%,transparent);outline-offset:2px}
+.ic{width:22px;height:22px;flex:none;display:block}
+.mono,.folio{font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.wordmark{font-family:var(--font-brand);font-weight:800;font-stretch:75%;letter-spacing:.02em;color:var(--blue);line-height:1}
+:root[data-theme="dark"] .wordmark{color:#E8EBF2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .wordmark{color:#E8EBF2}}
+.warn-t{color:var(--warn)}
+.center{text-align:center}
+html.sheet-open,html.sheet-open body,html.is-busy body{overflow:hidden}
+
+/* Banda corrugada (motivo de marca tomado de los documentos) */
+.band{height:6px;border-radius:2px;position:relative;overflow:hidden;
+  background:repeating-linear-gradient(90deg,#354FA3 0 9px,#233878 9px 12px,#4A63B5 12px 14px)}
+.band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:22%;background:repeating-linear-gradient(90deg,#F26F22 0 9px,#D65B15 9px 12px,#F58A4A 12px 14px)}
+.band.slim{height:4px;width:96px;margin:18px auto 0}
+
+/* Pantalla de carga */
+#splash{position:fixed;inset:0;z-index:2000;background:var(--canvas);display:grid;place-items:center;transition:opacity .28s ease}
+#splash.out{opacity:0;pointer-events:none}
+.sp-inner{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px;text-align:center}
+.sp-mark{width:76px;height:76px;object-fit:contain}
+.sp-word{font-size:34px}
+.sp-band{width:132px;height:5px;border-radius:2px;background:var(--fill);overflow:hidden;margin-top:6px}
+.sp-band i{display:block;height:100%;width:100%;transform-origin:left;animation:spFill .55s var(--ease) both;
+  background:repeating-linear-gradient(90deg,#354FA3 0 9px,#233878 9px 12px,#4A63B5 12px 14px)}
+@keyframes spFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.sp-msg{max-width:300px;color:var(--ink-2);font-size:15px;margin:8px 0 0}
+#splash.err .sp-band{display:none}
+
+/* Transiciones de pantalla */
+/* Solo se anima el contenido (nunca el contenedor de las barras fijas) y sin dejar el transform aplicado:
+   un ancestro con transform convierte position:fixed en relativo a él (Safari y Chrome). */
+#view>.enter:not(.wiz),#view>.wiz.enter>.wiz-body{animation:scrIn .22s var(--ease) backwards}
+#view>.enter-back:not(.wiz),#view>.wiz.enter-back>.wiz-body{animation:scrBack .22s var(--ease) backwards}
+@keyframes scrIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes scrBack{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
