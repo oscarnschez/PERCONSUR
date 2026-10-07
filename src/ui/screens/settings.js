@@ -45,7 +45,7 @@ export async function settingsScreen() {
       <div class="row-info">${icon.person}<span>${esc(ses ? ses.name : '')}${ses ? ` | usuario ${esc(ses.user)}` : ''}</span></div>
       <button type="button" class="row-btn danger" data-a="logout">${icon.back}<span>Cerrar sesión</span></button>
     </div><p class="grp-note">La sesión termina al cerrar la app o después de 12 horas. Los borradores se guardan antes de salir.</p></section>
-    <footer class="about"><img src="./assets/brand/perconsur-mark.png" alt=""><b class="wordmark sm">PERCONSUR</b><span>Versión ${APP_VERSION} (${APP_BUILD})</span></footer>
+    <footer class="about"><img src="./assets/brand/perconsur-mark.png" alt=""><b class="wordmark sm">PERCONSUR</b><span>Versión ${APP_VERSION}</span><small>Compilación ${APP_BUILD}</small></footer>
   </div>`);
   const root = s.el;
   on(root, 'click', '[data-theme-v]', async (e, b) => { await setTheme(b.dataset.themeV); root.querySelectorAll('[data-theme-v]').forEach((x) => x.classList.toggle('on', x === b)); });

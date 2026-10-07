@@ -15,6 +15,13 @@ export const AUTH = {
     "role": "admin",
     "salt": "rWPAHHKwRsj5V+wwkSibSw==",
     "hash": "10O9zMSyId5O4eTKY59D1rBmYaA+T1LARM3ron8jCJg="
+  },
+  {
+    "id": "0146e6c98f8db19980e7b045669bcf8002643ec06a736f8e2510605db9c53eab",
+    "name": "Administrador",
+    "role": "admin",
+    "salt": "ZHwX1je9dWiIgpLsERIK6w==",
+    "hash": "cGg3MrZWMy87WfRD8cpUT0IikVTH8atdqnJvreZ2eLg="
   }
 ],
 };

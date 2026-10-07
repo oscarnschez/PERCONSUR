@@ -25,6 +25,7 @@ import { settingsScreen, companyScreen } from './ui/screens/settings.js';
 import { puertoWizard } from './ui/screens/puertoWizard.js';
 import { campoWizard } from './ui/screens/campoWizard.js';
 import { getCompany } from './services/companies.js';
+import { APP_VERSION, APP_BUILD } from './config/reference.js';
 
 /* Barra inferior */
 function mountTabbar() {
@@ -102,6 +103,10 @@ async function boot() {
     await loadSettings();
     applyTheme();
     await Promise.all([loadCompanies(), loadCatalogs()]);
+    /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
+    let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
+    const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');
+    try { localStorage.setItem('pcs-version', APP_VERSION); } catch (e) { /* */ }
     await seedIfNeeded();
     await reconcileMirrors();
     const mig = await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
@@ -111,6 +116,7 @@ async function boot() {
     startRouter(document.getElementById('view'));
     if (!('switch' in document.createElement('input'))) document.documentElement.classList.add('sw-fallback');
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
+    else if (updated) toast(`PERCONSUR se actualizó a la versión ${APP_VERSION}`, { type: 'info', ms: 5000 });
     tryLibs(['qrcode']);
     /* Si se viene de la pantalla de acceso ya no hay splash */
     const wait = splash ? Math.max(0, 550 - (performance.now() - t0)) : 0;

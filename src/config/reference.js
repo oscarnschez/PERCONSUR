@@ -3,8 +3,8 @@
  * No modificar sin revisar dónde se usan (documentos PDF, código para Excel, resumen WhatsApp).
  */
 
-export const APP_VERSION = '1.0.0';
-export const APP_BUILD = '2026.10.06';
+/* Versión: se genera automáticamente en src/config/version.js al ejecutar scripts/precache.mjs */
+export { APP_VERSION, APP_BUILD } from './version.js';
 
 /* Límites operativos originales */
 export const MAX_CONT = 2;   // Máximo 2 contenedores por nota de entrega
