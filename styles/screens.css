@@ -205,3 +205,23 @@ html.kb-open .actionbar{display:none}
 .wordmark.sm{font-size:20px}
 .cat-form{padding-top:4px}
 .cat-form .btn-danger{margin-top:10px}
+
+/* ===== Acceso ===== */
+.login{position:fixed;inset:0;z-index:1800;background:var(--canvas);overflow-y:auto;-webkit-overflow-scrolling:touch;transition:opacity .25s ease}
+.login.out{opacity:0;pointer-events:none}
+.login-in{max-width:420px;margin:0 auto;padding:calc(var(--sat) + 44px) calc(20px + var(--sar)) calc(var(--sab) + 32px) calc(20px + var(--sal))}
+.login-brand{display:flex;flex-direction:column;align-items:flex-start;gap:10px;margin-bottom:28px}
+.login-mark{width:58px;height:58px;object-fit:contain}
+.login-word{font-size:30px}
+.login-brand .band{width:160px}
+.login-title{margin:0;font-size:30px;font-weight:700;letter-spacing:-.02em}
+.login-sub{margin:6px 0 22px;color:var(--ink-2);font-size:16px}
+.login-form .fld{margin-bottom:16px}
+.login-form .in-act.on{color:var(--orange)}
+.login-form .in-act{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.login-msg{min-height:22px;margin:-4px 2px 14px;font-size:15px;color:var(--ink-2)}
+.login-msg.warn{color:var(--warn)}
+.login-msg:empty{margin-bottom:6px}
+.login-foot{margin:28px 0 0;text-align:center;color:var(--muted);font-size:13px}
+.shake{animation:shake .38s ease}
+@keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}

@@ -1,5 +1,5 @@
 /*
- * PERCONSUR — arranque de la aplicación.
+ * PERCONSUR — arranque de la aplicación (se carga solo después de iniciar sesión; ver src/auth/gate.js).
  * Orden: base de datos → ajustes/empresas/catálogos → migración del sistema anterior → rutas.
  */
 import { startRouter, route, go } from './core/router.js';
@@ -112,12 +112,14 @@ async function boot() {
     if (!('switch' in document.createElement('input'))) document.documentElement.classList.add('sw-fallback');
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
     tryLibs(['qrcode']);
-    const wait = Math.max(0, 550 - (performance.now() - t0));
-    setTimeout(() => { splash.classList.add('out'); setTimeout(() => splash.remove(), 300); offerRecovery(); }, wait);
+    /* Si se viene de la pantalla de acceso ya no hay splash */
+    const wait = splash ? Math.max(0, 550 - (performance.now() - t0)) : 0;
+    setTimeout(() => { if (splash) { splash.classList.add('out'); setTimeout(() => splash.remove(), 300); } offerRecovery(); }, wait);
   } catch (e) {
     console.error(e);
-    splash.querySelector('.sp-msg').textContent = 'No se pudo abrir el almacenamiento del dispositivo. Si usas navegación privada, ábrela en una pestaña normal.';
-    splash.classList.add('err');
+    const text = 'No se pudo abrir el almacenamiento del dispositivo. Si usas navegación privada, ábrela en una pestaña normal.';
+    if (splash) { splash.querySelector('.sp-msg').textContent = text; splash.classList.add('err'); }
+    else document.getElementById('view').innerHTML = `<div class="page"><p class="page-lead">${text}</p></div>`;
     return;
   }
   registerSW();

@@ -14,9 +14,11 @@ import { esc, fmtSize } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
 import { openSheet, actionSheet, busy } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
+import { currentSession, logout } from '../../auth/gate.js';
 
 export async function settingsScreen() {
   const th = themePref();
+  const ses = currentSession();
   const mig = getSetting('legacyMigrated');
   const s = screen(`<div class="page">
     <header class="page-top"><h1 class="title">Ajustes</h1></header>
@@ -39,6 +41,10 @@ export async function settingsScreen() {
       ${isStandalone() ? '' : `<button type="button" class="row-btn" data-a="install">${icon.phone}<span>Instalar en la pantalla de inicio</span>${icon.chev}</button>`}
       <button type="button" class="row-btn" data-a="update">${icon.refresh}<span>Buscar actualización</span>${icon.chev}</button>
     </div></section>
+    <section class="grp"><div class="grp-h"><h3>Sesión</h3></div><div class="grp-b list-actions">
+      <div class="row-info">${icon.person}<span>${esc(ses ? ses.name : '')}${ses ? ` | usuario ${esc(ses.user)}` : ''}</span></div>
+      <button type="button" class="row-btn danger" data-a="logout">${icon.back}<span>Cerrar sesión</span></button>
+    </div><p class="grp-note">La sesión termina al cerrar la app o después de 12 horas. Los borradores se guardan antes de salir.</p></section>
     <footer class="about"><img src="./assets/brand/perconsur-mark.png" alt=""><b class="wordmark sm">PERCONSUR</b><span>Versión ${APP_VERSION} (${APP_BUILD})</span></footer>
   </div>`);
   const root = s.el;
@@ -61,6 +67,11 @@ export async function settingsScreen() {
         if (r === 'unsupported' || r === 'error') downloadBlob(f, f.name);
         if (r !== 'cancelled') { sh.close(); toast('Respaldo exportado'); }
       });
+    }
+    if (a === 'logout') {
+      const v = await actionSheet({ title: 'Cerrar sesión', message: 'Se pedirá usuario y contraseña para volver a entrar. Tus borradores quedan guardados.', actions: [{ label: 'Cerrar sesión', value: true, style: 'destructive' }] });
+      if (v) await logout();
+      return;
     }
     if (a === 'install') openSheet({ title: 'Instalar PERCONSUR', body: `<ol class="steps-list"><li>Abre esta página en <b>Safari</b>.</li><li>Toca <b>Compartir</b> ${icon.share} en la barra inferior.</li><li>Elige <b>Añadir a pantalla de inicio</b> y confirma con <b>Añadir</b>.</li></ol><p class="grp-note">Se abrirá como una app, sin la barra de Safari, y funcionará sin conexión.</p>` });
     if (a === 'update') {

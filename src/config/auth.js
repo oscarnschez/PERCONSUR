@@ -1,0 +1,20 @@
+/*
+ * Credenciales de acceso — ARCHIVO GENERADO por scripts/credenciales.mjs. No editar a mano.
+ * No contiene el usuario ni la contraseña: solo huellas irreversibles.
+ *   id   = SHA-256("pcs-auth-v1|" + usuario en minúsculas)
+ *   hash = PBKDF2-SHA256(contraseña, salt, 600000 iteraciones, 32 bytes)
+ */
+export const AUTH = {
+  v: 1,
+  pepper: 'pcs-auth-v1',
+  iterations: 600000,
+  users: [
+  {
+    "id": "0d5f494351d0d5d2e1366bf7e9abc185d609f93b9f2cee1205494e19949bfbcd",
+    "name": "Administrador",
+    "role": "admin",
+    "salt": "rWPAHHKwRsj5V+wwkSibSw==",
+    "hash": "10O9zMSyId5O4eTKY59D1rBmYaA+T1LARM3ron8jCJg="
+  }
+],
+};

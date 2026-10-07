@@ -1,5 +1,12 @@
 import subprocess, time, sys, json, base64, datetime, os
 from playwright.sync_api import sync_playwright
+
+def login(pg):
+    import os
+    U=os.environ.get('PCS_TEST_USER'); P=os.environ.get('PCS_TEST_PASS')
+    if not (U and P): raise SystemExit('Define PCS_TEST_USER y PCS_TEST_PASS (credenciales de acceso de la app)')
+    pg.wait_for_selector('.login'); pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.login', state='detached', timeout=10000)
+
 SHIM=open('shims.js').read()
 today=datetime.date.today(); key=today.strftime('%y%m%d'); fecha=today.isoformat()
 photo='data:image/jpeg;base64,'+base64.b64encode(open('foto.jpg','rb').read()).decode()
@@ -24,7 +31,7 @@ try:
     pg.locator('#mainSheet .sheet').screenshot(path='fid_orig_main.png')
     pg.locator('#annex .sheet').first.screenshot(path='fid_orig_annex.png')
     # nueva (migra el mismo borrador)
-    pg.goto('http://127.0.0.1:8766/index.html'); pg.wait_for_timeout(2500)
+    pg.goto('http://127.0.0.1:8766/index.html'); login(pg); pg.wait_for_timeout(2500)
     pg.evaluate('''async()=>{ const f=await import('/src/ui/flows.js'); const d=await (await import('/src/services/drafts.js')).getDraft('puerto:perconsur');
       await f.ensureDocAssets('puerto', d.data); const w=document.createElement('div'); w.className='doc-root'; w.id='fid';
       w.style.cssText='position:absolute;left:0;top:0;width:816px;z-index:5000;background:#888'; w.innerHTML=f.docHTML('puerto', d.data,'perconsur'); document.body.appendChild(w); }''')

@@ -1,5 +1,12 @@
 import subprocess, time, sys, json, base64, datetime
 from playwright.sync_api import sync_playwright
+
+def login(pg):
+    import os
+    U=os.environ.get('PCS_TEST_USER'); P=os.environ.get('PCS_TEST_PASS')
+    if not (U and P): raise SystemExit('Define PCS_TEST_USER y PCS_TEST_PASS (credenciales de acceso de la app)')
+    pg.wait_for_selector('.login'); pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.login', state='detached', timeout=10000)
+
 import os; APP=os.path.abspath(os.path.join(os.path.dirname(__file__),'..'))
 srv = subprocess.Popen([sys.executable,'-m','http.server','8765','--bind','127.0.0.1'], cwd=APP, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
@@ -31,7 +38,7 @@ try:
     pg.on('pageerror', lambda e: errs.append('PAGEERROR: '+str(e)))
     pg.goto('http://127.0.0.1:8765/manifest.json')
     pg.evaluate('ls=>{for(const[k,v] of Object.entries(ls)) localStorage.setItem(k,v)}', LS)
-    pg.goto('http://127.0.0.1:8765/index.html')
+    pg.goto('http://127.0.0.1:8765/index.html'); login(pg)
     pg.wait_for_selector('.asheet', timeout=8000); pg.wait_for_timeout(400)
     shot(pg,'01_recuperacion')
     ok(pg.locator('.as-head h2').inner_text()=='Tienes un documento sin terminar','aviso de documento sin terminar al abrir')
