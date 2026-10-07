@@ -12,6 +12,9 @@ import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/ope
 import { statementScreen } from './ui/screens/statement.js';
 import { adminScreen, operationScreen } from './ui/screens/hubs.js';
 import { fuelScreen, fuelUnitScreen } from './ui/screens/fuel.js';
+import { billingScreen } from './ui/screens/billing.js';
+import { tripImportScreen } from './ui/screens/tripImport.js';
+import { billingReportScreen } from './ui/screens/billingReport.js';
 import { reconcileMirrors } from './services/drafts.js';
 import { autoMigrate } from './services/migration.js';
 import { applyTheme } from './services/theme.js';
@@ -82,9 +85,12 @@ function routes() {
   route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'admin' });
   route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'admin' });
   route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'admin' });
+  route('/operadores/importar', tripImportScreen, { name: 'wizard' });
   route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'admin' });
   route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'admin' });
   route('/operadores/:id/estado', statementScreen, { name: 'wizard' });
+  route('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
+  route('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/puerto/:company/:step', puertoWizard, { name: 'wizard' });

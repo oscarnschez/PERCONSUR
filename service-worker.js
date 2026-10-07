@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '72835aab79';
+const VERSION = '9309eafb78';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -19,6 +19,8 @@ const PRECACHE = [
   "./src/config/version.js",
   "./src/core/dom.js",
   "./src/core/router.js",
+  "./src/domain/billing/billing.js",
+  "./src/domain/billing/report.js",
   "./src/domain/campo/model.js",
   "./src/domain/campo/sheet.js",
   "./src/domain/fuel/fuel.js",
@@ -26,11 +28,14 @@ const PRECACHE = [
   "./src/domain/operators/balance.js",
   "./src/domain/operators/money.js",
   "./src/domain/operators/statement.js",
+  "./src/domain/operators/tripImport.js",
   "./src/domain/puerto/model.js",
   "./src/domain/puerto/sheet.js",
   "./src/domain/shared/format.js",
   "./src/main.js",
   "./src/services/backup.js",
+  "./src/services/billing.js",
+  "./src/services/billingPdf.js",
   "./src/services/camera.js",
   "./src/services/catalogs.js",
   "./src/services/codes.js",
@@ -59,6 +64,8 @@ const PRECACHE = [
   "./src/ui/components/sheet.js",
   "./src/ui/components/toast.js",
   "./src/ui/flows.js",
+  "./src/ui/screens/billing.js",
+  "./src/ui/screens/billingReport.js",
   "./src/ui/screens/campoWizard.js",
   "./src/ui/screens/catalogs.js",
   "./src/ui/screens/docActions.js",
@@ -74,6 +81,7 @@ const PRECACHE = [
   "./src/ui/screens/puertoWizard.js",
   "./src/ui/screens/settings.js",
   "./src/ui/screens/statement.js",
+  "./src/ui/screens/tripImport.js",
   "./src/ui/screens/viewer.js",
   "./src/ui/screens/wizardShell.js",
   "./styles/base.css",
@@ -96,7 +104,15 @@ const PRECACHE = [
   "./assets/brand/track-perconsur.png",
   "./assets/divisions/campo.png",
   "./assets/divisions/puerto.png",
-  "./vendor/pdf-lib.min.js"
+  "./vendor/bwip-js-min.js",
+  "./vendor/fonts/archivo-latin-ext.woff2",
+  "./vendor/fonts/archivo-latin.woff2",
+  "./vendor/fonts/archivo-vietnamese.woff2",
+  "./vendor/fonts/archivo.css",
+  "./vendor/html2canvas.min.js",
+  "./vendor/jspdf.umd.min.js",
+  "./vendor/pdf-lib.min.js",
+  "./vendor/qrcode.min.js"
 ];
 /* PRECACHE:END */
 const CDN = [

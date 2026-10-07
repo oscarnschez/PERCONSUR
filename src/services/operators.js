@@ -37,6 +37,8 @@ export function operatorList() {
     .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }) || a.companyShort.localeCompare(b.companyShort));
 }
 export const operatorById = (id) => operatorList().find((o) => o.id === id) || null;
+/* Todos los viajes vigentes de todos los operadores (los usa Cobranza) */
+export const allTrips = () => cache.trips.filter((t) => !t.deletedAt);
 
 export function recordsOf(operatorId) {
   return {
@@ -80,6 +82,12 @@ async function softDelete(kind, id) {
 }
 export const saveTrip = (t) => saveRecord('trips', { documentId: null, source: 'manual', ...t });
 export const deleteTrip = (id) => softDelete('trips', id);
+/* Cambia solo la Referencia de un viaje (importaciones). No toca tarifa, gastos ni comisión; deja rastro en revisions. */
+export function setTripReference(tripId, reference, source = '') {
+  const t = cache.trips.find((x) => x.id === tripId && !x.deletedAt);
+  if (!t) throw new Error('El viaje ya no existe.');
+  return saveRecord('trips', { id: t.id, operatorId: t.operatorId, reference, ...(source ? { referenceSource: source } : {}) });
+}
 export const saveLoan = (l) => saveRecord('loans', l);
 export const deleteLoan = (id) => softDelete('loans', id);
 export const saveAdjustment = (a) => saveRecord('adjustments', a);

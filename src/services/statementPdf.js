@@ -8,7 +8,7 @@ import { loadLib } from './libs.js';
 import { buildStatement, pageToSVG, modelToPdf } from '../domain/operators/statement.js';
 
 let measureP = null, brandP = null;
-function getMeasure() {
+export function getMeasure() {
   if (!measureP) measureP = (async () => {
     await loadLib('pdflib');
     const { PDFDocument, StandardFonts } = window.PDFLib;
@@ -22,7 +22,7 @@ const toBytes = async (blob) => new Uint8Array(await blob.arrayBuffer());
 function loadImg(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; }); }
 
 /* Logotipo y nombre PERCONSUR (tipografía de la marca dibujada en alta resolución) */
-function getBrand() {
+export function getBrand() {
   if (!brandP) brandP = (async () => {
     const r = await fetch('./assets/brand/perconsur-mark.png');
     const markBlob = await r.blob(), markBytes = await toBytes(markBlob);

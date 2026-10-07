@@ -4,6 +4,8 @@ import { ADMIN_MODULES, OPERATION_MODULES } from '../../config/modules.js';
 import { listDocuments } from '../../services/documents.js';
 import { operatorList } from '../../services/operators.js';
 import * as fuel from '../../services/fuel.js';
+import * as billing from '../../services/billing.js';
+import { summarize } from '../../domain/billing/billing.js';
 import { listAll } from '../../services/catalogs.js';
 import { money } from '../../domain/operators/money.js';
 import { fleetSummary, fuelRange } from '../../domain/fuel/fuel.js';
@@ -14,7 +16,9 @@ const card = (m, meta) => `<a class="mod-card" href="#${m.route}"><span class="m
 
 export async function adminScreen() {
   const docs = await listDocuments(), ops = operatorList();
-  const meta = { operadores: `${ops.length} operador${ops.length === 1 ? '' : 'es'}`, documentos: `${docs.length} documento${docs.length === 1 ? '' : 's'}`,
+  await billing.loadBilling();
+  const cob = summarize(billing.items()), nDue = cob.trips.due.n + cob.delays.due.n;
+  const meta = { operadores: `${ops.length} operador${ops.length === 1 ? '' : 'es'}`, cobranza: nDue ? `Por cobrar: ${money(cob.due)} | ${nDue} pendiente${nDue === 1 ? '' : 's'}` : 'Sin pendientes por cobrar', documentos: `${docs.length} documento${docs.length === 1 ? '' : 's'}`,
     catalogos: `${listAll('vehicles').length} unidades | ${listAll('trailers').length} remolques` };
   return screen(`<div class="page"><header class="page-top"><h1 class="title">Administración</h1></header>
     <div class="mod-list">${ADMIN_MODULES.map((m) => card(m, meta[m.key])).join('')}</div></div>`);

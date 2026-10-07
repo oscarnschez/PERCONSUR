@@ -75,13 +75,14 @@ export const DOC_VERSION_CAMPO = 'AU 2.0';
 /*
  * Librerías externas (mismas versiones que el original).
  * "local": se sirve desde /vendor y queda disponible sin conexión desde la primera carga.
- * Para independizar todas del CDN, descarga cada archivo a /vendor y agrega su ruta en "local".
+ * Todas están incluidas en /vendor; el CDN queda solo como respaldo si el archivo local no carga.
  */
 export const LIBS = {
-  html2canvas: { global: 'html2canvas', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' },
-  jspdf: { global: 'jspdf', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
+  html2canvas: { global: 'html2canvas', local: './vendor/html2canvas.min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js' },
+  jspdf: { global: 'jspdf', local: './vendor/jspdf.umd.min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js' },
   pdflib: { global: 'PDFLib', local: './vendor/pdf-lib.min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js' },
-  qrcode: { global: 'qrcode', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js' },
-  bwipjs: { global: 'bwipjs', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.10.0/bwip-js-min.js' },
+  qrcode: { global: 'qrcode', local: './vendor/qrcode.min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js' },
+  bwipjs: { global: 'bwipjs', local: './vendor/bwip-js-min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.10.0/bwip-js-min.js' },
 };
-export const FONT_CSS = 'https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,700..800&display=swap';
+/* Fuente del logotipo (Archivo), incluida localmente en /vendor/fonts */
+export const FONT_CSS = './vendor/fonts/archivo.css';

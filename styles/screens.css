@@ -141,6 +141,7 @@ html.kb-open .actionbar{display:none}
 .co-logo{flex:none;display:grid;place-items:center;background:#fff;border-radius:10px;border:1px solid var(--line)}
 .co-logo.mark{width:48px;height:48px}.co-logo.mark img{width:36px;height:36px;object-fit:contain}
 .co-logo.wide{width:72px;height:48px}.co-logo.wide img{width:58px;height:auto}
+.co-logo.sm{padding:0;min-height:0}  /* anula el relleno de .sm (botones): descentraba el logotipo */
 .co-logo.sm.mark{width:34px;height:34px}.co-logo.sm.mark img{width:24px;height:24px}
 .co-logo.sm.wide{width:48px;height:34px}.co-logo.sm.wide img{width:38px}
 .co-logo.lg.mark{width:88px;height:88px}.co-logo.lg.mark img{width:68px;height:68px}

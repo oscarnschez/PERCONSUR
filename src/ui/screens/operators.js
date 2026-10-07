@@ -22,6 +22,7 @@ import { rfcClean } from '../../domain/shared/format.js';
 import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { actionSheet } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
+import { loadBilling, billingOf } from '../../services/billing.js';
 import { openTripForm, openTripDetail, openLoanForm, openAdjustmentForm, openSettingsForm } from './operatorForms.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -57,7 +58,7 @@ export async function operatorsScreen() {
       <button type="button" class="chip" data-bal="min">Comisión mínima</button>
     </div>
     <div data-list></div>
-    <p class="grp-note center">Los operadores provienen del catálogo. Para agregar uno ve a <a href="#/catalogos/operators">Administración → Catálogos → Operadores</a>.</p>
+    <p class="grp-note center">Los operadores provienen del catálogo. Para agregar uno ve a <a href="#/catalogos/operators">Administración → Catálogos → Operadores</a>.<br><a href="#/operadores/importar">Importar referencias y pagos de viajes</a></p>
   </div>`);
   const root = s.el, listEl = root.querySelector('[data-list]');
   const results = new Map(list.map((o) => [o.id, ops.computeFor(o.id)]));
@@ -107,8 +108,9 @@ export function balanceCard(r, { title = 'Balance actual', sub = '' } = {}) {
   </section>`;
 }
 function tripCard(t, cutoff) {
+  const bill = billingOf(t.id), paid = !!(bill && bill.paid);
   return `<button type="button" class="trip-card" data-trip="${esc(t.id)}">
-    <span class="tc-top"><span class="div-tag ${t.division}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
+    <span class="tc-top"><span class="div-tag ${t.division}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span>${t.reference ? `<span class="ref-tag">${esc(t.reference)}</span>` : ''}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
     <b class="tc-route">${esc(t.origin)} → ${esc(t.destination)}</b>
     <span class="tc-nums"><span><small>Tarifa</small><b>${money(t.fare)}</b></span><span><small>Comisión</small><b class="pos">${money(t.finalCommission)}</b></span><span><small>Gastos</small><b>${money(t.travelExpenses)}</b></span></span>
   </button>`;
@@ -223,6 +225,7 @@ function openProfileForm(op, onSaved) {
 const nameCaseLocal = (t) => t.toLowerCase().split(' ').map((w, i) => (i && ['de', 'del', 'la', 'las', 'los', 'y'].includes(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
 
 export async function operatorScreen({ id }, q) {
+  await loadBilling();
   let op = ops.operatorById(id);
   if (!op) { toast('Ese operador ya no está en el catálogo.', { type: 'info' }); go('/operadores', { replace: true }); return null; }
   let tab = getSetting('opTab', 'viajes'), tdiv = 'todos', tper = 'todo', tcustom = { from: '', to: '' }, mfilter = 'todos', tShown = 30, mShown = 50;

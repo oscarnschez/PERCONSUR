@@ -20,8 +20,8 @@ export const AUTH = {
     "id": "0146e6c98f8db19980e7b045669bcf8002643ec06a736f8e2510605db9c53eab",
     "name": "Administrador",
     "role": "admin",
-    "salt": "ZHwX1je9dWiIgpLsERIK6w==",
-    "hash": "cGg3MrZWMy87WfRD8cpUT0IikVTH8atdqnJvreZ2eLg="
+    "salt": "v0Ulqp45h9XPtzNW+RasZw==",
+    "hash": "PqKSRM9LNEWX0cmIXicq8boZS5E1SyJ0J5W1Cy2f0O8="
   }
 ],
 };

@@ -10,17 +10,18 @@
  *   attachments archivos binarios: fotos, adjuntos, PDF generados, vistas previas
  *   counters    consecutivos de folio
  *   operatorSettings, operatorTrips, operatorLoans, operatorAdjustments   control de operadores (v2)
+ *   tripBilling   cobranza: cobro de cada viaje y demoras en planta (v5)
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 4;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible */
+const DB_VERSION = 5;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
   places: 'places', plants: 'plants', terminals: 'terminals', companies: 'companies', settings: 'settings',
   attachments: 'attachments', counters: 'counters',
   operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
-  operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords',
+  operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords', tripBilling: 'tripBilling',
 };
 
 let dbp = null;
@@ -57,6 +58,8 @@ export function openDB() {
       mk(S.operatorStatements, { keyPath: 'id' }, [['operatorId', 'operatorId']]);
       /* v4 — Recargas de combustible, relacionadas con la unidad del catálogo por vehicleId */
       mk(S.fuelRecords, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['date', 'date']]);
+      /* v5 — Cobranza: estado de cobro de cada viaje y sus demoras en planta (un registro por viaje, por tripId) */
+      mk(S.tripBilling, { keyPath: 'tripId' });
     };
     req.onsuccess = () => {
       const db = req.result;

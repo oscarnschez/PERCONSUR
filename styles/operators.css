@@ -213,3 +213,51 @@ button.mv-row:active{background:var(--fill)}
 .calc-box{display:flex;flex-direction:column;gap:6px;padding:12px 14px;margin:6px 0 12px;border-radius:12px;background:var(--blue-t);font-size:16px;font-variant-numeric:tabular-nums}
 .sumlist.calc dd{font-variant-numeric:tabular-nums}
 .pk-all{margin-top:8px}
+
+/* ===== Cobranza ===== */
+.pay-tag{display:inline-block;font-size:12px;font-weight:700;border-radius:6px;padding:2px 8px;white-space:nowrap}
+.pay-tag.due{background:var(--warn-t);color:var(--warn)}
+.pay-tag.paid{background:var(--ok-t);color:var(--ok)}
+.cob-due{color:var(--warn)}
+.cob-tiles{margin:14px 0 8px}
+.cob-total{margin-bottom:14px}
+.cob-op{font-size:14.5px;color:var(--ink-2)}
+.cob-line{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-top:8px;border-top:1px solid var(--line);font-size:15px}
+.cob-line>span{min-width:0}
+.cob-line small{display:block;margin-top:2px;font-size:12.5px;color:var(--muted)}
+.cob-line b{flex:none;font-size:15.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cob-line.delay{color:var(--ink-2)}
+.cob-state{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:0 0 12px;border-radius:12px;background:var(--surface-2)}
+.cob-state>span{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.cob-state small{font-size:13.5px;color:var(--ink-2)}
+.cob-state b{flex:none;font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cob-state.paid b{color:var(--ok)}
+.ref-tag{display:inline-block;max-width:100%;font-size:12px;font-weight:700;border-radius:6px;padding:2px 8px;background:var(--fill);color:var(--ink);letter-spacing:.02em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cob-selbar{position:sticky;top:calc(8px + env(safe-area-inset-top,0px));z-index:5;display:flex;flex-direction:column;gap:8px;padding:10px 12px;margin:0 0 12px;border-radius:var(--r);background:var(--surface);border:1.5px solid var(--tint);box-shadow:var(--shadow-1)}
+.cob-selbar .sb-info{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:16px}
+.cob-selbar .sb-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.cob-selbar .sb-acts .btn-primary{margin-left:auto}
+.cob-selbar small{font-size:13px;color:var(--muted)}
+.cob-check{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--muted);display:grid;place-items:center;color:transparent}
+.cob-check .ic{width:13px;height:13px;stroke-width:3}
+.cob-card.checked{border-color:var(--tint);box-shadow:0 0 0 1.5px var(--tint)}
+.cob-card.checked .cob-check{background:var(--tint);border-color:var(--tint);color:#fff}
+
+/* ===== Importación de viajes ===== */
+.imp-tiles{grid-template-columns:repeat(2,1fr);margin-top:4px}
+.imp-tiles .tile:last-child{grid-column:span 2}
+.imp-list{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
+.imp-row{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface)}
+.imp-row.rev{border-color:var(--warn)}
+.imp-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.imp-top>b{font-size:15.5px}
+.imp-top .st{margin-left:auto}
+.imp-date{font-size:13.5px;color:var(--muted)}
+.imp-l2{font-size:14.5px;color:var(--ink-2)}
+.imp-l3{font-size:13px;color:var(--muted)}
+.imp-ctl{margin:6px 0 0}
+.imp-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.imp-check{display:flex;align-items:flex-start;gap:8px;margin-top:6px;font-size:14.5px}
+.imp-check input{margin-top:3px;width:18px;height:18px;flex:none}
+.imp-pend{margin:0 0 12px}
+.pay-tag.none{background:var(--fill);color:var(--ink-2)}

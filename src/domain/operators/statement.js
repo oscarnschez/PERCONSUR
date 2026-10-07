@@ -325,7 +325,7 @@ export async function modelToPdf(PDFLib, pages, images, meta) {
       }
     }
   }
-  doc.setTitle(meta.title); doc.setAuthor('PERCONSUR'); doc.setSubject('Estado de cuenta de operador'); doc.setCreator('PERCONSUR');
+  doc.setTitle(meta.title); doc.setAuthor('PERCONSUR'); doc.setSubject(meta.subject || 'Estado de cuenta de operador'); doc.setCreator('PERCONSUR');
   doc.setCreationDate(new Date()); doc.setProducer('PERCONSUR');
   return doc.save();
 }

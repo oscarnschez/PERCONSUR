@@ -12,11 +12,13 @@ import { openSheet, confirmDestructive, actionSheet } from '../components/sheet.
 import { toast } from '../components/toast.js';
 import { icon } from '../components/icons.js';
 import { enterAdvances } from '../components/fields.js';
+import { loadBilling, billingOf } from '../../services/billing.js';
+import { openBillingDetail } from './billing.js';
 
 const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 const who = (op) => `<div class="op-who"><span class="av sm">${esc(initials(op.name))}</span><div><small>Operador</small><b>${esc(op.name)}</b></div></div>`;
 const err = (name) => `<span class="ferr" data-err="${name}"></span>`;
-const moneyIn = (name, label, value, ph = '0.00') => `<label class="fld" data-f="${name}"><span class="fl">${label}</span><span class="money-w"><span class="money-sym">$</span><input class="in money" name="${name}" inputmode="decimal" autocomplete="off" placeholder="${ph}" value="${esc(value)}" enterkeyhint="next"></span>${err(name)}</label>`;
+export const moneyIn = (name, label, value, ph = '0.00') => `<label class="fld" data-f="${name}"><span class="fl">${label}</span><span class="money-w"><span class="money-sym">$</span><input class="in money" name="${name}" inputmode="decimal" autocomplete="off" placeholder="${ph}" value="${esc(value)}" enterkeyhint="next"></span>${err(name)}</label>`;
 const dateIn = (name, label, value) => `<label class="fld" data-f="${name}"><span class="fl">${label}</span><input class="in" type="date" name="${name}" value="${esc(value || '')}"><span class="fhint warn-t" data-cuthint></span>${err(name)}</label>`;
 /* Aviso en vivo si la fecha queda después del corte del operador (no contará en el balance hasta esa fecha) */
 function cutoffHint(form, op) {
@@ -31,7 +33,7 @@ function cutoffHint(form, op) {
   inp.addEventListener('input', upd); inp.addEventListener('change', upd); upd();
 }
 
-function formSheet({ title, html, saveLabel, onSubmit, del }) {
+export function formSheet({ title, html, saveLabel, onSubmit, del }) {
   const form = document.createElement('form');
   form.className = 'op-form';
   form.noValidate = true;
@@ -55,7 +57,7 @@ function formSheet({ title, html, saveLabel, onSubmit, del }) {
   return { sh, form };
 }
 /* Marca el primer error, lleva el foco al campo y lo anuncia */
-function fail(form, name, msg) {
+export function fail(form, name, msg) {
   const f = form.querySelector(`[data-f="${name}"]`);
   if (f) {
     f.classList.add('has-err');
@@ -67,7 +69,7 @@ function fail(form, name, msg) {
   return false;
 }
 /* Monto válido: no negativo, máximo 2 decimales */
-function readMoney(form, name, { required = false, positive = false, label }) {
+export function readMoney(form, name, { required = false, positive = false, label }) {
   const raw = form.elements[name].value;
   if (/^\s*-/.test(raw)) return { error: `No se permiten montos negativos en ${label}.` };
   const c = toCents(raw);
@@ -88,6 +90,7 @@ export function openTripForm(op, trip, onSaved) {
   const html = `${who(op)}
     <div class="fld" data-f="division"><span class="fl">División</span><div class="seg big">${[['puerto', 'Puerto'], ['campo', 'Campo']].map(([k, l]) => `<button type="button" class="seg-b${division === k ? ' on' : ''}" data-div="${k}" aria-pressed="${division === k}">${l}</button>`).join('')}</div></div>
     ${dateIn('date', 'Fecha del viaje', editing ? trip.date : todayStr())}
+    <label class="fld" data-f="reference"><span class="fl">Referencia (opcional)</span><input class="in" name="reference" value="${esc(editing ? trip.reference || '' : '')}" maxlength="40" autocomplete="off" autocapitalize="characters" placeholder="Ej. carta porte, contenedor o folio" enterkeyhint="next"><span class="fhint">Identifica el viaje en Operadores y en Cobranza.</span>${err('reference')}</label>
     ${sug.routes.length ? `<div class="fld"><span class="fl">Rutas usadas</span><div class="chips route-chips">${sug.routes.map((r, i) => `<button type="button" class="chip" data-route="${i}">${esc(r.origin)} → ${esc(r.destination)}</button>`).join('')}</div></div>` : ''}
     <div class="fld" data-f="origin"><span class="fl">Origen</span><input class="in" name="origin" value="${esc(editing ? trip.origin : '')}" autocomplete="off" autocapitalize="words" placeholder="Ej. Manzanillo" enterkeyhint="next"><span class="sugg" data-sugg="origin"></span>${err('origin')}</div>
     <div class="fld" data-f="destination"><span class="fl">Destino</span><input class="in" name="destination" value="${esc(editing ? trip.destination : '')}" autocomplete="off" autocapitalize="words" placeholder="Ej. Guadalajara" enterkeyhint="next"><span class="sugg" data-sugg="destination"></span>${err('destination')}</div>
@@ -110,7 +113,7 @@ export function openTripForm(op, trip, onSaved) {
       try {
         await ops.saveTrip({
           ...(editing ? { id: trip.id, documentId: trip.documentId ?? null, source: trip.source || 'manual' } : {}),
-          operatorId: op.id, division, date: f.elements.date.value, origin, destination, fare: fare.value, travelExpenses: exp.value,
+          operatorId: op.id, division, date: f.elements.date.value, reference: f.elements.reference.value.trim().replace(/\s+/g, ' '), origin, destination, fare: fare.value, travelExpenses: exp.value,
           commissionRate: c.rate, minEnabled: !!rule.minEnabled, minAmount: rule.minAmount,
           baseCommission: c.base, expandedCommission: c.adjustment, finalCommission: c.final, isExpanded: c.expanded,
           notes: f.elements.notes.value.trim(),
@@ -159,7 +162,9 @@ export function openTripForm(op, trip, onSaved) {
 }
 
 export function openTripDetail(op, trip, onChange) {
+  const bill = billingOf(trip.id), paid = !!(bill && bill.paid), delays = (bill && bill.delays) || [];
   const rows = [
+    ...(trip.reference ? [['Referencia', trip.reference]] : []),
     ['División', trip.division === 'campo' ? 'Campo' : 'Puerto'], ['Fecha', fmtDate(trip.date)], ['Ruta', `${trip.origin} → ${trip.destination}`],
     ['Tarifa', money(trip.fare)], ['Gastos', money(trip.travelExpenses)], [`Comisión base ${trip.commissionRate ?? COMMISSION_RATE}%`, money(trip.baseCommission)],
     ['Ajuste de comisión', trip.expandedCommission ? money(trip.expandedCommission, { sign: true }) : money(0)], ['Comisión final', `<b>${money(trip.finalCommission)}</b>`],
@@ -173,9 +178,13 @@ export function openTripDetail(op, trip, onChange) {
     ${trip.isExpanded ? '<span class="exp-tag lg">Comisión ampliada</span>' : ''}
     <dl class="sumlist detail">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${k === 'Comisión final' ? v : esc(v)}</dd></div>`).join('')}</dl>
     ${trip.notes ? `<p class="detail-notes">${esc(trip.notes)}</p>` : ''}
+    <h3 class="pk-h">Cobranza</h3>
+    <div class="cob-state ${paid ? 'paid' : 'due'}"><span><span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span><small>${paid ? `${fmtDate(bill.paidDate) ? 'Pago del ' + esc(fmtDate(bill.paidDate)) : 'Sin fecha de pago registrada'}${bill.reference ? ' | Ref. de pago ' + esc(bill.reference) : ''}` : 'Tarifa del viaje'}${delays.length ? ` | ${delays.length} demora${delays.length === 1 ? '' : 's'}` : ''}</small></span><b>${money(trip.fare)}</b></div>
+    <button type="button" class="${paid ? 'btn-secondary' : 'btn-primary'} block" data-cob>${icon.cash}<span>${paid ? 'Ver cobranza del viaje' : 'Registrar pago del viaje'}</span></button>
     <p class="grp-note">${meta.map(esc).join('<br>')}</p>
     <div class="sheet-acts"><button type="button" class="btn-secondary" data-edit>${icon.edit}<span>Editar</span></button><button type="button" class="btn-danger" data-del>${icon.trash}<span>Eliminar</span></button></div>` });
   sh.body.querySelector('[data-edit]').addEventListener('click', () => { sh.close(); openTripForm(op, trip, onChange); });
+  sh.body.querySelector('[data-cob]').addEventListener('click', async () => { await loadBilling(); sh.close(); openBillingDetail(trip.id, onChange, { pay: true }); });
   sh.body.querySelector('[data-del]').addEventListener('click', async () => {
     if (!(await confirmDestructive('¿Eliminar este viaje?', `${trip.origin} → ${trip.destination}, ${fmtDate(trip.date)}. Su comisión y sus gastos dejarán de contar en el balance. El registro se conserva en el respaldo.`, 'Eliminar viaje'))) return;
     await ops.deleteTrip(trip.id); sh.close(); toast('Viaje eliminado', { type: 'info' }); onChange && onChange();

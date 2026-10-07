@@ -1,6 +1,7 @@
 /* Íconos de línea propios (24×24, trazo 1.8). */
 const I = (d, extra = '', cls = '') => `<svg class="ic${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
 export const icon = {
+  cash: I('<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v.01M17.5 14.5v.01"/>'),
   home: I('<path d="M3.5 10.5 12 3.8l8.5 6.7"/><path d="M5.5 9v10.2h5V14h3v5.2h5V9"/>'),
   docs: I('<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M4.5 7v14.5H15"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>', ' stroke-width="2.4"'),

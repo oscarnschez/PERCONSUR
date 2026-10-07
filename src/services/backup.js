@@ -13,11 +13,12 @@ import { loadSettings } from './settings.js';
 import { loadCatalogs } from './catalogs.js';
 import { loadCompanies } from './companies.js';
 import { loadOperatorData } from './operators.js';
+import { resetBillingCache } from './billing.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
-DATA_STORES.push('fuelRecords');
+DATA_STORES.push('fuelRecords', 'tripBilling');
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
 
 const b64 = {
@@ -56,6 +57,7 @@ export async function inspectBackup(file) {
         `Catálogos: ${n('operators')} operadores, ${n('vehicles')} unidades, ${n('trailers')} remolques, ${n('places')} destinos`,
         `Combustible: ${n('fuelRecords')} recargas`,
         `Control de operadores: ${n('operatorTrips')} viajes, ${n('operatorLoans')} préstamos, ${n('operatorAdjustments')} ajustes, ${n('operatorSettings')} configuraciones`,
+        `Cobranza: ${n('tripBilling')} viajes con registro de cobro`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -86,7 +88,6 @@ export async function importBackup(info) {
     return true;
   });
   for (const st of OP_STORES) for (const r of data[st] || []) if (remap.has(r.operatorId)) r.operatorId = remap.get(r.operatorId);
-  for (const t of data._trailerUpdates || []) await db.put(db.S.trailers, t);
   for (const a of data.attachments || []) { const m = /^op:(.+)$/.exec(a.owner || ''); if (m && remap.has(m[1])) a.owner = 'op:' + remap.get(m[1]); }
   /* Unidades: misma regla (empresa + número económico); las recargas se reasignan a la unidad existente */
   const normEco = (x) => String(x || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
@@ -99,13 +100,14 @@ export async function importBackup(info) {
   });
   for (const r of data.fuelRecords || []) if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId);
   /* Remolques: no duplicar por empresa + placas (se conserva el tipo si el existente no lo tiene) */
-  const exTr = await db.all(db.S.trailers);
+  const exTr = await db.all(db.S.trailers), trUpdates = [];
   data.trailers = (data.trailers || []).filter((t) => {
     if (exTr.some((e) => e.id === t.id)) return true;
     const twin = exTr.find((e) => e.company === t.company && fold(e.placas) === fold(t.placas));
-    if (twin && t.type && !twin.type) { twin.type = t.type; data._trailerUpdates = [...(data._trailerUpdates || []), twin]; }
+    if (twin && t.type && !twin.type) { twin.type = t.type; trUpdates.push(twin); }
     return !twin;
   });
+  for (const t of trUpdates) await db.put(db.S.trailers, t);
   if (data.operatorSettings) {
     for (const r of data.operatorSettings) { const cur = await db.get(db.S.operatorSettings, r.operatorId); if (cur && (cur.updatedAt || 0) >= (r.updatedAt || 0)) r._skip = true; }
     data.operatorSettings = data.operatorSettings.filter((r) => !r._skip);
@@ -114,6 +116,8 @@ export async function importBackup(info) {
     const rows = data[s] || [];
     if (s === 'counters') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || cur.n < r.n) await db.put(s, r); } continue; }
     if (s === 'settings') { for (const r of rows) if (!SKIP_SETTINGS.has(r.key)) await db.put(s, r); continue; }
+    /* Cobranza: un registro por viaje; se conserva el más reciente */
+    if (s === 'tripBilling') { for (const r of rows) { const cur = await db.get(s, r.tripId); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (rows.length) await db.putMany(s, rows);
   }
@@ -124,4 +128,4 @@ export async function importBackup(info) {
   await reload();
   return { documents: (data.documents || []).length };
 }
-async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); }
+async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); }
