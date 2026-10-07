@@ -23,6 +23,9 @@ import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { actionSheet } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { loadBilling, billingOf } from '../../services/billing.js';
+import { getCompany } from '../../services/companies.js';
+import { tripTaxes, sumTaxes } from '../../domain/operators/taxes.js';
+import { buildTripsWorkbook } from '../../domain/operators/tripsExport.js';
 import { openTripForm, openTripDetail, openLoanForm, openAdjustmentForm, openSettingsForm } from './operatorForms.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -107,12 +110,20 @@ export function balanceCard(r, { title = 'Balance actual', sub = '' } = {}) {
     ${r.balance < 0 ? '<p class="bal-note">Balance negativo. Puedes seguir registrando movimientos.</p>' : ''}
   </section>`;
 }
+/* Totales fiscales de un conjunto de viajes (ya sumados con sumTaxes), separados del balance del operador */
+export function fiscalSummary(s, { title = 'Resumen fiscal de los viajes', commissions = null, expenses = null } = {}) {
+  const row = (k, v, cls = '') => `<div class="${cls}"><dt>${k}</dt><dd>${v}</dd></div>`;
+  return `<section class="fisc"><h4>${esc(title)}</h4><dl>
+    ${row('Tarifas base acumuladas', money(s.fares))}${row('IVA generado', money(s.vat, { sign: true }))}${row('ISR retenido', money(-s.isr))}${row('Retención IVA', money(-s.vatWithholding))}
+    ${row('Total después de impuestos', `<b>${money(s.total)}</b>`, 'tot')}${expenses == null ? '' : row('Gastos de viaje', money(expenses))}${commissions == null ? '' : row('Comisiones', money(commissions))}
+  </dl></section>`;
+}
 function tripCard(t, cutoff) {
   const bill = billingOf(t.id), paid = !!(bill && bill.paid);
   return `<button type="button" class="trip-card" data-trip="${esc(t.id)}">
     <span class="tc-top"><span class="div-tag ${t.division}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span>${t.reference ? `<span class="ref-tag">${esc(t.reference)}</span>` : ''}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
     <b class="tc-route">${esc(t.origin)} → ${esc(t.destination)}</b>
-    <span class="tc-nums"><span><small>Tarifa</small><b>${money(t.fare)}</b></span><span><small>Comisión</small><b class="pos">${money(t.finalCommission)}</b></span><span><small>Gastos</small><b>${money(t.travelExpenses)}</b></span></span>
+    <span class="tc-nums"><span><small>Tarifa base</small><b>${money(t.fare)}</b></span><span><small>Total</small><b>${money(tripTaxes(t).totalAfterTaxes)}</b></span><span><small>Comisión</small><b class="pos">${money(t.finalCommission)}</b></span></span>
   </button>`;
 }
 function moveRow(m) {
@@ -266,7 +277,8 @@ export async function operatorScreen({ id }, q) {
           <div class="tile"><small>Viajes</small><b>${r.registered.trips}</b></div>
           <div class="tile"><small>Puerto</small><b>${r.registered.puerto}</b></div>
           <div class="tile"><small>Campo</small><b>${r.registered.campo}</b></div>
-          <div class="tile wide"><small>Tarifas acumuladas</small><b>${money(r.registered.fares)}</b></div>
+          <div class="tile wide"><small>Tarifas base acumuladas</small><b>${money(r.registered.fares)}</b></div>
+          <div class="tile wide"><small>Total después de impuestos</small><b>${money(sumTaxes(trips).total)}</b></div>
           <div class="tile wide"><small>Comisiones ampliadas</small><b>${r.registered.expanded}${r.registered.expandedAmount ? ` <span class="muted">| ${money(r.registered.expandedAmount, { sign: true })}</span>` : ''}</b></div>
         </div>${r.excluded.trips ? `<p class="grp-note">${plural(r.stats.trips, 'viaje entra', 'viajes entran')} en el balance; ${plural(r.excluded.trips, 'viaje queda', 'viajes quedan')} después del corte.</p>` : ''}</section>
       <div class="seg wide op-tabs" role="tablist">${[['viajes', 'Viajes'], ['prestamos', 'Préstamos'], ['movimientos', 'Movimientos'], ['estados', 'Estados']].map(([k, l]) => `<button type="button" role="tab" class="seg-b${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
@@ -281,7 +293,8 @@ export async function operatorScreen({ id }, q) {
     return `<div class="chips filters">${[['todos', 'Todos'], ['puerto', 'Puerto'], ['campo', 'Campo']].map(([k, l]) => `<button type="button" class="chip${tdiv === k ? ' on' : ''}" data-tdiv="${k}">${l}</button>`).join('')}</div>
       <div class="chips filters">${PERIODS.map(([k, l]) => `<button type="button" class="chip${tper === k ? ' on' : ''}" data-tper="${k}">${l}</button>`).join('')}</div>
       ${tper === 'custom' ? `<div class="row2 period-custom"><label class="fld"><span class="fl">Desde</span><input class="in" type="date" data-tc="from" value="${esc(tcustom.from)}"></label><label class="fld"><span class="fl">Hasta</span><input class="in" type="date" data-tc="to" value="${esc(tcustom.to)}"></label></div>` : ''}
-      <div class="trip-sum"><span><small>Viajes</small><b>${list.length}</b></span><span><small>Tarifas</small><b>${money(sum((t) => t.fare))}</b></span><span><small>Comisiones</small><b class="pos">${money(sum((t) => t.finalCommission))}</b></span><span><small>Gastos</small><b>${money(sum((t) => t.travelExpenses))}</b></span></div>
+      <div class="trip-sum"><span><small>Viajes</small><b>${list.length}</b></span><span><small>Tarifas base</small><b>${money(sum((t) => t.fare))}</b></span><span><small>Comisiones</small><b class="pos">${money(sum((t) => t.finalCommission))}</b></span><span><small>Gastos</small><b>${money(sum((t) => t.travelExpenses))}</b></span></div>
+      ${list.length ? fiscalSummary(sumTaxes(list), { expenses: sum((t) => t.travelExpenses), commissions: sum((t) => t.finalCommission) }) : ''}
       <button type="button" class="add-btn" data-new="viaje">${icon.plus}<span>Registrar viaje</span></button>
       ${list.length ? `<div class="trip-list">${list.slice(0, tShown).map((t) => tripCard(t, r.cutoff)).join('')}</div>${list.length > tShown ? `<button type="button" class="btn-ghost block" data-tmore>Mostrar más (${list.length - tShown})</button>` : ''}` : `<div class="empty"><p>${trips.length ? 'No hay viajes con ese filtro.' : 'Aún no hay viajes registrados para este operador.'}</p></div>`}`;
   }
@@ -331,7 +344,8 @@ export async function operatorScreen({ id }, q) {
     if (k === 'ajuste') { const a = rec.adjustments.find((x) => x.id === mid); if (a) openAdjustmentForm(op, a, refresh); }
   });
   on(root, 'click', '[data-more]', async () => {
-    const v = await actionSheet({ title: op.name, actions: [{ label: 'Editar configuración', value: 'cfg' }, { label: 'Exportar movimientos (CSV)', value: 'csv' }] });
+    const v = await actionSheet({ title: op.name, actions: [{ label: 'Editar configuración', value: 'cfg' }, { label: 'Exportar viajes a Excel', value: 'xlsx' }, { label: 'Exportar movimientos (CSV)', value: 'csv' }] });
+    if (v === 'xlsx') exportTripsXlsx(ops.recordsOf(id).trips.filter((t) => !t.deletedAt).map((trip) => ({ trip, operator: op.name })), `Operador: ${op.name}`, 'Todos los viajes', op.name.replace(/\s+/g, '_'));
     if (v === 'cfg') openSettingsForm(op, refresh);
     if (v === 'csv') exportOperatorSheet(op);
   });
@@ -341,6 +355,14 @@ export async function operatorScreen({ id }, q) {
 }
 
 /* ===== Exportaciones (CSV para Excel; montos con 2 decimales) ===== */
+/* Viajes a Excel (.xlsx) con el desglose fiscal de cada uno. items: [{ trip, operator }]. Requiere la cobranza ya cargada. */
+function exportTripsXlsx(items, scope, periodLabel, slug) {
+  if (!items.length) { toast('No hay viajes para exportar.', { type: 'info' }); return; }
+  const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+  const wb = buildTripsWorkbook(items.map((it) => ({ ...it, paid: !!(billingOf(it.trip.id) || {}).paid })), { company: getCompany('perconsur').legal, scope, periodLabel,
+    generated: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}` });
+  deliver(new File([wb.bytes()], `PERCONSUR-viajes-${slug}-${todayStr()}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+}
 const csvCell = (v) => { const t = String(v ?? ''); return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
 const num = (c) => (Math.round(c) / 100).toFixed(2);
 function csvFile(rows, name) { return new File(['\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n')], name, { type: 'text/csv' }); }
@@ -365,6 +387,7 @@ function exportOperatorSheet(op) {
 
 /* ===== Resumen general ===== */
 export async function summaryScreen() {
+  await loadBilling();
   let per = 'todo', custom = { from: '', to: '' };
   const s = screen('<div class="page"></div>');
   const root = s.el;
@@ -386,10 +409,12 @@ export async function summaryScreen() {
         <div class="tile"><small>Viajes</small><b>${total.stats.trips}</b></div>
         <div class="tile"><small>Puerto</small><b>${total.stats.puerto}</b></div>
         <div class="tile"><small>Campo</small><b>${total.stats.campo}</b></div>
-        <div class="tile wide"><small>Tarifas acumuladas</small><b>${money(total.stats.fares)}</b></div>
+        <div class="tile wide"><small>Tarifas base acumuladas</small><b>${money(total.stats.fares)}</b></div>
         <div class="tile wide"><small>Comisiones ampliadas aplicadas</small><b>${total.stats.expanded}${total.stats.expandedAmount ? ` <span class="muted">| ${money(total.stats.expandedAmount, { sign: true })}</span>` : ''}</b></div>
       </div>
       ${(() => { const n = list.reduce((a, x) => a + x.r.excluded.trips, 0); return n ? `<p class="op-warn">${icon.alert}<span>${plural(n, 'viaje registrado queda', 'viajes registrados quedan')} después del corte de su operador y no ${n === 1 ? 'entra' : 'entran'} en estos totales.</span></p>` : ''; })()}
+      ${fiscalSummary(sumTaxes(list.flatMap((x) => x.r.included.trips)), { title: 'Total generado por los viajes', expenses: total.comp.expenses, commissions: total.comp.commissions })}
+      <button type="button" class="btn-secondary block fisc-x" data-xlsx>${icon.download}<span>Exportar viajes a Excel</span></button>
       ${manualNote ? '<p class="grp-note">En periodos parciales, los sábados de operadores con ajuste manual se calculan automáticamente dentro del periodo.</p>' : ''}
       <div class="sec-hrow"><h2 class="sec-h">Por operador</h2><button type="button" class="btn-ghost sm" data-csv>${icon.download}<span>Exportar CSV</span></button></div>
       <div class="list">${list.map(({ o, r }) => `<a class="row op-row" href="#/operadores/${esc(o.id)}">${avatar(o)}
@@ -400,14 +425,18 @@ export async function summaryScreen() {
   on(root, 'click', '[data-back]', () => back('/operadores'));
   on(root, 'click', '[data-per]', (e, b) => { per = b.dataset.per; render(); });
   root.addEventListener('change', (e) => { const t = e.target; if (t.dataset.c) { custom[t.dataset.c] = t.value; render(); } });
+  on(root, 'click', '[data-xlsx]', () => {
+    const { range, list } = data();
+    exportTripsXlsx(list.flatMap(({ o, r }) => r.included.trips.map((trip) => ({ trip, operator: o.name }))), 'Todos los operadores', range.from || range.to ? `${fmtDate(range.from) || 'inicio'} a ${fmtDate(range.to) || 'hoy'}` : 'Todos los viajes hasta el corte de cada operador', 'operadores');
+  });
   on(root, 'click', '[data-csv]', () => {
     const { range, list, total } = data();
-    const head = ['Operador', 'Empresa', 'Fecha de inicio', 'Corte', 'Viajes', 'Puerto', 'Campo', 'Tarifas', 'Comisiones', 'Comisiones ampliadas', 'Sábados contabilizados', 'Monto semanal', 'Sábados pagados', 'Gastos de viaje', 'Préstamos', 'Balance'];
+    const head = ['Operador', 'Empresa', 'Fecha de inicio', 'Corte', 'Viajes', 'Puerto', 'Campo', 'Tarifas base', 'IVA', 'ISR', 'Retención IVA', 'Total después de impuestos', 'Comisiones', 'Comisiones ampliadas', 'Sábados contabilizados', 'Monto semanal', 'Sábados pagados', 'Gastos de viaje', 'Préstamos', 'Balance'];
     const rows = [
       ['Resumen de operadores', range.from || range.to ? `${fmtDate(range.from) || 'inicio'} a ${fmtDate(range.to) || 'hoy'}` : 'Todo'],
       ['Fórmula', 'Balance = Comisiones - Sábados pagados - Gastos de viaje - Préstamos'], [], head,
-      ...list.map(({ o, r }) => [o.name, o.companyShort, fmtDate(r.settings.startDate), fmtDate(r.cutoff), r.stats.trips, r.stats.puerto, r.stats.campo, num(r.stats.fares), num(r.comp.commissions), r.stats.expanded, r.sat.count, num(r.sat.weekly), num(r.comp.saturdaysPaid), num(r.comp.expenses), num(r.comp.loans), num(r.balance)]),
-      ['TOTAL', '', '', '', total.stats.trips, total.stats.puerto, total.stats.campo, num(total.stats.fares), num(total.comp.commissions), total.stats.expanded, total.stats.saturdays, '', num(total.comp.saturdaysPaid), num(total.comp.expenses), num(total.comp.loans), num(total.balance)],
+      ...list.map(({ o, r }) => [o.name, o.companyShort, fmtDate(r.settings.startDate), fmtDate(r.cutoff), r.stats.trips, r.stats.puerto, r.stats.campo, num(r.stats.fares), ...((s) => [num(s.vat), num(-s.isr), num(-s.vatWithholding), num(s.total)])(sumTaxes(r.included.trips)), num(r.comp.commissions), r.stats.expanded, r.sat.count, num(r.sat.weekly), num(r.comp.saturdaysPaid), num(r.comp.expenses), num(r.comp.loans), num(r.balance)]),
+      ['TOTAL', '', '', '', total.stats.trips, total.stats.puerto, total.stats.campo, num(total.stats.fares), ...((s) => [num(s.vat), num(-s.isr), num(-s.vatWithholding), num(s.total)])(sumTaxes(list.flatMap((x) => x.r.included.trips))), num(total.comp.commissions), total.stats.expanded, total.stats.saturdays, '', num(total.comp.saturdaysPaid), num(total.comp.expenses), num(total.comp.loans), num(total.balance)],
     ];
     deliver(csvFile(rows, `Resumen-operadores-${todayStr()}.csv`));
   });

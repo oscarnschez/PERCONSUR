@@ -13,6 +13,7 @@ import { toast } from '../components/toast.js';
 import { icon } from '../components/icons.js';
 import { enterAdvances } from '../components/fields.js';
 import { loadBilling, billingOf } from '../../services/billing.js';
+import { computeTaxes, tripTaxes, taxFields, defaultTaxFlags } from '../../domain/operators/taxes.js';
 import { openBillingDetail } from './billing.js';
 
 const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -85,6 +86,12 @@ export function openTripForm(op, trip, onSaved) {
   const current = ruleFromSettings(ops.settingsFor(op.id));
   let rule = editing ? ruleFromTrip(trip) : current;
   let division = editing ? trip.division : 'puerto';
+  /* Impuestos del viaje. En uno nuevo, la división fija los valores iniciales hasta que el usuario toque alguno;
+     en uno existente se respeta lo guardado (sin datos fiscales = nada aplicado). La retención de IVA nunca se activa sola. */
+  const t0 = editing ? tripTaxes(trip) : defaultTaxFlags(division);
+  let tax = { applyVat: !!t0.applyVat, applyIsr: !!t0.applyIsr, applyVatWithholding: !!t0.applyVatWithholding };
+  let taxTouched = editing;
+  const taxRates = editing ? trip : {};
   const sug = ops.routeSuggestions();
   const differs = editing && (rule.minEnabled !== current.minEnabled || rule.minAmount !== current.minAmount);
   const html = `${who(op)}
@@ -94,7 +101,13 @@ export function openTripForm(op, trip, onSaved) {
     ${sug.routes.length ? `<div class="fld"><span class="fl">Rutas usadas</span><div class="chips route-chips">${sug.routes.map((r, i) => `<button type="button" class="chip" data-route="${i}">${esc(r.origin)} → ${esc(r.destination)}</button>`).join('')}</div></div>` : ''}
     <div class="fld" data-f="origin"><span class="fl">Origen</span><input class="in" name="origin" value="${esc(editing ? trip.origin : '')}" autocomplete="off" autocapitalize="words" placeholder="Ej. Manzanillo" enterkeyhint="next"><span class="sugg" data-sugg="origin"></span>${err('origin')}</div>
     <div class="fld" data-f="destination"><span class="fl">Destino</span><input class="in" name="destination" value="${esc(editing ? trip.destination : '')}" autocomplete="off" autocapitalize="words" placeholder="Ej. Guadalajara" enterkeyhint="next"><span class="sugg" data-sugg="destination"></span>${err('destination')}</div>
-    <div class="row2">${moneyIn('fare', 'Tarifa del viaje', editing ? centsInput(trip.fare) : '')}${moneyIn('exp', 'Gastos de viaje', editing ? centsInput(trip.travelExpenses) : '')}</div>
+    <div class="row2">${moneyIn('fare', 'Tarifa base', editing ? centsInput(trip.fare) : '')}${moneyIn('exp', 'Gastos de viaje', editing ? centsInput(trip.travelExpenses) : '')}</div>
+    <div class="fld tax-box" data-f="taxes"><span class="fl">Impuestos</span>
+      <p class="tax-lead">Se calculan sobre la tarifa base, que es el importe antes de impuestos.</p>
+      <label class="sw-row"><span class="sw-tx">Aplicar IVA 16%<small>Se suma al total</small></span><input type="checkbox" switch class="sw" name="applyVat"${tax.applyVat ? ' checked' : ''}></label>
+      <label class="sw-row"><span class="sw-tx">Aplicar ISR 4%<small>Retención: se resta del total</small></span><input type="checkbox" switch class="sw" name="applyIsr"${tax.applyIsr ? ' checked' : ''}></label>
+      <label class="sw-row"><span class="sw-tx">Aplicar Retención IVA 4%<small>Activar manualmente cuando aplique</small></span><input type="checkbox" switch class="sw" name="applyVatWithholding"${tax.applyVatWithholding ? ' checked' : ''}></label>
+      <span class="fhint" data-taxhint></span></div>
     <section class="cm-prev" data-prev aria-live="polite"></section>
     ${differs ? `<button type="button" class="btn-ghost sm" data-rule>${icon.refresh}<span>Aplicar la configuración actual del operador</span></button>` : ''}
     <label class="fld"><span class="fl">Observaciones (opcional)</span><textarea class="in" name="notes" rows="2" enterkeyhint="enter">${esc(editing ? trip.notes || '' : '')}</textarea></label>`;
@@ -105,7 +118,7 @@ export function openTripForm(op, trip, onSaved) {
       const origin = f.elements.origin.value.trim(), destination = f.elements.destination.value.trim();
       if (!origin) return fail(f, 'origin', 'Escribe el origen del viaje.');
       if (!destination) return fail(f, 'destination', 'Escribe el destino del viaje.');
-      const fare = readMoney(f, 'fare', { required: true, positive: true, label: 'la tarifa del viaje' });
+      const fare = readMoney(f, 'fare', { required: true, positive: true, label: 'la tarifa base del viaje' });
       if (fare.error) return fail(f, 'fare', fare.error);
       const exp = readMoney(f, 'exp', { label: 'el gasto de viaje' });
       if (exp.error) return fail(f, 'exp', exp.error);
@@ -114,6 +127,7 @@ export function openTripForm(op, trip, onSaved) {
         await ops.saveTrip({
           ...(editing ? { id: trip.id, documentId: trip.documentId ?? null, source: trip.source || 'manual' } : {}),
           operatorId: op.id, division, date: f.elements.date.value, reference: f.elements.reference.value.trim().replace(/\s+/g, ' '), origin, destination, fare: fare.value, travelExpenses: exp.value,
+          ...taxFields(fare.value, tax, taxRates),
           commissionRate: c.rate, minEnabled: !!rule.minEnabled, minAmount: rule.minAmount,
           baseCommission: c.base, expandedCommission: c.adjustment, finalCommission: c.final, isExpanded: c.expanded,
           notes: f.elements.notes.value.trim(),
@@ -125,11 +139,21 @@ export function openTripForm(op, trip, onSaved) {
   });
   cutoffHint(form, op);
   const prev = form.querySelector('[data-prev]');
+  const TAXES = ['applyVat', 'applyIsr', 'applyVatWithholding'];
+  const syncTax = () => TAXES.forEach((k) => { form.elements[k].checked = !!tax[k]; });
+  const taxHint = () => { form.querySelector('[data-taxhint]').textContent = !editing && division === 'campo' ? 'IVA 16% e ISR 4% se aplican por defecto en División Campo. Puedes desactivarlos para este viaje.' : ''; };
+  form.addEventListener('change', (e) => { if (TAXES.includes(e.target.name)) { tax[e.target.name] = e.target.checked; taxTouched = true; preview(); } });
+  taxHint();
   function preview() {
     const fare = toCents(form.elements.fare.value), exp = toCents(form.elements.exp.value);
-    if (fare == null || Number.isNaN(fare)) { prev.innerHTML = '<p class="cm-note">Escribe la tarifa para calcular la comisión.</p>'; return; }
+    if (fare == null || Number.isNaN(fare)) { prev.innerHTML = '<p class="cm-note">Escribe la tarifa base para calcular los impuestos y la comisión.</p>'; return; }
     const c = commissionFor(fare, rule);
-    prev.innerHTML = `<div class="cm-head"><span>Comisión</span>${c.expanded ? '<span class="exp-tag">Comisión ampliada</span>' : `<span class="cm-rate">${c.rate}%</span>`}</div>
+    const tx = computeTaxes(fare, tax, taxRates);
+    prev.innerHTML = `<div class="cm-head"><span>Resumen financiero</span></div>
+      <dl class="cm-rows fin"><div><dt>Tarifa base</dt><dd>${money(tx.fareBase)}</dd></div>
+        ${tx.applyVat ? `<div><dt>IVA ${tx.vatRate}%</dt><dd>${money(tx.vatAmount, { sign: true })}</dd></div>` : ''}${tx.applyIsr ? `<div><dt>ISR ${tx.isrRate}%</dt><dd>${money(-tx.isrAmount)}</dd></div>` : ''}${tx.applyVatWithholding ? `<div><dt>Retención IVA ${tx.vatWithholdingRate}%</dt><dd>${money(-tx.vatWithholdingAmount)}</dd></div>` : ''}${tx.any ? '' : '<div><dt>Impuestos</dt><dd>No aplicados</dd></div>'}
+        <div class="tot"><dt>Total después de impuestos</dt><dd><b>${money(tx.totalAfterTaxes)}</b></dd></div></dl>
+      <div class="cm-head cm-sep"><span>Comisión operador</span>${c.expanded ? '<span class="exp-tag">Comisión ampliada</span>' : `<span class="cm-rate">${c.rate}%</span>`}</div>
       <b class="cm-final">${money(c.final)}</b>
       <dl class="cm-rows"><div><dt>Comisión base ${c.rate}%</dt><dd>${money(c.base)}</dd></div>
         ${c.expanded ? `<div><dt>Ajuste (mínimo garantizado)</dt><dd class="pos">${money(c.adjustment, { sign: true })}</dd></div><div><dt>Comisión final</dt><dd><b>${money(c.final)}</b></dd></div>` : ''}</dl>
@@ -140,6 +164,9 @@ export function openTripForm(op, trip, onSaved) {
   form.querySelectorAll('[data-div]').forEach((b) => b.addEventListener('click', () => {
     division = b.dataset.div;
     form.querySelectorAll('[data-div]').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); });
+    /* La división solo fija los valores iniciales: una selección manual de impuestos nunca se sobrescribe */
+    if (!editing && !taxTouched) { tax = defaultTaxFlags(division); syncTax(); }
+    taxHint(); preview();
   }));
   form.querySelectorAll('[data-route]').forEach((b) => b.addEventListener('click', () => {
     const r = sug.routes[+b.dataset.route]; form.elements.origin.value = r.origin; form.elements.destination.value = r.destination;
@@ -163,10 +190,13 @@ export function openTripForm(op, trip, onSaved) {
 
 export function openTripDetail(op, trip, onChange) {
   const bill = billingOf(trip.id), paid = !!(bill && bill.paid), delays = (bill && bill.delays) || [];
+  const tx = tripTaxes(trip);
   const rows = [
     ...(trip.reference ? [['Referencia', trip.reference]] : []),
     ['División', trip.division === 'campo' ? 'Campo' : 'Puerto'], ['Fecha', fmtDate(trip.date)], ['Ruta', `${trip.origin} → ${trip.destination}`],
-    ['Tarifa', money(trip.fare)], ['Gastos', money(trip.travelExpenses)], [`Comisión base ${trip.commissionRate ?? COMMISSION_RATE}%`, money(trip.baseCommission)],
+    ['Tarifa base', money(tx.fareBase)], [`IVA ${tx.vatRate}%`, tx.applyVat ? money(tx.vatAmount, { sign: true }) : 'No aplicado'], [`ISR ${tx.isrRate}%`, tx.applyIsr ? money(-tx.isrAmount) : 'No aplicado'],
+    [`Retención IVA ${tx.vatWithholdingRate}%`, tx.applyVatWithholding ? money(-tx.vatWithholdingAmount) : 'No aplicada'], ['Total después de impuestos', `<b>${money(tx.totalAfterTaxes)}</b>`],
+    ['Gastos de viaje', money(trip.travelExpenses)], [`Comisión base ${trip.commissionRate ?? COMMISSION_RATE}%`, money(trip.baseCommission)],
     ['Ajuste de comisión', trip.expandedCommission ? money(trip.expandedCommission, { sign: true }) : money(0)], ['Comisión final', `<b>${money(trip.finalCommission)}</b>`],
   ];
   const meta = [
@@ -176,10 +206,10 @@ export function openTripDetail(op, trip, onChange) {
   ].filter(Boolean);
   const sh = openSheet({ title: 'Detalle del viaje', body: `${who(op)}
     ${trip.isExpanded ? '<span class="exp-tag lg">Comisión ampliada</span>' : ''}
-    <dl class="sumlist detail">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${k === 'Comisión final' ? v : esc(v)}</dd></div>`).join('')}</dl>
+    <dl class="sumlist detail">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${k === 'Comisión final' || k === 'Total después de impuestos' ? v : esc(v)}</dd></div>`).join('')}</dl>
     ${trip.notes ? `<p class="detail-notes">${esc(trip.notes)}</p>` : ''}
     <h3 class="pk-h">Cobranza</h3>
-    <div class="cob-state ${paid ? 'paid' : 'due'}"><span><span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span><small>${paid ? `${fmtDate(bill.paidDate) ? 'Pago del ' + esc(fmtDate(bill.paidDate)) : 'Sin fecha de pago registrada'}${bill.reference ? ' | Ref. de pago ' + esc(bill.reference) : ''}` : 'Tarifa del viaje'}${delays.length ? ` | ${delays.length} demora${delays.length === 1 ? '' : 's'}` : ''}</small></span><b>${money(trip.fare)}</b></div>
+    <div class="cob-state ${paid ? 'paid' : 'due'}"><span><span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span><small>${paid ? `${fmtDate(bill.paidDate) ? 'Pago del ' + esc(fmtDate(bill.paidDate)) : 'Sin fecha de pago registrada'}${bill.reference ? ' | Ref. de pago ' + esc(bill.reference) : ''}` : tx.any ? 'Total después de impuestos' : 'Tarifa del viaje'}${delays.length ? ` | ${delays.length} demora${delays.length === 1 ? '' : 's'}` : ''}</small></span><b>${money(tx.totalAfterTaxes)}</b></div>
     <button type="button" class="${paid ? 'btn-secondary' : 'btn-primary'} block" data-cob>${icon.cash}<span>${paid ? 'Ver cobranza del viaje' : 'Registrar pago del viaje'}</span></button>
     <p class="grp-note">${meta.map(esc).join('<br>')}</p>
     <div class="sheet-acts"><button type="button" class="btn-secondary" data-edit>${icon.edit}<span>Editar</span></button><button type="button" class="btn-danger" data-del>${icon.trash}<span>Eliminar</span></button></div>` });

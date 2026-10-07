@@ -3,7 +3,8 @@
  *
  * Cada viaje puede llevar una Referencia (campo «reference» del viaje, aquí tripRef) para identificarlo; no debe
  * confundirse con la referencia del pago (reference del registro de cobranza).
- * Lo que se cobra de cada viaje es su TARIFA (la misma que se captura en Operadores). Además, cada viaje puede tener
+ * Lo que se cobra de cada viaje es su TOTAL DESPUÉS DE IMPUESTOS (tarifa base + IVA − ISR − retención de IVA, según lo
+ * activado en el viaje; ver operators/taxes.js). En un viaje sin impuestos ese total es su tarifa. Además, cada viaje puede tener
  * demoras en planta, cada una con su importe. Viaje y demoras se cobran por separado: cada uno está «por cobrar» o «pagado».
  * Nada se guarda como total: los importes siempre se derivan de los viajes y de su registro de cobranza.
  * Montos en centavos; fechas como texto local AAAA-MM-DD.
@@ -12,6 +13,8 @@
  *   { tripId, paid, paidDate, reference, notes,
  *     delays: [{ id, date, concept, amount, notes, paid, paidDate, reference }], ...auditoría }
  */
+import { tripTaxes } from '../operators/taxes.js';
+
 export const DELAY_CONCEPT = 'Demora en planta';
 export const blankBilling = (tripId) => ({ tripId, paid: false, paidDate: '', reference: '', notes: '', delays: [] });
 
@@ -41,7 +44,7 @@ export function billingItems(trips, billOf, opOf) {
       id: t.id, trip: t, division: t.division === 'campo' ? 'campo' : 'puerto', date: t.date,
       operatorId: t.operatorId, operator: op ? op.name : 'Operador no encontrado', company: op ? op.companyShort || '' : '',
       tripRef: t.reference || '', origin: t.origin || '', destination: t.destination || '', route: `${t.origin || ''} → ${t.destination || ''}`,
-      amount: t.fare || 0, paid: !!b.paid, paidDate: b.paidDate || '', reference: b.reference || '', notes: b.notes || '',
+      amount: tripTaxes(t).totalAfterTaxes, fareBase: t.fare || 0, taxed: tripTaxes(t).any, paid: !!b.paid, paidDate: b.paidDate || '', reference: b.reference || '', notes: b.notes || '',
       delays: (b.delays || []).map((d) => ({ ...d, amount: d.amount || 0, paid: !!d.paid })),
     };
   }).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : (b.trip.createdAt || 0) - (a.trip.createdAt || 0)));

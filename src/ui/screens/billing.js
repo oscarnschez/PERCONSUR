@@ -1,7 +1,7 @@
 /*
  * Cobranza (#/cobranza) — viajes registrados en Operadores, separados por división, con su estado de cobro
  * y sus demoras en planta. Cada viaje y cada demora están «por cobrar» o «pagados».
- * El importe de un viaje es su tarifa. Los totales se derivan con summarize() (domain/billing/billing.js).
+ * El importe de un viaje es su total después de impuestos (su tarifa, si no tiene impuestos). Los totales se derivan con summarize() (domain/billing/billing.js).
  */
 import { screen, on } from '../../core/dom.js';
 import { back } from '../../core/router.js';
@@ -26,7 +26,7 @@ function card(it, sel = null) {
     <span class="tc-top">${sel == null ? '' : `<span class="cob-check">${icon.check}</span>`}${payTag(it.paid)}${it.tripRef ? `<span class="ref-tag">${esc(it.tripRef)}</span>` : ''}${it.delays.length ? `<span class="after-tag">${plural(it.delays.length, 'demora', 'demoras')}</span>` : ''}<span class="tc-date">${esc(fmtDateShort(it.date))}</span></span>
     <b class="tc-route">${esc(it.origin)} → ${esc(it.destination)}</b>
     <span class="cob-op">${esc(it.operator)}${it.company ? ' | ' + esc(it.company) : ''}</span>
-    <span class="cob-line"><span>Tarifa del viaje${it.paid ? `<small>${esc(paidLine(it))}</small>` : ''}</span><b>${money(it.amount)}</b></span>
+    <span class="cob-line"><span>${it.taxed ? 'Total del viaje' : 'Tarifa del viaje'}${it.taxed ? `<small>Tarifa base ${money(it.fareBase)} más impuestos</small>` : ''}${it.paid ? `<small>${esc(paidLine(it))}</small>` : ''}</span><b>${money(it.amount)}</b></span>
     ${it.delays.map((d) => `<span class="cob-line delay"><span>${esc(d.concept)} ${payTag(d.paid, true)}<small>${esc(fmtDate(d.date))}${d.paid ? ' | ' + esc(paidLine(d)) : ''}</small></span><b>${money(d.amount)}</b></span>`).join('')}
   </button>`;
 }
@@ -50,7 +50,7 @@ export async function billingScreen() {
     <div class="chips filters">${PERIODS.map(([k, l]) => `<button type="button" class="chip" data-per="${k}">${l}</button>`).join('')}</div>
     <div class="row2 period-custom" data-custom hidden><label class="fld"><span class="fl">Desde</span><input class="in" type="date" data-c="from"></label><label class="fld"><span class="fl">Hasta</span><input class="in" type="date" data-c="to"></label></div>
     <div data-list></div>
-    <p class="grp-note center">Los viajes provienen de <a href="#/operadores">Administración → Operadores</a>. El importe por cobrar de cada viaje es su tarifa.</p>
+    <p class="grp-note center">Los viajes provienen de <a href="#/operadores">Administración → Operadores</a>. El importe por cobrar de cada viaje es su total después de impuestos (su tarifa, si no tiene impuestos).</p>
   </div>`);
   const root = s.el, listEl = root.querySelector('[data-list]'), sumEl = root.querySelector('[data-sum]');
 
@@ -122,7 +122,7 @@ export function openBillingDetail(tripId, onChange, { pay = false } = {}) {
     const rows = [...(it.tripRef ? [['Referencia', it.tripRef]] : []), ['Operador', it.operator + (it.company ? ' | ' + it.company : '')], ['División', it.division === 'campo' ? 'Campo' : 'Puerto'], ['Fecha del viaje', fmtDate(it.date)], ['Ruta', `${it.origin} → ${it.destination}`]];
     box.innerHTML = `<dl class="sumlist detail">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
       <h3 class="pk-h">Cobro del viaje</h3>
-      <div class="cob-state ${it.paid ? 'paid' : 'due'}"><span>${payTag(it.paid)}<small>${it.paid ? esc(paidLine(it)) : 'Tarifa del viaje'}</small></span><b>${money(it.amount)}</b></div>
+      <div class="cob-state ${it.paid ? 'paid' : 'due'}"><span>${payTag(it.paid)}<small>${it.paid ? esc(paidLine(it)) : it.taxed ? `Total después de impuestos | tarifa base ${money(it.fareBase)}` : 'Tarifa del viaje'}</small></span><b>${money(it.amount)}</b></div>
       ${it.notes ? `<p class="detail-notes">${esc(it.notes)}</p>` : ''}
       ${it.paid
         ? `<div class="sheet-acts"><button type="button" class="btn-secondary" data-pay>${icon.edit}<span>Editar pago</span></button><button type="button" class="btn-secondary" data-unpay>${icon.refresh}<span>Quitar pago</span></button></div>`
@@ -151,7 +151,7 @@ function openPaymentForm(it, onSaved) {
   formSheet({
     title: it.paid ? 'Editar pago del viaje' : 'Registrar pago del viaje', saveLabel: it.paid ? 'Guardar cambios' : 'Marcar como pagado',
     html: `${tripWho(it)}
-      <div class="cob-state due"><span><small>Importe del viaje (tarifa)</small></span><b>${money(it.amount)}</b></div>
+      <div class="cob-state due"><span><small>${it.taxed ? 'Importe del viaje (total después de impuestos)' : 'Importe del viaje (tarifa)'}</small></span><b>${money(it.amount)}</b></div>
       ${dateFld('paidDate', 'Fecha de pago', it.paidDate || todayStr())}
       <label class="fld"><span class="fl">Referencia del pago (opcional)</span><input class="in" name="reference" value="${esc(it.reference)}" placeholder="Factura, transferencia o folio" autocomplete="off" enterkeyhint="next"></label>
       <label class="fld"><span class="fl">Observaciones (opcional)</span><textarea class="in" name="notes" rows="2">${esc(it.notes)}</textarea></label>`,
@@ -170,7 +170,7 @@ function openBulkPaymentForm(chosen, onSaved) {
   const withDelays = chosen.filter((it) => it.delays.some((d) => !d.paid)).length;
   formSheet({
     title: 'Marcar viajes como pagados', saveLabel: `Marcar ${plural(n, 'viaje', 'viajes')} como ${n === 1 ? 'pagado' : 'pagados'}`,
-    html: `<div class="cob-state due"><span><b>${plural(n, 'viaje', 'viajes')}</b><small>Importe total (tarifas)</small></span><b>${money(total)}</b></div>
+    html: `<div class="cob-state due"><span><b>${plural(n, 'viaje', 'viajes')}</b><small>Importe total</small></span><b>${money(total)}</b></div>
       ${dateFld('paidDate', 'Fecha de pago', todayStr())}
       <label class="fld"><span class="fl">Referencia del pago (opcional)</span><input class="in" name="reference" placeholder="Factura, transferencia o folio" autocomplete="off"></label>
       <p class="grp-note">Se guarda la misma fecha y la misma referencia en todos los viajes seleccionados. Para corregir uno, ábrelo y usa «Editar pago» o «Quitar pago».${withDelays ? ` Las demoras en planta de ${plural(withDelays, 'viaje', 'viajes')} siguen por cobrar: se marcan aparte.` : ''}</p>`,

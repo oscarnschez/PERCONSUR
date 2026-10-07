@@ -264,3 +264,19 @@ button.mv-row:active{background:var(--fill)}
 .imp-newop{margin:-2px 2px 10px}
 .imp-tiles .tile:last-child:nth-child(odd){grid-column:span 2}
 .imp-tiles .tile:last-child:nth-child(even){grid-column:auto}
+
+/* ===== Impuestos por viaje ===== */
+.tax-box{margin-bottom:10px}
+.tax-lead{margin:0 0 4px;font-size:13.5px;color:var(--muted)}
+.cm-rows.fin .tot{font-weight:700}
+.cm-rows.fin .tot dd b{font-size:19px}
+.cm-sep{margin-top:12px;padding-top:10px;border-top:2px solid color-mix(in srgb,var(--tint) 30%,transparent)}
+.fisc{margin:0 0 14px;padding:10px 14px 2px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.fisc h4{margin:0 0 2px;font-size:13.5px;font-weight:600;color:var(--muted)}
+.fisc dl{margin:0}
+.fisc dl>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:15px}
+.fisc dl>div:last-child{border-bottom:0}
+.fisc dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fisc .tot dt{font-weight:700}
+.fisc .tot dd b{font-size:17px}
+.fisc-x{margin:0 0 14px}

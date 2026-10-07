@@ -178,7 +178,7 @@ export function buildBillingReport({ company, items, divisions, periodLabel, iss
   box(PAGE.ml, 'TOTAL POR COBRAR', `${plural(total.trips.due.n, 'viaje', 'viajes')} y ${plural(total.delays.due.n, 'demora', 'demoras')}`, docMoney(total.due, { mxn: true }), COLOR.orange, total.due ? COLOR.neg : COLOR.ink);
   box(PAGE.ml + bw + 10, 'TOTAL PAGADO', `${plural(total.trips.paid.n, 'viaje', 'viajes')} y ${plural(total.delays.paid.n, 'demora', 'demoras')}`, docMoney(total.paid, { mxn: true }), OK, COLOR.ink);
   y += 52;
-  text(PAGE.ml, y + 4, 'El importe de cada viaje es su tarifa. Las demoras en planta se cobran por separado. Importes en pesos mexicanos (MXN).', { s: 6.8, c: COLOR.muted });
+  text(PAGE.ml, y + 4, 'El importe de cada viaje es su total después de impuestos (su tarifa, si no los tiene). Las demoras en planta se cobran por separado. Importes en MXN.', { s: 6.8, c: COLOR.muted });
   y += 20;
 
   /* Desglose */

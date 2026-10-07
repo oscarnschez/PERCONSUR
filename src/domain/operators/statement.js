@@ -11,6 +11,7 @@
  * Nada se copia ni se guarda: el documento se arma con los registros actuales.
  */
 import { computeOperator, isDate, fmtDate, ADJ_TARGETS, adjBalanceEffect, COMMISSION_RATE } from './balance.js';
+import { tripTaxes, sumTaxes, VAT_RATE, ISR_RATE, VAT_WITHHOLDING_RATE } from './taxes.js';
 
 export const PAGE = { w: 612, h: 792, ml: 48, mr: 48, bottom: 738 };
 const CW = PAGE.w - PAGE.ml - PAGE.mr;          // 516 pt de ancho útil
@@ -215,26 +216,44 @@ export function buildStatement({ op, company, opCompany, rec, cutoff, folio, iss
   y += neg ? 26 : 18;
 
   /* Viajes */
-  const tcols = [{ label: 'Fecha', w: 50 }, { label: 'División', w: 52 }, { label: 'Origen', w: 108 }, { label: 'Destino', w: 108 }, { label: 'Tarifa (MXN)', w: 68, align: 'right' }, { label: 'Gastos (MXN)', w: 62, align: 'right' }, { label: 'Comisión (MXN)', w: 68, align: 'right' }];
-  const tripRows = trips.map((t) => ({
+  /* Viajes: el desglose fiscal va en una segunda línea bajo la ruta, solo en los viajes con impuestos */
+  const fx = sumTaxes(trips);
+  const tcols = [{ label: 'Fecha', w: 44 }, { label: 'División', w: 44 }, { label: 'Ruta', w: 172 }, { label: 'Tarifa base', w: 64, align: 'right' }, { label: 'Total c/ imp.', w: 66, align: 'right' }, { label: 'Gastos', w: 56, align: 'right' }, { label: 'Comisión', w: 70, align: 'right' }];
+  /* El porcentaje solo se escribe si difiere del oficial (16 / 4 / 4), para que la línea quepa bajo la ruta */
+  const pct = (rate, std) => (rate === std ? '' : ` ${rate}%`);
+  const taxLine = (x) => [x.applyVat && `IVA${pct(x.vatRate, VAT_RATE)} ${docMoney(x.vatAmount, { sign: true })}`, x.applyIsr && `ISR${pct(x.isrRate, ISR_RATE)} ${docMoney(-x.isrAmount)}`, x.applyVatWithholding && `Ret. IVA${pct(x.vatWithholdingRate, VAT_WITHHOLDING_RATE)} ${docMoney(-x.vatWithholdingAmount)}`].filter(Boolean).join(' · ');
+  const tripRows = trips.map((t) => { const x = tripTaxes(t); return {
     cells: [
       cell(fmtDate(t.date)), cell(t.division === 'campo' ? 'Campo' : 'Puerto', { marker: t.division === 'campo' ? COLOR.orange : COLOR.blue }),
-      { lines: wrap(t.origin, 7.8, false, 98) }, { lines: wrap(t.destination, 7.8, false, 98) },
-      cell(docMoney(t.fare)), cell(docMoney(t.travelExpenses)),
+      { lines: wrap(`${t.origin} -> ${t.destination}`, 7.8, false, 162), ...(x.any ? { sub: fit(taxLine(x), 6.2, false, 162), subC: COLOR.blueD } : {}) },
+      cell(docMoney(x.fareBase)), cell(docMoney(x.totalAfterTaxes), { b: x.any }), cell(docMoney(t.travelExpenses)),
       cell(docMoney(t.finalCommission), t.isExpanded ? { sub: `Ampliada | base ${docMoney(t.baseCommission)}`, subC: COLOR.orange } : {}),
     ],
-  }));
+  }; });
   const S = (f) => trips.reduce((a, t) => a + (f(t) || 0), 0);
   table('Viajes realizados', tcols, tripRows, {
     empty: 'Sin viajes registrados hasta la fecha de corte.',
-    totalRows: [{ cells: [cell(`Total (${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'})`), cell(''), cell(''), cell(''), cell(docMoney(S((t) => t.fare))), cell(docMoney(S((t) => t.travelExpenses))), cell(docMoney(S((t) => t.finalCommission)))] }],
+    totalRows: [{ cells: [cell(`Total (${trips.length} ${trips.length === 1 ? 'viaje' : 'viajes'})`), cell(''), cell(''), cell(docMoney(fx.fares)), cell(docMoney(fx.total)), cell(docMoney(S((t) => t.travelExpenses))), cell(docMoney(S((t) => t.finalCommission)))] }],
   });
   const expanded = trips.filter((t) => t.isExpanded);
   if (trips.length) {
+    /* Resumen fiscal: se suma viaje por viaje, con la configuración guardada en cada uno */
+    section('Resumen de viajes', 160);
+    [['Tarifas base acumuladas', docMoney(fx.fares)], ['IVA generado', docMoney(fx.vat, { sign: true })], ['ISR retenido', docMoney(-fx.isr)], ['Retención IVA', docMoney(-fx.vatWithholding)]]
+      .forEach(([k, v]) => { text(PAGE.ml + 4, y + 12, k, { s: 9 }); text(R - 4, y + 12, v, { s: 9, b: true, a: 'end' }); y += 18; line(PAGE.ml, y, R, y, { c: COLOR.line, w: 0.45 }); });
+    y += 5;
+    rect(PAGE.ml, y, CW, 26, { fill: COLOR.blueL }); rect(PAGE.ml, y, 3, 26, { fill: COLOR.blue });
+    text(PAGE.ml + 12, y + 16.5, 'Total generado después de impuestos', { s: 9.5, b: true, c: COLOR.blueD });
+    text(R - 10, y + 17, docMoney(fx.total, { mxn: true }), { s: 11.5, b: true, a: 'end' });
+    y += 31;
+    text(PAGE.ml + 4, y + 11, 'Comisiones acumuladas', { s: 9 }); text(R - 4, y + 11, docMoney(S((t) => t.finalCommission)), { s: 9, b: true, a: 'end' }); y += 17; line(PAGE.ml, y, R, y, { c: COLOR.line, w: 0.45 });
+    text(PAGE.ml, y + 11, `Total = Tarifa base + IVA ${VAT_RATE}% - ISR ${ISR_RATE}% - Retención IVA ${VAT_WITHHOLDING_RATE}%, según lo aplicado en cada viaje.`, { s: 6.8, c: COLOR.muted });
+    text(PAGE.ml, y + 20.5, 'La comisión del operador se calcula sobre la tarifa base, antes de impuestos; los impuestos no forman parte del balance.', { s: 6.8, c: COLOR.muted });
+    y += 33;
     section('Totales de viajes', 70);
     kvGrid([
       ['Total de viajes', String(trips.length)], ['Puerto', String(res.stats.puerto)], ['Campo', String(res.stats.campo)],
-      ['Tarifas acumuladas', docMoney(S((t) => t.fare))], ['Gastos acumulados', docMoney(S((t) => t.travelExpenses))],
+      ['Tarifas base acumuladas', docMoney(S((t) => t.fare))], ['Gastos acumulados', docMoney(S((t) => t.travelExpenses))],
       ['Comisiones de viajes', docMoney(S((t) => t.finalCommission)), expanded.length ? `Incluye ${expanded.length} comisi${expanded.length === 1 ? 'ón ampliada' : 'ones ampliadas'} (+${docMoney(S((t) => t.expandedCommission))})` : ''],
     ]);
     if (expanded.length) { ensure(14); text(PAGE.ml, y - 2, `Comisión ampliada: cuando el ${COMMISSION_RATE}% de la tarifa es menor a la comisión mínima garantizada del operador, se paga el mínimo.`, { s: 6.8, c: COLOR.muted }); y += 12; }
