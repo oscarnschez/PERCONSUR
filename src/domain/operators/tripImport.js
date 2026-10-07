@@ -7,7 +7,7 @@
  *   - El viaje se localiza por operador + fecha. No se crean viajes ni operadores, SALVO que el archivo lo pida de
  *     forma expresa con "create": true en el operador: entonces el operador que no exista se da de alta (con su RFC,
  *     CURP y licencia) y los viajes que no existan se registran. Para crear un viaje el archivo debe traer origen,
- *     destino y tarifa; los gastos de viaje quedan en cero porque el archivo no los trae.
+ *     destino y tarifa; los gastos de viaje se toman del archivo (campo expenses) y quedan en cero si no los trae.
  *   - Si ese día el operador tiene varios viajes (o hay varios registros), se intenta distinguir por la referencia ya
  *     guardada y por el destino; si no alcanza, el registro queda «ambiguo» para elegir a mano. No se asigna al azar.
  *   - Un contenedor cuyo dígito verificador ISO 6346 no coincide es una lectura dudosa: su referencia no se asigna sola.
@@ -16,8 +16,8 @@
  *
  * Archivo: { format:'perconsur-trip-import', version:1, source, operators:[{ name, trips:[[fecha, contenedor, estatus, destino?, nota?]] }] }
  *   o bien { ..., records:[{ operator, date, container, status, destination?, note? }] }. Fechas AAAA-MM-DD o DD/MM/AAAA.
- *   Altas: { name, create:true, company, profile:{ rfc, curp, license }, trips:[{ date, container, status, origin, destination, fare }] }
- *   (fare en pesos, sin IVA).
+ *   Altas: { name, create:true, company, profile:{ rfc, curp, license }, trips:[{ date, container, status, origin, destination, fare, expenses? }] }
+ *   (fare y expenses en pesos; fare es la tarifa base, sin IVA).
  */
 import { isoCheck } from '../shared/format.js';
 
@@ -50,7 +50,7 @@ export function parseImport(obj) {
     return {
       n, operator: String(r.operator || '').replace(/\s+/g, ' ').trim(), date: toDate(r.date), container, status: String(r.status || '').trim(),
       paid: isPaidStatus(r.status), destination: String(r.destination || '').trim(), note: String(r.note || '').trim(),
-      create: !!r.create, company: String(r.company || 'perconsur'), origin: String(r.origin || '').trim(), fare: Number.isFinite(+r.fare) && +r.fare > 0 ? Math.round(+r.fare * 100) : 0,
+      create: !!r.create, company: String(r.company || 'perconsur'), origin: String(r.origin || '').trim(), fare: Number.isFinite(+r.fare) && +r.fare > 0 ? Math.round(+r.fare * 100) : 0, expenses: Number.isFinite(+r.expenses) && +r.expenses > 0 ? Math.round(+r.expenses * 100) : 0,
       profile: r.profile ? { rfc: cleanContainer(r.profile.rfc), curp: cleanContainer(r.profile.curp), license: cleanContainer(r.profile.license) } : null,
       containerOk: iso.state === 'ok', containerHint: iso.state === 'bad' ? `El dígito verificador no coincide (debería terminar en ${iso.d}).` : iso.state === 'format' ? 'No tiene el formato de 4 letras y 7 números.' : '',
     };

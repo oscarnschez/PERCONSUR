@@ -75,7 +75,7 @@ export async function tripImportScreen() {
       else if (rec.paid && row.alreadyPaid) acts.push('Ya estaba pagado');
       else if (!rec.paid) acts.push(row.alreadyPaid ? 'El pago registrado en la app no se modifica' : 'Queda por cobrar');
     }
-    if (isNew) { acts.push('Registrar viaje nuevo'); acts.push(`Comisión 15 %: ${money(Math.round(rec.fare * 0.15))}`); acts.push('Gastos de viaje: $0.00'); acts.push(rec.paid ? 'Marcar como pagado' : 'Queda por cobrar'); }
+    if (isNew) { acts.push('Registrar viaje nuevo'); acts.push(`Comisión 15 %: ${money(Math.round(rec.fare * 0.15))}`); acts.push(`Gastos de viaje: ${money(rec.expenses)}`); acts.push(rec.paid ? 'Marcar como pagado' : 'Queda por cobrar'); }
     const badge = isNew ? '<span class="st st-generado">Crear</span>' : pending(row) ? '<span class="st st-borrador">Revisar</span>' : changes(row) ? '<span class="st st-generado">Actualizar</span>' : '<span class="st">Sin cambios</span>';
     let ctl = '';
     if (row.state === 'ambiguous' || row.manual) {
@@ -124,7 +124,7 @@ export async function tripImportScreen() {
         return vis.length ? `<div class="grp-h solo"><h3>${esc(op ? op.name : nu ? nameCase(name) : name)}</h3><span class="count">${op ? plural(vis.length, 'registro', 'registros') : nu ? 'Operador nuevo' : 'No está en el catálogo'}</span></div>
           ${nu ? `<p class="grp-note imp-newop">Se dará de alta en el catálogo de ${esc(nu.rec.company === 'perconsur' ? 'PERCONSUR' : nu.rec.company.toUpperCase())}${pf ? ` con RFC <b class="mono">${esc(pf.rfc || '—')}</b>, CURP <b class="mono">${esc(pf.curp || '—')}</b> y licencia <b class="mono">${esc(pf.license || '—')}</b>` : ''}. La fecha de inicio y el monto semanal se configuran después en su ficha.</p>` : ''}<div class="imp-list">${vis.map(rowHTML).join('')}</div>` : '';
       }).join('') || '<div class="empty"><p>No hay registros con ese filtro.</p></div>'}
-      <p class="grp-note center">${t.newTrips ? 'Los viajes nuevos se registran con la tarifa del archivo, comisión del 15 % y gastos de viaje en cero. En los viajes que ya existen solo' : 'Solo'} se actualizan la Referencia y el estatus de pago${t.newTrips ? '' : '. No se crean viajes ni cambian tarifas, gastos, comisiones o balances'}. Los viajes marcados como pagados quedan sin fecha de pago, porque el archivo no la trae.</p>`;
+      <p class="grp-note center">${t.newTrips ? 'Los viajes nuevos se registran con la tarifa del archivo, comisión del 15 % y los gastos de viaje que traiga el archivo (cero si no los trae), sin impuestos. En los viajes que ya existen solo' : 'Solo'} se actualizan la Referencia y el estatus de pago${t.newTrips ? '' : '. No se crean viajes ni cambian tarifas, gastos, comisiones o balances'}. Los viajes marcados como pagados quedan sin fecha de pago, porque el archivo no la trae.</p>`;
     bar.innerHTML = `<button type="button" class="btn-secondary" data-act="cancel">${icon.close}<span>${done ? 'Cerrar' : 'Cancelar'}</span></button>
       <button type="button" class="btn-primary" data-act="apply" ${t.change ? '' : 'disabled'}>${icon.check}<span>Aplicar cambios${t.change ? ` (${t.change})` : ''}</span></button>`;
   }
@@ -161,7 +161,7 @@ export async function tripImportScreen() {
         }
         const c = commissionFor(rec.fare, ruleFromSettings(ops.settingsFor(op.id)));
         const t = await ops.saveTrip({ operatorId: op.id, division: 'puerto', date: rec.date, reference: rec.container, referenceSource: IMPORT_SOURCE, origin: rec.origin, destination: rec.destination,
-          fare: rec.fare, travelExpenses: 0, commissionRate: c.rate, minEnabled: !!ops.settingsFor(op.id).minEnabled, minAmount: ops.settingsFor(op.id).minAmount,
+          fare: rec.fare, travelExpenses: rec.expenses || 0, commissionRate: c.rate, minEnabled: !!ops.settingsFor(op.id).minEnabled, minAmount: ops.settingsFor(op.id).minAmount,
           baseCommission: c.base, expandedCommission: c.adjustment, finalCommission: c.final, isExpanded: c.expanded, notes: '', source: IMPORT_SOURCE });
         newTrips += 1;
         if (rec.paid) payIds.push(t.id);
