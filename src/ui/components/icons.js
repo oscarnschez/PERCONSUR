@@ -41,5 +41,7 @@ export const icon = {
   copy: I('<rect x="8.5" y="8.5" width="11" height="11" rx="1.8"/><path d="M15.5 8.5V5.5a1 1 0 0 0-1-1h-9a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3"/>'),
   person: I('<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20.5c.8-4 3.8-6 7.5-6s6.7 2 7.5 6"/>'),
   trailer: I('<rect x="2.5" y="6.5" width="15" height="9" rx="1"/><path d="M17.5 13.5h4"/><circle cx="6" cy="17.8" r="1.7"/><circle cx="10.5" cy="17.8" r="1.7"/>'),
+  chart: I('<path d="M4 20.5h16"/><path d="M7 17V11M12 17V6M17 17v-4"/>'),
+  people: I('<circle cx="9" cy="8" r="3.3"/><path d="M2.8 19.5c.6-3.4 3.1-5.2 6.2-5.2s5.6 1.8 6.2 5.2"/><path d="M15.5 4.9a3.2 3.2 0 0 1 0 6.2M17.6 14.5c2 .6 3.3 2.2 3.6 5"/>'),
   more: I('<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>', ' stroke-width="2.2"'),
 };

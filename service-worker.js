@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '462c621773';
+const VERSION = '2532a386cc';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -20,6 +20,8 @@ const PRECACHE = [
   "./src/core/router.js",
   "./src/domain/campo/model.js",
   "./src/domain/campo/sheet.js",
+  "./src/domain/operators/balance.js",
+  "./src/domain/operators/money.js",
   "./src/domain/puerto/model.js",
   "./src/domain/puerto/sheet.js",
   "./src/domain/shared/format.js",
@@ -36,6 +38,7 @@ const PRECACHE = [
   "./src/services/libs.js",
   "./src/services/media.js",
   "./src/services/migration.js",
+  "./src/services/operators.js",
   "./src/services/pdf.js",
   "./src/services/pwa.js",
   "./src/services/settings.js",
@@ -56,6 +59,8 @@ const PRECACHE = [
   "./src/ui/screens/done.js",
   "./src/ui/screens/excelCodes.js",
   "./src/ui/screens/home.js",
+  "./src/ui/screens/operatorForms.js",
+  "./src/ui/screens/operators.js",
   "./src/ui/screens/puertoWizard.js",
   "./src/ui/screens/settings.js",
   "./src/ui/screens/viewer.js",
@@ -63,6 +68,7 @@ const PRECACHE = [
   "./styles/base.css",
   "./styles/components.css",
   "./styles/documents.css",
+  "./styles/operators.css",
   "./styles/screens.css",
   "./styles/tokens.css",
   "./assets/icons/apple-touch-icon.png",

@@ -22,6 +22,8 @@ import { campoSheetHTML } from '../domain/campo/sheet.js';
 import { actionSheet, openSheet, busy } from './components/sheet.js';
 import { toast } from './components/toast.js';
 import { icon } from './components/icons.js';
+import { openPicker } from './components/picker.js';
+import { operatorList } from '../services/operators.js';
 
 /* Contexto para las plantillas de documento */
 export const sheetCtx = () => ({ photoURL: (ph) => media.urlFor(ph.id), qr: qrDataURL, plant: plantByName });
@@ -46,9 +48,22 @@ export function openNewSheet() {
   const body = `<div class="new-opts">
     <button type="button" class="new-opt" data-t="puerto"><span class="new-ic">${icon.container}</span><span class="new-tx"><b>Nota de entrega</b><small>División Puerto</small></span><span class="chev">${icon.chev}</span></button>
     <button type="button" class="new-opt" data-t="campo"><span class="new-ic">${icon.truck}</span><span class="new-tx"><b>Asignación de unidades</b><small>División Campo</small></span><span class="chev">${icon.chev}</span></button>
+    <button type="button" class="new-opt" data-t="viaje"><span class="new-ic">${icon.people}</span><span class="new-tx"><b>Viaje de operador</b><small>Operadores</small></span><span class="chev">${icon.chev}</span></button>
   </div>`;
   const sh = openSheet({ title: 'Nuevo documento', body });
-  sh.body.querySelectorAll('.new-opt').forEach((b) => b.addEventListener('click', () => { sh.close(); b.dataset.t === 'puerto' ? startPuerto() : startCampo(); }));
+  sh.body.querySelectorAll('.new-opt').forEach((b) => b.addEventListener('click', () => {
+    sh.close();
+    if (b.dataset.t === 'puerto') startPuerto(); else if (b.dataset.t === 'campo') startCampo(); else startOperatorTrip();
+  }));
+}
+
+/* Viaje de operador desde "Nuevo": elegir operador del catálogo y abrir el formulario en su ficha */
+export async function startOperatorTrip() {
+  const list = operatorList();
+  if (!list.length) { toast('No hay operadores en el catálogo. Agrégalos en Catálogos → Operadores.', { type: 'info', ms: 4000 }); return; }
+  const multi = new Set(list.map((o) => o.company)).size > 1;
+  const r = await openPicker({ title: 'Operador del viaje', allowNew: false, placeholder: 'Buscar operador', items: list.map((o) => ({ value: o.id, label: o.name, sub: multi ? o.companyShort : '' })) });
+  if (r && r.value) go(`/operadores/${r.value}?nuevo=viaje`);
 }
 
 export function chooseCompany() {

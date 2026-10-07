@@ -1,0 +1,134 @@
+"""Pruebas del módulo Operadores. PCS_TEST_USER=... PCS_TEST_PASS=... python3 operators.py"""
+import subprocess, time, sys, os, json, csv, io
+from playwright.sync_api import sync_playwright
+APP=os.path.abspath(os.path.join(os.path.dirname(__file__),'..')); os.makedirs('shots',exist_ok=True)
+U=os.environ.get('PCS_TEST_USER'); P=os.environ.get('PCS_TEST_PASS')
+if not (U and P): sys.exit('Define PCS_TEST_USER y PCS_TEST_PASS')
+srv=subprocess.Popen([sys.executable,'-m','http.server','8770','--bind','127.0.0.1'],cwd=APP,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); time.sleep(1)
+log=[]; errs=[]
+def ok(c,m): log.append(('OK  ' if c else 'FAIL')+' '+m)
+BASE='http://127.0.0.1:8770/index.html'
+def shot(pg,n): pg.screenshot(path=f'shots/{n}.png')
+def bal(pg): return pg.locator('.bal-card .bal-v').inner_text().replace('\xa0',' ').replace(' MXN','').strip()
+def sheet_form(pg): pg.wait_for_selector('.op-form'); pg.wait_for_timeout(350)
+def save(pg): pg.locator('.op-form button[type=submit]').click(); pg.wait_for_timeout(500)
+def trip(pg, fare, exp, origin='Manzanillo', dest='Guadalajara', date='2026-02-10', div='puerto'):
+    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg)
+    if div=='campo': pg.locator('[data-div="campo"]').click()
+    pg.fill('.op-form [name=date]',date); pg.fill('.op-form [name=origin]',origin); pg.fill('.op-form [name=destination]',dest)
+    pg.fill('.op-form [name=fare]',fare); pg.fill('.op-form [name=exp]',exp); save(pg)
+def settings(pg, **kw):
+    pg.locator('[data-settings]').click(); sheet_form(pg)
+    if 'start' in kw: pg.fill('.op-form [name=startDate]',kw['start'])
+    if 'cut' in kw: pg.locator('[data-cut="fecha"]').click(); pg.fill('.op-form [name=cutoffDate]',kw['cut'])
+    if 'manual' in kw: pg.locator('[data-sat="manual"]').click(); pg.fill('.op-form [name=satManual]',str(kw['manual']))
+    if 'auto' in kw: pg.locator('[data-sat="auto"]').click()
+    if 'weekly' in kw: pg.fill('.op-form [name=weekly]',kw['weekly'])
+    if 'minimo' in kw:
+        pg.locator('.op-form [name=minEnabled]').check(); pg.fill('.op-form [name=minAmount]',kw['minimo'])
+    save(pg)
+def login(pg):
+    pg.goto(BASE); pg.wait_for_selector('.login'); pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.login',state='detached',timeout=10000)
+    pg.wait_for_timeout(900)
+    if pg.locator('.asheet').count(): pg.get_by_role('button',name='Ahora no').click()
+try:
+  with sync_playwright() as p:
+    b=p.chromium.launch()
+    ctx=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block',accept_downloads=True)
+    ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
+    pg=ctx.new_page(); pg.on('pageerror',lambda e:errs.append(str(e)))
+    login(pg)
+    ok(pg.locator('.tabbar [data-tab="ops"]').count()==1 and pg.locator('.tabbar [data-tab="cat"]').count()==0,'pestaña Operadores en la barra principal')
+    pg.locator('.tabbar [data-tab="ops"]').click(); pg.wait_for_timeout(700); shot(pg,'o01_listado')
+    names=[x.inner_text() for x in pg.locator('.op-row .row-l1 b').all()]
+    ok(len(names)==6 and names==sorted(names,key=lambda s:s.lower()),'6 operadores del catálogo, sin duplicar y en orden alfabético')
+    pg.fill('.search-in','pedro'); pg.wait_for_timeout(200); ok(pg.locator('.op-row').count()==1,'buscador'); pg.fill('.search-in','')
+    pg.locator('.op-row',has_text='Pedro Urzúa Serrano').click(); pg.wait_for_timeout(700)
+    ok('fecha de inicio' in pg.locator('.op-warn').first.inner_text(),'aviso: falta fecha de inicio'); shot(pg,'o02_ficha_vacia')
+    # Ejemplo oficial: 18 sábados × $3,000 ; comisiones 85,000 ; gastos 12,000 ; préstamos 5,000 → 14,000
+    settings(pg,start='2026-01-03',cut='2026-05-02',weekly='3000')
+    ok('18' in pg.locator('.sumlist').inner_text() and '$54,000.00' in pg.locator('.bal-card').inner_text(),'18 sábados × $3,000 = $54,000.00 de sábados pagados')
+    trip(pg,'200000','5000'); trip(pg,'200,000.00','5,000',date='2026-03-02',dest='Zapopan'); trip(pg,'166666.67','2000',date='2026-04-01',div='campo',origin='Tesistán',dest='Planta Nextipac')
+    pg.locator('[data-new="prestamo"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=date]','2026-03-15'); pg.fill('.op-form [name=amount]','5000'); pg.fill('.op-form [name=concept]','Préstamo personal'); save(pg)
+    card=pg.locator('.bal-card').inner_text()
+    ok(bal(pg)=='$14,000.00' and '+$85,000.00' in card and '−$54,000.00' in card and '−$12,000.00' in card and '−$5,000.00' in card,'EJEMPLO: 85,000 − 54,000 − 12,000 − 5,000 → Balance '+bal(pg))
+    shot(pg,'o03_balance_ejemplo')
+    # comisión ampliada
+    settings(pg,minimo='2500')
+    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=date]','2026-04-20'); pg.fill('.op-form [name=origin]','Manz'); pg.wait_for_timeout(200)
+    ok(pg.locator('[data-sugg="origin"] .chip').count()>=1,'sugerencia de rutas usadas al escribir el origen')
+    pg.locator('[data-sugg="origin"] .chip').first.click(); pg.fill('.op-form [name=destination]','Tala'); pg.fill('.op-form [name=fare]','10000'); pg.wait_for_timeout(200)
+    prev=pg.locator('[data-prev]').inner_text()
+    ok('Comisión ampliada' in prev and '$1,500.00' in prev and '+$1,000.00' in prev and '$2,500.00' in prev,'vista en tiempo real: base $1,500 + ajuste $1,000 = final $2,500, etiqueta Comisión ampliada')
+    shot(pg,'o04_viaje_ampliada'); save(pg)
+    ok(bal(pg)=='$16,500.00','balance se recalcula al guardar el viaje: '+bal(pg))
+    # validaciones
+    pg.locator('[data-new="viaje"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=origin]','A'); pg.fill('.op-form [name=destination]','B'); pg.fill('.op-form [name=fare]','-500'); save(pg)
+    e1=pg.locator('[data-err="fare"]').inner_text(); pg.fill('.op-form [name=fare]',''); save(pg); e2=pg.locator('[data-err="fare"]').inner_text()
+    ok('negativos' in e1 and 'Escribe la tarifa' in e2,'errores específicos: "'+e1+'" / "'+e2+'"')
+    shot(pg,'o05_validacion'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+    # editar tarifa
+    pg.locator('.trip-card',has_text='Zapopan').click(); pg.wait_for_selector('[data-edit]'); shot(pg,'o06_detalle'); pg.locator('[data-edit]').click(); sheet_form(pg)
+    pg.fill('.op-form [name=fare]','210000'); save(pg)
+    ok(bal(pg)=='$18,000.00','modificar la tarifa recalcula (+$1,500): '+bal(pg))
+    # préstamo: eliminar y ajuste
+    pg.locator('[data-tab="prestamos"]').click(); pg.wait_for_timeout(300); pg.locator('[data-loan]').first.click(); sheet_form(pg)
+    pg.locator('[data-del]').click(); pg.locator('.as-btn.destructive').click(); pg.wait_for_timeout(500)
+    ok(bal(pg)=='$23,000.00','eliminar préstamo recalcula: '+bal(pg))
+    pg.locator('[data-tab="movimientos"]').click(); pg.wait_for_timeout(300); pg.locator('.add-btn[data-new="ajuste"]').click(); sheet_form(pg)
+    ok('posterior al corte' in pg.locator('[data-cuthint]').inner_text(),'aviso en vivo: fecha posterior al corte histórico')
+    pg.fill('.op-form [name=date]','2026-04-25'); pg.wait_for_timeout(100); ok(pg.locator('[data-cuthint]').inner_text()=='','sin aviso dentro del corte')
+    pg.fill('.op-form [name=amount]','500'); pg.fill('.op-form [name=reason]','Corrección de comisión'); pg.wait_for_timeout(150)
+    ok('+$500.00' in pg.locator('[data-aprev]').inner_text(),'ajuste: muestra el efecto en el balance'); save(pg)
+    ok(bal(pg)=='$23,500.00','ajuste de comisión suma al balance: '+bal(pg))
+    # sábados manual
+    settings(pg,manual=20)
+    ok(bal(pg)=='$17,500.00' and 'Ajuste manual' in pg.locator('.sumlist').inner_text(),'ajuste manual de sábados (20 × $3,000) identificado: '+bal(pg))
+    pg.locator('[data-tab="movimientos"]').click(); pg.locator('[data-mf="ajuste"]').click(); pg.wait_for_timeout(300)
+    mv=pg.locator('.mv-list').inner_text(); ok('Configuración actualizada' in mv and 'Sábados: Automático → Ajuste manual' in mv,'el cambio de configuración queda registrado en Movimientos')
+    pg.locator('[data-mf="todos"]').click(); pg.wait_for_timeout(200); shot(pg,'o07_movimientos')
+    pg.locator('[data-tab="viajes"]').click(); pg.locator('[data-tdiv="campo"]').click(); pg.wait_for_timeout(200)
+    ok(pg.locator('.trip-card').count()==1,'filtro de viajes: Campo'); pg.locator('[data-tdiv="todos"]').click(); pg.wait_for_timeout(200)
+    pg.locator('.op-tabs').scroll_into_view_if_needed(); shot(pg,'o08_viajes')
+    pg.evaluate('window.scrollTo(0,0)'); pg.wait_for_timeout(200); shot(pg,'o09_ficha_completa')
+    # balance negativo
+    pg.goto(BASE+'#/operadores'); pg.wait_for_timeout(700); pg.locator('.op-row',has_text='Raúl López Martínez').click(); pg.wait_for_timeout(600)
+    settings(pg,start='2026-01-10',cut='2026-10-06',weekly='2500')
+    ok(bal(pg)=='−$97,500.00' and 'Balance negativo' in pg.locator('.bal-card').inner_text(),'balance negativo permitido y señalado (39 sábados × $2,500): '+bal(pg))
+    trip(pg,'30000','0',date='2026-09-01'); ok(bal(pg)=='−$93,000.00','con balance negativo se pueden seguir registrando viajes (+$4,500): '+bal(pg))
+    shot(pg,'o10_negativo')
+    # resumen
+    pg.goto(BASE+'#/operadores/resumen'); pg.wait_for_timeout(800); shot(pg,'o11_resumen')
+    ok(pg.locator('.bal-card .bal-v').inner_text().replace('\xa0',' ').startswith('−$75,500.00'),'resumen: balance acumulado = suma con la misma fórmula ('+pg.locator('.bal-card .bal-v').inner_text()+')')
+    with pg.expect_download() as d: pg.locator('[data-csv]').click()
+    rows=list(csv.reader(io.StringIO(open(d.value.path(),encoding='utf-8-sig').read())))
+    tot=[r for r in rows if r and r[0]=='TOTAL'][0]
+    ok(tot[-1]=='-75500.00' and 'Comisiones - Sábados pagados - Gastos de viaje - Préstamos' in rows[1][1],'CSV de resumen con la fórmula y total −75,500.00')
+    pg.locator('[data-per="mes"]').click(); pg.wait_for_timeout(300); ok(pg.locator('.bal-card').count()==1,'filtro por periodo en resumen')
+    # catálogo protegido
+    pg.goto(BASE+'#/catalogos/operators'); pg.wait_for_timeout(700); pg.locator('[data-id]',has_text='Pedro Urzúa Serrano').click(); pg.wait_for_selector('[data-del]'); pg.locator('[data-del]').click(); pg.wait_for_timeout(400)
+    ok('no se puede eliminar' in pg.locator('.toast-msg').inner_text(),'no se puede eliminar del catálogo un operador con registros')
+    pg.keyboard.press('Escape')
+    # Nuevo → viaje de operador
+    pg.goto(BASE+'#/'); pg.wait_for_timeout(600); pg.locator('.tabbar .tab-new').click(); pg.wait_for_timeout(300); pg.locator('.new-opt[data-t="viaje"]').click(); pg.wait_for_selector('.picker')
+    pg.locator('.pk-row',has_text='Juan Alberto').click(); pg.wait_for_selector('.op-form',timeout=5000)
+    ok('Juan Alberto' in pg.locator('.op-who').inner_text(),'Nuevo → Viaje de operador abre el formulario del operador elegido'); pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+    # respaldo e importación en otro "teléfono"
+    pg.goto(BASE+'#/ajustes'); pg.wait_for_timeout(700)
+    with pg.expect_download() as d2:
+        pg.locator('[data-a="export"]').click(); pg.wait_for_selector('.asheet'); pg.get_by_role('button',name='Solo datos').click(); pg.wait_for_selector('[data-go]'); pg.locator('[data-go]').click()
+    bk=json.load(open(d2.value.path())); dd=bk['data']
+    ok(len(dd['operatorTrips'])==5 and len(dd['operatorLoans'])==1 and len(dd['operatorAdjustments'])==1 and len(dd['operatorSettings'])==2,'el respaldo incluye viajes, préstamos (también eliminados), ajustes y configuración')
+    ctx2=b.new_context(viewport={'width':390,'height':844},is_mobile=True,has_touch=True,service_workers='block'); ctx2.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
+    pg2=ctx2.new_page(); pg2.on('pageerror',lambda e:errs.append('2:'+str(e))); login(pg2)
+    pg2.goto(BASE+'#/ajustes'); pg2.wait_for_timeout(700); pg2.locator('[data-import]').set_input_files(d2.value.path()); pg2.wait_for_selector('.asheet')
+    pg2.get_by_role('button',name='Importar',exact=True).click(); pg2.wait_for_timeout(1500)
+    pg2.goto(BASE+'#/operadores'); pg2.wait_for_timeout(800)
+    ok(pg2.locator('.op-row').count()==6,'otro dispositivo: importar NO duplica operadores (siguen 6)')
+    pg2.locator('.op-row',has_text='Pedro Urzúa Serrano').click(); pg2.wait_for_timeout(700)
+    ok(bal(pg2)=='$17,500.00','otro dispositivo: los registros se reasignan al operador existente y el balance coincide: '+bal(pg2))
+    ctx2.close()
+    pg.emulate_media(color_scheme='dark'); pg.goto(BASE+'#/operadores'); pg.wait_for_timeout(500); pg.locator('.op-row',has_text='Pedro').click(); pg.wait_for_timeout(700); shot(pg,'o12_oscuro')
+    b.close()
+finally: srv.terminate()
+print('\n'.join(log)); print('errores:','; '.join(errs) or 'ninguno')

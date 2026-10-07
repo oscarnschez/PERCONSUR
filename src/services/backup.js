@@ -12,8 +12,11 @@ import { migrateLegacy } from './migration.js';
 import { loadSettings } from './settings.js';
 import { loadCatalogs } from './catalogs.js';
 import { loadCompanies } from './companies.js';
+import { loadOperatorData } from './operators.js';
 
-const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents'];
+const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
+  'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments'];
+const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments'];
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
 
 const b64 = {
@@ -49,6 +52,7 @@ export async function inspectBackup(file) {
       lines: [
         `Documentos: ${n('documents')}`, `Borradores: ${n('drafts')}`,
         `Catálogos: ${n('operators')} operadores, ${n('vehicles')} unidades, ${n('trailers')} remolques, ${n('places')} destinos`,
+        `Control de operadores: ${n('operatorTrips')} viajes, ${n('operatorLoans')} préstamos, ${n('operatorAdjustments')} ajustes, ${n('operatorSettings')} configuraciones`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -67,6 +71,22 @@ export async function importBackup(info) {
     return r;
   }
   const { data } = info.obj;
+  /* Operadores: no duplicar. Si ya existe uno con la misma empresa y nombre (IDs distintos por venir de otro
+     dispositivo), se usa el existente y se reasignan a él los registros importados. */
+  const fold = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const existing = await db.all(db.S.operators);
+  const remap = new Map();
+  data.operators = (data.operators || []).filter((o) => {
+    if (existing.some((e) => e.id === o.id)) return true;
+    const twin = existing.find((e) => e.company === o.company && fold(e.name) === fold(o.name));
+    if (twin) { remap.set(o.id, twin.id); return false; }
+    return true;
+  });
+  for (const st of OP_STORES) for (const r of data[st] || []) if (remap.has(r.operatorId)) r.operatorId = remap.get(r.operatorId);
+  if (data.operatorSettings) {
+    for (const r of data.operatorSettings) { const cur = await db.get(db.S.operatorSettings, r.operatorId); if (cur && (cur.updatedAt || 0) >= (r.updatedAt || 0)) r._skip = true; }
+    data.operatorSettings = data.operatorSettings.filter((r) => !r._skip);
+  }
   for (const s of DATA_STORES) {
     const rows = data[s] || [];
     if (s === 'counters') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || cur.n < r.n) await db.put(s, r); } continue; }
@@ -81,4 +101,4 @@ export async function importBackup(info) {
   await reload();
   return { documents: (data.documents || []).length };
 }
-async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); }
+async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); }

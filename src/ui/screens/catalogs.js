@@ -10,6 +10,7 @@ import { esc, normEco, rfcClean, nameCase, mapsURL } from '../../domain/shared/f
 import { icon } from '../components/icons.js';
 import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
+import { hasRecords } from '../../services/operators.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals'];
@@ -17,7 +18,8 @@ const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'termina
 export async function catalogsScreen() {
   const co = getSetting('catCompany', 'perconsur');
   const s = screen(`<div class="page">
-    <header class="page-top"><h1 class="title">Catálogos</h1></header>
+    <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Ajustes</span></button></header>
+    <h1 class="title">Catálogos</h1>
     <p class="page-lead">Datos que se ofrecen al capturar. Operadores, unidades y remolques son de cada empresa; División Campo usa los de PERCONSUR.</p>
     <section class="grp"><div class="grp-b list-actions">${ORDER.map((k) => {
       const d = cat.KINDS[k], n = d.perCompany ? PUERTO_COMPANIES.reduce((t, c) => t + cat.list(k, c).length, 0) : cat.list(k).length;
@@ -26,6 +28,7 @@ export async function catalogsScreen() {
       <a class="row-btn" href="#/catalogos/tipos"><span class="rb-ic">${icon.catalog}</span><span>Tipos de contenedor (ISO)</span><small>${TIPOS.length}</small>${icon.chev}</a>
     </div></section>
   </div>`);
+  on(s.el, 'click', '[data-back]', () => back('/ajustes'));
   return s;
 }
 
@@ -89,6 +92,10 @@ export async function catalogListScreen({ kind }) {
     });
     const del = sh.body.querySelector('[data-del]');
     if (del) del.addEventListener('click', async () => {
+      if (kind === 'operators' && hasRecords(v.id)) {
+        toast('Este operador tiene viajes, préstamos o configuración en Operadores; no se puede eliminar. Puedes editar su nombre.', { type: 'warn', ms: 5500 });
+        return;
+      }
       if (!(await confirmDestructive(`¿Eliminar ${def.label(v)}?`, 'Se quita del catálogo. Los documentos ya generados no cambian.'))) return;
       await cat.remove(kind, v.id); sh.close(); draw(); toast('Eliminado del catálogo', { type: 'info' });
     });

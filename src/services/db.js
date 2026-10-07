@@ -9,15 +9,17 @@
  *   settings    preferencias { key, value }
  *   attachments archivos binarios: fotos, adjuntos, PDF generados, vistas previas
  *   counters    consecutivos de folio
+ *   operatorSettings, operatorTrips, operatorLoans, operatorAdjustments   control de operadores (v2)
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 1;
+const DB_VERSION = 2;  /* v2: control de operadores */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
   places: 'places', plants: 'plants', terminals: 'terminals', companies: 'companies', settings: 'settings',
   attachments: 'attachments', counters: 'counters',
+  operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
 };
 
 let dbp = null;
@@ -45,6 +47,11 @@ export function openDB() {
       mk(S.settings, { keyPath: 'key' });
       mk(S.attachments, { keyPath: 'id' }, [['owner', 'owner']]);
       mk(S.counters, { keyPath: 'id' });
+      /* v2 — Control de operadores (todo relacionado por operatorId, nunca por nombre) */
+      mk(S.operatorSettings, { keyPath: 'operatorId' });
+      mk(S.operatorTrips, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['documentId', 'documentId'], ['date', 'date']]);
+      mk(S.operatorLoans, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['date', 'date']]);
+      mk(S.operatorAdjustments, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['date', 'date']]);
     };
     req.onsuccess = () => {
       const db = req.result;

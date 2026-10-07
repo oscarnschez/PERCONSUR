@@ -32,7 +32,7 @@ if (forced || content !== cur.content) {
   build = `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
   writeFileSync(VFILE, `/* ARCHIVO GENERADO por scripts/precache.mjs — no editar a mano. */\nexport const APP_VERSION = '${next}';\nexport const APP_BUILD = '${build}';\nexport const APP_CONTENT = '${content}';\n`);
 }
-console.log(next !== cur.version ? `Versión de la app: ${cur.version} → ${next} (${build})` : `Versión de la app: ${next} (sin cambios en los archivos)`);
+console.log(next !== cur.version ? `Versión de la app: ${cur.version} → ${next} (${build})` : forced ? `Versión de la app: ${next} fijada (${build})` : content !== cur.content ? `Versión de la app: ${next} (${build})` : `Versión de la app: ${next} (sin cambios en los archivos)`);
 
 const h = createHash('sha256');
 files.forEach((f) => { h.update(relative(ROOT, f)); h.update(readFileSync(f)); });

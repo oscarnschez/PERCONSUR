@@ -7,6 +7,8 @@ import { openDB } from './services/db.js';
 import { loadSettings, getSetting } from './services/settings.js';
 import { loadCompanies } from './services/companies.js';
 import { loadCatalogs, seedIfNeeded } from './services/catalogs.js';
+import { loadOperatorData } from './services/operators.js';
+import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/operators.js';
 import { reconcileMirrors } from './services/drafts.js';
 import { autoMigrate } from './services/migration.js';
 import { applyTheme } from './services/theme.js';
@@ -36,7 +38,7 @@ function mountTabbar() {
     <a href="#/" data-tab="home">${icon.home}<span>Inicio</span></a>
     <a href="#/documentos" data-tab="docs">${icon.docs}<span>Documentos</span></a>
     <button type="button" class="tab-new" data-tab="new" aria-label="Nuevo documento"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
-    <a href="#/catalogos" data-tab="cat">${icon.catalog}<span>Catálogos</span></a>
+    <a href="#/operadores" data-tab="ops">${icon.people}<span>Operadores</span></a>
     <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>`;
   document.body.appendChild(nav);
   nav.querySelector('.tab-new').addEventListener('click', openNewSheet);
@@ -69,9 +71,12 @@ function routes() {
   route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'docs' });
   route('/doc/:id', docDetailScreen, { name: 'doc', tabs: true, tab: 'docs' });
   route('/listo/:id', doneScreen, { name: 'done' });
-  route('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'cat' });
-  route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'cat' });
-  route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'cat' });
+  route('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'settings' });
+  route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'settings' });
+  route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'settings' });
+  route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'ops' });
+  route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'ops' });
+  route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'ops' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/puerto/:company/:step', puertoWizard, { name: 'wizard' });
@@ -102,7 +107,7 @@ async function boot() {
     await openDB();
     await loadSettings();
     applyTheme();
-    await Promise.all([loadCompanies(), loadCatalogs()]);
+    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData()]);
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');

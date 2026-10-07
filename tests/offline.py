@@ -27,7 +27,7 @@ try:
     res.append('pantalla tras recargar sin red: '+str(pg.evaluate('document.body.dataset.screen')))
     pg.locator('[data-new="campo"]').click(); pg.wait_for_timeout(900)
     res.append('asistente sin red: '+str(pg.evaluate('document.body.dataset.screen')))
-    pg.screenshot(path='offline.png'); res.append('errores: '+(';'.join(errs) or 'ninguno'))
+    res.append('errores: '+(';'.join(errs) or 'ninguno'))
     b.close()
 finally: srv.terminate()
 print('\n'.join(res))

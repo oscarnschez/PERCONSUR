@@ -36,6 +36,9 @@ export function list(kind, company) {
   const lab = KINDS[kind].label;
   return out.sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || String(lab(a)).localeCompare(String(lab(b)), 'es', { numeric: true }));
 }
+/* Todos los registros de un catálogo, sin filtrar por empresa */
+export const listAll = (kind) => (cache[kind] || []).slice();
+
 export async function save(kind, item) {
   const rec = { ...item, id: item.id || db.uid(kind.slice(0, 2) + '_'), updatedAt: Date.now() };
   await db.put(KINDS[kind].store, rec);
