@@ -115,3 +115,25 @@ button.mv-row:active{background:var(--fill)}
 .op-form .sw-row{border-bottom:0;margin-bottom:8px}
 .detail{margin-bottom:6px}
 .detail-notes{margin:4px 0 12px;padding:10px 12px;background:var(--surface-2);border-radius:10px;font-size:15px;white-space:pre-wrap}
+
+/* Estado de cuenta (PDF) */
+.stmt-btn{min-height:52px;margin:0 0 16px;gap:8px}
+.stmt-btn small{font-size:14px;font-weight:400;color:var(--muted)}
+.wiz-title.static{pointer-events:none}
+.stmt-cut{margin:10px 2px 6px;font-size:14px;color:var(--ink-2);line-height:1.45}
+.zoom-bar{display:flex;align-items:center;justify-content:center;gap:6px;margin:0 0 8px}
+.zoom-bar span{min-width:150px;text-align:center;font-size:14px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+.zoom-bar .icon-btn{background:var(--surface);border:1px solid var(--line)}
+.zoom-bar .icon-btn:disabled{opacity:.35}
+.stmt-viewport{overflow:auto;-webkit-overflow-scrolling:touch;margin:0 -16px;padding:4px 16px 8px;touch-action:pan-x pan-y pinch-zoom}
+.stmt-pages{display:flex;flex-direction:column;gap:14px;min-width:100%;transition:width .2s var(--ease)}
+.eo-page{display:block;width:100%;height:auto;background:#fff;border-radius:2px;box-shadow:0 1px 3px rgba(20,30,60,.18),0 6px 18px rgba(20,30,60,.10)}
+.stmt-ok{align-items:flex-start}
+.stmt-ok span{display:flex;flex-direction:column}
+.stmt-ok small{font-size:13px;color:var(--ink-2);font-weight:400;overflow-wrap:anywhere}
+.actionbar.bar3{grid-template-columns:1fr 1.15fr 1fr;gap:8px}
+.actionbar.bar3>*{padding:0 6px;font-size:14.5px;min-height:52px;flex-direction:column;gap:2px;line-height:1.1}
+.actionbar.bar3 .ic{width:20px;height:20px}
+.row.issued{min-height:58px}
+.row.issued .icon-btn{color:var(--tint)}
+.stmt-vw .eo-page{margin:0 0 12px}

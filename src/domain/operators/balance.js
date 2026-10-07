@@ -77,10 +77,13 @@ const live = (arr) => (arr || []).filter((x) => !x.deletedAt);
 /*
  * Cálculo completo de un operador.
  * period = { from, to } opcional. La fecha de corte de la configuración limita todo (cortes históricos).
+ * cutoff (opcional) sustituye la fecha de corte de la ficha: lo usa el estado de cuenta en PDF para
+ * calcular el balance a otra fecha con esta MISMA función (no existe un cálculo paralelo).
  */
-export function computeOperator(rec, { from = null, to = null, today = todayStr() } = {}) {
+export function computeOperator(rec, { from = null, to = null, today = todayStr(), cutoff = null } = {}) {
   const st = settingsOf(rec.settings);
-  const baseCut = isDate(st.cutoffDate) ? st.cutoffDate : today;
+  const configuredCut = isDate(st.cutoffDate) ? st.cutoffDate : today;
+  const baseCut = isDate(cutoff) ? cutoff : configuredCut;
   const hi = to && to < baseCut ? to : baseCut;
   const inRange = (d) => isDate(d) && d <= hi && (!from || d >= from);
   const trips = live(rec.trips).filter((t) => inRange(t.date));
@@ -91,7 +94,9 @@ export function computeOperator(rec, { from = null, to = null, today = todayStr(
   const satFrom = isDate(st.startDate) ? (from && from > st.startDate ? from : st.startDate) : null;
   const satDates = satFrom ? saturdaysBetween(satFrom, hi) : [];
   const manual = st.satMode === 'manual' && Number.isInteger(st.satManual) && st.satManual >= 0;
-  const satCount = manual && fullPeriod ? st.satManual : satDates.length;
+  /* El ajuste manual de sábados corresponde al corte de la ficha; a otra fecha de corte se calcula automáticamente */
+  const manualApplies = manual && fullPeriod && baseCut === configuredCut;
+  const satCount = manualApplies ? st.satManual : satDates.length;
 
   const sum = (arr, f) => arr.reduce((s, x) => s + (f(x) || 0), 0);
   const adj = (target) => sum(adjs.filter((a) => a.target === target), adjSigned);
@@ -106,8 +111,10 @@ export function computeOperator(rec, { from = null, to = null, today = todayStr(
     loans: loanTotal + adj('loans'),
   };
   return {
-    settings: st, cutoff: hi, cutoffIsToday: !isDate(st.cutoffDate), fullPeriod,
-    sat: { count: satCount, auto: saturdaysBetween(isDate(st.startDate) ? st.startDate : '', baseCut).length, dates: satDates, manual: manual && fullPeriod, manualIgnored: manual && !fullPeriod, weekly: st.weekly },
+    settings: st, cutoff: hi, cutoffIsToday: !isDate(cutoff) && !isDate(st.cutoffDate), fullPeriod, configuredCut,
+    sat: { count: satCount, auto: saturdaysBetween(isDate(st.startDate) ? st.startDate : '', baseCut).length, dates: satDates, manual: manualApplies, manualIgnored: manual && !manualApplies, manualValue: manual ? st.satManual : null, weekly: st.weekly },
+    /* Registros que entraron en el cálculo (los muestra el estado de cuenta) */
+    included: { trips, loans, adjustments: adjs },
     comp, balance: balanceOf(comp),
     stats: {
       trips: trips.length, puerto: trips.filter((t) => t.division === 'puerto').length, campo: trips.filter((t) => t.division === 'campo').length,

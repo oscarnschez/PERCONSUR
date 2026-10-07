@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '2532a386cc';
+const VERSION = '5c5f4d9420';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -22,6 +22,7 @@ const PRECACHE = [
   "./src/domain/campo/sheet.js",
   "./src/domain/operators/balance.js",
   "./src/domain/operators/money.js",
+  "./src/domain/operators/statement.js",
   "./src/domain/puerto/model.js",
   "./src/domain/puerto/sheet.js",
   "./src/domain/shared/format.js",
@@ -43,6 +44,7 @@ const PRECACHE = [
   "./src/services/pwa.js",
   "./src/services/settings.js",
   "./src/services/share.js",
+  "./src/services/statementPdf.js",
   "./src/services/theme.js",
   "./src/ui/components/docview.js",
   "./src/ui/components/fields.js",
@@ -63,6 +65,7 @@ const PRECACHE = [
   "./src/ui/screens/operators.js",
   "./src/ui/screens/puertoWizard.js",
   "./src/ui/screens/settings.js",
+  "./src/ui/screens/statement.js",
   "./src/ui/screens/viewer.js",
   "./src/ui/screens/wizardShell.js",
   "./styles/base.css",

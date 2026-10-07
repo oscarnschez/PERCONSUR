@@ -127,6 +127,7 @@ export async function operatorScreen({ id }, q) {
         <button type="button" class="btn-secondary" data-new="prestamo">${icon.plus}<span>Préstamo</span></button>
         <button type="button" class="btn-secondary" data-new="ajuste">${icon.plus}<span>Ajuste</span></button>
       </div>
+      <button type="button" class="btn-secondary block stmt-btn" data-stmt>${icon.file}<span>Generar PDF</span><small>Estado de cuenta</small></button>
       ${r.warnings.map((w) => `<p class="op-warn">${icon.alert}<span>${esc(w)}</span></p>`).join('')}
       <section class="grp"><div class="grp-h"><h3>Configuración</h3><button type="button" class="btn-ghost sm" data-settings>${icon.edit}<span>Editar</span></button></div>
         <div class="grp-b"><dl class="sumlist">
@@ -187,6 +188,7 @@ export async function operatorScreen({ id }, q) {
     if (k === 'ajuste') openAdjustmentForm(op, null, refresh);
   });
   on(root, 'click', '[data-settings]', () => openSettingsForm(op, refresh));
+  on(root, 'click', '[data-stmt]', () => go(`/operadores/${id}/estado`));
   on(root, 'click', '[data-trip]', (e, b) => { const t = ops.recordsOf(id).trips.find((x) => x.id === b.dataset.trip); if (t) openTripDetail(op, t, refresh); });
   on(root, 'click', '[data-loan]', (e, b) => { const l = ops.recordsOf(id).loans.find((x) => x.id === b.dataset.loan); if (l) openLoanForm(op, l, refresh); });
   on(root, 'click', '[data-mv]', (e, b) => {

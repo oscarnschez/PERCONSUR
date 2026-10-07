@@ -9,6 +9,7 @@ import { loadCompanies } from './services/companies.js';
 import { loadCatalogs, seedIfNeeded } from './services/catalogs.js';
 import { loadOperatorData } from './services/operators.js';
 import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/operators.js';
+import { statementScreen } from './ui/screens/statement.js';
 import { reconcileMirrors } from './services/drafts.js';
 import { autoMigrate } from './services/migration.js';
 import { applyTheme } from './services/theme.js';
@@ -77,6 +78,7 @@ function routes() {
   route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'ops' });
   route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'ops' });
   route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'ops' });
+  route('/operadores/:id/estado', statementScreen, { name: 'wizard' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/puerto/:company/:step', puertoWizard, { name: 'wizard' });

@@ -17,7 +17,7 @@ import { listAll } from './catalogs.js';
 import { getCompany } from './companies.js';
 import { DEFAULT_SETTINGS, settingsOf, computeOperator, todayStr } from '../domain/operators/balance.js';
 
-const cache = { settings: new Map(), trips: [], loans: [], adjustments: [] };
+const cache = { settings: new Map(), trips: [], loans: [], adjustments: [], statements: [] };
 const STORE = { trips: db.S.operatorTrips, loans: db.S.operatorLoans, adjustments: db.S.operatorAdjustments };
 
 export async function loadOperatorData() {
@@ -25,6 +25,7 @@ export async function loadOperatorData() {
   cache.trips = await db.all(db.S.operatorTrips);
   cache.loans = await db.all(db.S.operatorLoans);
   cache.adjustments = await db.all(db.S.operatorAdjustments);
+  cache.statements = await db.all(db.S.operatorStatements);
 }
 
 /* Usuario de la sesión actual (para auditoría) */
@@ -112,6 +113,31 @@ export function routeSuggestions() {
   const pairs = []; const seen = new Set();
   for (const t of live) { const k = `${t.origin}\u0000${t.destination}`; if (!seen.has(k) && t.origin && t.destination) { seen.add(k); pairs.push({ origin: t.origin, destination: t.destination }); } }
   return { origins: count(live.map((t) => t.origin)), destinations: count(live.map((t) => t.destination)), routes: pairs.slice(0, 8) };
+}
+
+/* ===== Estados de cuenta emitidos =====
+ * Solo se guardan folio y metadatos (y el PDF emitido en attachments). Los importes NO se copian:
+ * el documento siempre se arma con los registros actuales mediante computeOperator().
+ * Folio EO-AAAAMMDD-NNN: consecutivo diario (store counters, id "eo:AAAAMMDD").
+ */
+export const statementsOf = (operatorId) => cache.statements.filter((s) => s.operatorId === operatorId).sort((a, b) => b.issuedAt - a.issuedAt);
+export async function peekStatementNumber(issued) {
+  const cur = await db.get(db.S.counters, 'eo:' + issued.replace(/-/g, ''));
+  return ((cur && cur.n) || 0) + 1;
+}
+export async function reserveStatementNumber(issued) {
+  const id = 'eo:' + issued.replace(/-/g, '');
+  return db.tx([db.S.counters], async ({ store, req }) => {
+    const st = store(db.S.counters), cur = await req(st.get(id)), n = ((cur && cur.n) || 0) + 1;
+    st.put({ id, kind: 'estado-cuenta', day: issued, n });
+    return n;
+  });
+}
+export async function saveStatement(rec) {
+  const out = { ...rec, id: rec.id || db.uid('eo_'), issuedAt: Date.now(), createdBy: actor() };
+  cache.statements.push(out);
+  await db.put(db.S.operatorStatements, out);
+  return out;
 }
 
 /* Para la integración futura con documentos de Puerto/Campo (evita duplicar un viaje del mismo documento) */

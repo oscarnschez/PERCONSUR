@@ -15,8 +15,8 @@ import { loadCompanies } from './companies.js';
 import { loadOperatorData } from './operators.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
-  'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments'];
-const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments'];
+  'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
+const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
 
 const b64 = {

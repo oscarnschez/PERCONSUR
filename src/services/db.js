@@ -13,13 +13,14 @@
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 2;  /* v2: control de operadores */
+const DB_VERSION = 3;  /* v2: control de operadores | v3: estados de cuenta */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
   places: 'places', plants: 'plants', terminals: 'terminals', companies: 'companies', settings: 'settings',
   attachments: 'attachments', counters: 'counters',
   operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
+  operatorStatements: 'operatorStatements',
 };
 
 let dbp = null;
@@ -52,6 +53,8 @@ export function openDB() {
       mk(S.operatorTrips, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['documentId', 'documentId'], ['date', 'date']]);
       mk(S.operatorLoans, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['date', 'date']]);
       mk(S.operatorAdjustments, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['date', 'date']]);
+      /* v3 — Estados de cuenta emitidos (solo folio y metadatos; el PDF vive en attachments) */
+      mk(S.operatorStatements, { keyPath: 'id' }, [['operatorId', 'operatorId']]);
     };
     req.onsuccess = () => {
       const db = req.result;
