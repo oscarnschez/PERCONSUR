@@ -10,6 +10,8 @@ import { loadCatalogs, seedIfNeeded } from './services/catalogs.js';
 import { loadOperatorData } from './services/operators.js';
 import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/operators.js';
 import { statementScreen } from './ui/screens/statement.js';
+import { adminScreen, operationScreen } from './ui/screens/hubs.js';
+import { fuelScreen, fuelUnitScreen } from './ui/screens/fuel.js';
 import { reconcileMirrors } from './services/drafts.js';
 import { autoMigrate } from './services/migration.js';
 import { applyTheme } from './services/theme.js';
@@ -37,9 +39,9 @@ function mountTabbar() {
   nav.setAttribute('aria-label', 'Navegación principal');
   nav.innerHTML = `
     <a href="#/" data-tab="home">${icon.home}<span>Inicio</span></a>
-    <a href="#/documentos" data-tab="docs">${icon.docs}<span>Documentos</span></a>
+    <a href="#/operacion" data-tab="op">${icon.gauge}<span>Operación</span></a>
     <button type="button" class="tab-new" data-tab="new" aria-label="Nuevo documento"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
-    <a href="#/operadores" data-tab="ops">${icon.people}<span>Operadores</span></a>
+    <a href="#/administracion" data-tab="admin">${icon.briefcase}<span>Administración</span></a>
     <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>`;
   document.body.appendChild(nav);
   nav.querySelector('.tab-new').addEventListener('click', openNewSheet);
@@ -69,15 +71,19 @@ function watchKeyboard() {
 
 function routes() {
   route('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
-  route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'docs' });
-  route('/doc/:id', docDetailScreen, { name: 'doc', tabs: true, tab: 'docs' });
+  route('/administracion', adminScreen, { name: 'admin', tabs: true, tab: 'admin' });
+  route('/operacion', operationScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/combustible/:id', fuelUnitScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'admin' });
+  route('/doc/:id', docDetailScreen, { name: 'doc', tabs: true, tab: 'admin' });
   route('/listo/:id', doneScreen, { name: 'done' });
-  route('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'settings' });
-  route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'settings' });
-  route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'settings' });
-  route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'ops' });
-  route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'ops' });
-  route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'ops' });
+  route('/catalogos', catalogsScreen, { name: 'cat', tabs: true, tab: 'admin' });
+  route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'admin' });
+  route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'admin' });
+  route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'admin' });
+  route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'admin' });
+  route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'admin' });
   route('/operadores/:id/estado', statementScreen, { name: 'wizard' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });

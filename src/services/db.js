@@ -13,14 +13,14 @@
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 3;  /* v2: control de operadores | v3: estados de cuenta */
+const DB_VERSION = 4;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
   places: 'places', plants: 'plants', terminals: 'terminals', companies: 'companies', settings: 'settings',
   attachments: 'attachments', counters: 'counters',
   operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
-  operatorStatements: 'operatorStatements',
+  operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords',
 };
 
 let dbp = null;
@@ -55,6 +55,8 @@ export function openDB() {
       mk(S.operatorAdjustments, { keyPath: 'id' }, [['operatorId', 'operatorId'], ['date', 'date']]);
       /* v3 — Estados de cuenta emitidos (solo folio y metadatos; el PDF vive en attachments) */
       mk(S.operatorStatements, { keyPath: 'id' }, [['operatorId', 'operatorId']]);
+      /* v4 — Recargas de combustible, relacionadas con la unidad del catálogo por vehicleId */
+      mk(S.fuelRecords, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['date', 'date']]);
     };
     req.onsuccess = () => {
       const db = req.result;

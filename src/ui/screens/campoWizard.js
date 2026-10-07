@@ -53,7 +53,7 @@ export async function campoWizard({ step }, q) {
       <div data-plant>${plantInfo()}</div>`, { note: 'La planta aparece en el documento con su dirección y un código QR de ubicación.' });
   }
 
-  function trailerDesc(p) { const t = cat.list('trailers', 'perconsur').find((x) => x.placas === p); return t ? t.desc : ''; }
+  function trailerDesc(p) { const t = cat.list('trailers', 'perconsur').find((x) => x.placas === p); return t ? [cat.trailerTypeLabel(t.type), t.desc].filter(Boolean).join(' | ') : ''; }
   function unitCard(u, k) {
     const sols = [...new Set(cp.units.map((x) => (x.sol || '').trim()).filter(Boolean))];
     return `<article class="card unit" data-ui="${k}">
@@ -164,10 +164,20 @@ export async function campoWizard({ step }, q) {
       if (r.save) { await cat.save('operators', { company: 'perconsur', name: u.op }); toast('Operador guardado en el catálogo'); }
       setPickDisplay(body, b.dataset.pick, u.op);
     } else if (f === 'pr') {
-      const r = await openPicker({ title: 'Placas del remolque', current: u.pr, autocap: 'characters', transform: (v) => v.toUpperCase(), items: cat.list('trailers', 'perconsur').map((x) => ({ value: x.placas, label: x.placas, sub: x.desc })), recents: recents('remolque:perconsur'), canSave: true });
+      const tipoKey = { Tolva: 'tolva', Jaula: 'jaula' }[u.tipo] || '';
+      const r = await openPicker({ title: 'Placas del remolque', current: u.pr, autocap: 'characters', transform: (v) => v.toUpperCase(), items: cat.trailerItems('perconsur'), scope: cat.trailerScope('campo'),
+        recents: recents('remolque:perconsur'), canSave: true, saveLabel: tipoKey ? `Guardar en catálogo como ${u.tipo.toLowerCase()}` : 'Guardar en catálogo (sin clasificar)' });
       if (!r) return;
       u.pr = r.value.toUpperCase();
-      if (r.save) { await cat.save('trailers', { company: 'perconsur', placas: u.pr, desc: '' }); toast('Remolque guardado en el catálogo'); }
+      if (r.save) { await cat.save('trailers', { company: 'perconsur', placas: u.pr, desc: '', type: tipoKey }); toast(tipoKey ? `Remolque guardado como ${u.tipo.toLowerCase()}` : 'Remolque guardado; clasifícalo en Administración → Catálogos'); }
+      /* El tipo guardado del remolque completa el tipo de transporte si aún no se eligió */
+      const tr = cat.list('trailers', 'perconsur').find((x) => x.placas === u.pr);
+      const tipo = tr && { tolva: 'Tolva', jaula: 'Jaula' }[tr.type];
+      if (tipo && !u.tipo) {
+        u.tipo = tipo;
+        body.querySelectorAll(`[data-tipo][data-i="${k}"]`).forEach((x) => { const on1 = x.dataset.tipo === tipo; x.classList.toggle('on', on1); x.setAttribute('aria-pressed', on1); });
+        toast(`Tipo de transporte: ${tipo} (según el catálogo)`, { type: 'info' });
+      }
       setPickDisplay(body, b.dataset.pick, u.pr, undefined, trailerDesc(u.pr));
     }
     save();

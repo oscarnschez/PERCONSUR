@@ -23,6 +23,7 @@ import { actionSheet, openSheet, busy } from './components/sheet.js';
 import { toast } from './components/toast.js';
 import { icon } from './components/icons.js';
 import { openPicker } from './components/picker.js';
+import { DIVISION_IMG } from '../config/modules.js';
 import { operatorList } from '../services/operators.js';
 
 /* Contexto para las plantillas de documento */
@@ -46,14 +47,17 @@ export function docHTML(type, data, company) {
 /* ===== Nuevo documento ===== */
 export function openNewSheet() {
   const body = `<div class="new-opts">
-    <button type="button" class="new-opt" data-t="puerto"><span class="new-ic">${icon.container}</span><span class="new-tx"><b>Nota de entrega</b><small>División Puerto</small></span><span class="chev">${icon.chev}</span></button>
-    <button type="button" class="new-opt" data-t="campo"><span class="new-ic">${icon.truck}</span><span class="new-tx"><b>Asignación de unidades</b><small>División Campo</small></span><span class="chev">${icon.chev}</span></button>
-    <button type="button" class="new-opt" data-t="viaje"><span class="new-ic">${icon.people}</span><span class="new-tx"><b>Viaje de operador</b><small>Operadores</small></span><span class="chev">${icon.chev}</span></button>
+    <button type="button" class="new-opt" data-t="puerto"><span class="new-ic img"><img src="${DIVISION_IMG.puerto}" alt=""></span><span class="new-tx"><b>Nota de entrega</b><small>División Puerto</small></span><span class="chev">${icon.chev}</span></button>
+    <button type="button" class="new-opt" data-t="campo"><span class="new-ic img"><img src="${DIVISION_IMG.campo}" alt=""></span><span class="new-tx"><b>Asignación de unidades</b><small>División Campo</small></span><span class="chev">${icon.chev}</span></button>
+    <button type="button" class="new-opt" data-t="viaje"><span class="new-ic">${icon.people}</span><span class="new-tx"><b>Viaje de operador</b><small>Administración | Operadores</small></span><span class="chev">${icon.chev}</span></button>
+    <button type="button" class="new-opt" data-t="recarga"><span class="new-ic">${icon.fuel}</span><span class="new-tx"><b>Recarga de combustible</b><small>Operación | Combustible y rendimiento</small></span><span class="chev">${icon.chev}</span></button>
   </div>`;
   const sh = openSheet({ title: 'Nuevo documento', body });
   sh.body.querySelectorAll('.new-opt').forEach((b) => b.addEventListener('click', () => {
     sh.close();
-    if (b.dataset.t === 'puerto') startPuerto(); else if (b.dataset.t === 'campo') startCampo(); else startOperatorTrip();
+    const t = b.dataset.t;
+    if (t === 'puerto') startPuerto(); else if (t === 'campo') startCampo(); else if (t === 'viaje') startOperatorTrip();
+    else import('./screens/fuel.js').then((m) => m.startFuelRecord(null, () => go('/operacion/combustible')));
   }));
 }
 

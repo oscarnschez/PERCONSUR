@@ -28,3 +28,13 @@ export async function normImage(file) {
   const blob = await toBlob(c, 0.86); c.width = c.height = 0;
   return { blob, w, h };
 }
+
+/* Fotografía de operador: recorte cuadrado centrado, 480 px, JPEG 82 % (≈ 40–70 KB) */
+export async function compressAvatar(file) {
+  const { im, done } = await loadImage(file);
+  const side = Math.min(im.naturalWidth, im.naturalHeight), S = Math.min(480, side);
+  const c = document.createElement('canvas'); c.width = c.height = S;
+  c.getContext('2d').drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, S, S); done();
+  const blob = await toBlob(c, 0.82); c.width = c.height = 0;
+  return blob;
+}

@@ -1,10 +1,11 @@
 /* Documentos: Puerto / Campo, buscador y filtros por periodo. Incluye borradores. */
 import { screen, on } from '../../core/dom.js';
-import { go, query } from '../../core/router.js';
+import { go, back, query } from '../../core/router.js';
 import { listDocuments } from '../../services/documents.js';
 import { getCompany } from '../../services/companies.js';
 import { esc, relDay, fmtFecha, agoText } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
+import { DIVISION_IMG } from '../../config/modules.js';
 import { pendingDrafts } from './home.js';
 import { draftRoute } from '../flows.js';
 
@@ -15,7 +16,7 @@ export function docRow(d) {
   const S = d.summary || {}, isP = d.type === 'puerto';
   const who = isP ? [S.operador, S.unidad].filter(Boolean).join(' | ') : [S.unidad, S.planta].filter(Boolean).join(' | ');
   return `<a class="row" href="#/doc/${esc(d.id)}">
-    <span class="row-ic ${d.type}">${isP ? icon.container : icon.truck}</span>
+    <span class="row-ic img ${d.type}"><img src="${DIVISION_IMG[d.type]}" alt="${isP ? 'Puerto' : 'Campo'}" loading="lazy"></span>
     <span class="row-tx"><span class="row-l1"><b class="mono">${esc(d.folio)}</b><span class="st st-${d.status}">${STATUS[d.status] || ''}</span></span>
       <span class="row-l2">${esc(isP ? S.empresa || '' : 'PERCONSUR Campo')}${who ? ' | ' + esc(who) : ''}</span>
       <span class="row-l3">${isP ? 'Nota de entrega' : 'Asignación de unidades'} | ${esc(relDay(d.createdAt))}</span></span>
@@ -24,7 +25,7 @@ export function docRow(d) {
 function draftRow(d) {
   const isP = d.type === 'puerto', s = d.data;
   return `<a class="row" href="#${draftRoute(d)}">
-    <span class="row-ic ${d.type} draft">${isP ? icon.container : icon.truck}</span>
+    <span class="row-ic img ${d.type} draft"><img src="${DIVISION_IMG[d.type]}" alt="${isP ? 'Puerto' : 'Campo'}" loading="lazy"></span>
     <span class="row-tx"><span class="row-l1"><b class="mono">${esc(s.folio)}</b><span class="st st-borrador">Borrador</span></span>
       <span class="row-l2">${isP ? esc(getCompany(d.company).short) + (s.operador ? ' | ' + esc(s.operador) : '') : 'PERCONSUR Campo'}</span>
       <span class="row-l3">Sin terminar | ${esc(agoText(d.updatedAt))}</span></span>
@@ -34,10 +35,11 @@ function draftRow(d) {
 export async function documentsScreen() {
   const q = query();
   let tab = q.get('t') === 'campo' ? 'campo' : 'puerto';
-  let period = 'todos', text = '';
+  let period = 'todos', text = '', shown = 30;
   const [docs, pend] = await Promise.all([listDocuments(), pendingDrafts()]);
   const s = screen(`<div class="page">
-    <header class="page-top"><h1 class="title">Documentos</h1></header>
+    <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Administración</span></button></header>
+    <h1 class="title">Documentos</h1>
     <div class="seg wide" role="tablist">
       <button type="button" class="seg-b" data-tab="puerto" role="tab">Puerto</button><button type="button" class="seg-b" data-tab="campo" role="tab">Campo</button>
     </div>
@@ -60,11 +62,13 @@ export async function documentsScreen() {
     const ds = docs.filter((d) => d.type === tab && inPeriod(d.createdAt) && match([d.folio, d.filename, ...Object.values(d.summary || {}).flat()].join(' ')));
     const dr = pend.filter((d) => d.type === tab && inPeriod(d.updatedAt) && match([d.data.folio, d.data.operador, d.company].join(' ')));
     listEl.innerHTML = (dr.length ? `<h2 class="sec-h">Sin terminar</h2><div class="list">${dr.map(draftRow).join('')}</div>` : '')
-      + (ds.length ? `<h2 class="sec-h">${ds.length} documento${ds.length === 1 ? '' : 's'}</h2><div class="list">${ds.map(docRow).join('')}</div>`
+      + (ds.length ? `<h2 class="sec-h">${ds.length} documento${ds.length === 1 ? '' : 's'}</h2><div class="list">${ds.slice(0, shown).map(docRow).join('')}</div>${ds.length > shown ? `<button type="button" class="btn-ghost block" data-more>Mostrar más (${ds.length - shown})</button>` : ''}`
         : `<div class="empty"><p>${text || period !== 'todos' ? 'No hay documentos con ese filtro.' : tab === 'puerto' ? 'Aún no hay notas de entrega generadas.' : 'Aún no hay asignaciones generadas.'}</p></div>`);
   }
   on(root, 'click', '[data-tab]', (e, b) => { tab = b.dataset.tab; history.replaceState(null, '', '#/documentos?t=' + tab); draw(); });
-  on(root, 'click', '[data-p]', (e, b) => { period = b.dataset.p; draw(); });
+  on(root, 'click', '[data-p]', (e, b) => { period = b.dataset.p; shown = 30; draw(); });
+  on(root, 'click', '[data-more]', () => { shown += 30; draw(); });
+  on(root, 'click', '[data-back]', () => back('/administracion'));
   root.querySelector('.search-in').addEventListener('input', (e) => { text = e.target.value.trim(); draw(); });
   draw();
   return s;

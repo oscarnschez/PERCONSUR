@@ -42,6 +42,8 @@ async function render() {
     if (!m) continue;
     const params = {}; r.keys.forEach((k, i) => { params[k] = decodeURIComponent(m[i + 1]); });
     if (current && current.cleanup) { try { await current.cleanup(); } catch (e) { /* */ } current = null; }
+    /* Al cambiar de pantalla (incluido el gesto «atrás») no deben quedar hojas abiertas de la pantalla anterior */
+    try { (await import('../ui/components/sheet.js')).closeAllSheets(); } catch (e) { /* */ }
     const screen = await r.handler(params, query());
     if (!screen) return;
     current = screen;

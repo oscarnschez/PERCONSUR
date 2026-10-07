@@ -283,7 +283,7 @@ export async function puertoWizard({ company, step }, q) {
   body.addEventListener('change', onInput);
 
   /* ===== Selectores con catálogo ===== */
-  function trailerDesc(p) { const t = cat.list('trailers', owner).find((x) => x.placas === p); return t ? t.desc : ''; }
+  function trailerDesc(p) { const t = cat.list('trailers', owner).find((x) => x.placas === p); return t ? [cat.trailerTypeLabel(t.type), t.desc].filter(Boolean).join(' | ') : ''; }
   on(body, 'click', '[data-pick]', async (e, b) => {
     const path = b.dataset.pick;
     if (path === 'operador') {
@@ -303,10 +303,10 @@ export async function puertoWizard({ company, step }, q) {
       setPickDisplay(body, 'eco', ecoLabel(s.eco), 'Elegir', v && v.desc ? v.desc : '');
     } else if (path === 'placasR') {
       const r = await openPicker({ title: 'Placas del remolque', current: s.placasR, autocap: 'characters', transform: (v) => v.toUpperCase(),
-        items: cat.list('trailers', owner).map((x) => ({ value: x.placas, label: x.placas, sub: x.desc })), recents: recents('remolque:' + company), canSave: true });
+        items: cat.trailerItems(owner), scope: cat.trailerScope('puerto'), recents: recents('remolque:' + company), canSave: true, saveLabel: 'Guardar en catálogo como chasis portacontenedor' });
       if (!r) return;
       s.placasR = r.value.toUpperCase();
-      if (r.save) { await cat.save('trailers', { company: owner, placas: s.placasR, desc: '' }); toast('Remolque guardado en el catálogo'); }
+      if (r.save) { await cat.save('trailers', { company: owner, placas: s.placasR, desc: '', type: 'chasis' }); toast('Remolque guardado como chasis portacontenedor'); }
       setPickDisplay(body, 'placasR', s.placasR, undefined, trailerDesc(s.placasR));
     } else if (path === 'destNombre') {
       const places = cat.list('places');

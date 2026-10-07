@@ -8,6 +8,7 @@ import { esc, agoText, relDay } from '../../domain/shared/format.js';
 import { puertoHasData } from '../../domain/puerto/model.js';
 import { campoHasData } from '../../domain/campo/model.js';
 import { icon } from '../components/icons.js';
+import { DIVISION_IMG } from '../../config/modules.js';
 import { startPuerto, startCampo, discardDraft, draftRoute } from '../flows.js';
 import { confirmDestructive } from '../components/sheet.js';
 import { docRow } from './documents.js';
@@ -20,7 +21,7 @@ export async function pendingDrafts() {
 export function draftCardHTML(d) {
   const isP = d.type === 'puerto', co = getCompany(d.company);
   return `<article class="draft-card" data-draft="${esc(d.id)}">
-    <div class="dc-main"><span class="dc-ic">${isP ? icon.container : icon.truck}</span>
+    <div class="dc-main"><span class="dc-ic img"><img src="${DIVISION_IMG[isP ? 'puerto' : 'campo']}" alt=""></span>
       <div><b>${isP ? 'Nota de entrega' : 'Asignación de unidades'}</b><small>${isP ? esc(co.short) + ' | ' : ''}Folio ${esc(d.data.folio)} | ${esc(agoText(d.updatedAt))}</small></div></div>
     <div class="dc-acts"><button type="button" class="btn-ghost sm danger" data-discard="${esc(d.id)}">Descartar</button><button type="button" class="btn-primary sm" data-continue="${esc(d.id)}">Continuar</button></div>
   </article>`;
@@ -39,11 +40,11 @@ export async function homeScreen() {
     ${pend.length ? `<section class="sec"><h2 class="sec-h">Sin terminar</h2>${pend.map(draftCardHTML).join('')}</section>` : ''}
     <section class="sec divs">
       <article class="div-card">
-        <div class="div-head"><span class="div-ic">${icon.container}</span><div><h2>División Puerto</h2><p>Notas de entrega y recepción</p></div></div>
+        <div class="div-head"><span class="div-ic img"><img src="${DIVISION_IMG.puerto}" alt=""></span><div><h2>División Puerto</h2><p>Notas de entrega y recepción</p></div></div>
         <button type="button" class="div-act" data-new="puerto"><span>Nueva nota</span>${icon.chev}</button>
       </article>
       <article class="div-card">
-        <div class="div-head"><span class="div-ic">${icon.truck}</span><div><h2>División Campo</h2><p>Asignación de unidades para carga</p></div></div>
+        <div class="div-head"><span class="div-ic img"><img src="${DIVISION_IMG.campo}" alt=""></span><div><h2>División Campo</h2><p>Asignación de unidades para carga</p></div></div>
         <button type="button" class="div-act" data-new="campo"><span>Nueva asignación</span>${icon.chev}</button>
       </article>
     </section>

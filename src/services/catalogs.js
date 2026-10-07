@@ -8,6 +8,20 @@ import { PLANTAS_SEED, TERMINALES_SEED } from '../config/reference.js';
 import { getSetting, setSetting } from './settings.js';
 import { normEco } from '../domain/shared/format.js';
 
+/* Tipos de remolque (ampliable). Sin tipo = «Sin clasificar»: no se asigna automáticamente. */
+export const TRAILER_TYPES = [['chasis', 'Chasis portacontenedor'], ['jaula', 'Jaula'], ['tolva', 'Tolva']];
+export const trailerTypeLabel = (t) => (TRAILER_TYPES.find(([k]) => k === t) || [null, 'Sin clasificar'])[1];
+/* Tipos que cada división muestra primero en los selectores (los demás siguen disponibles con «Ver todos») */
+export const DIVISION_TRAILER_TYPES = { puerto: ['chasis'], campo: ['jaula', 'tolva'] };
+
+/* Selector de remolques según la división: primero sus tipos, luego «Sin clasificar»; los demás con «Ver todos» */
+export function trailerScope(division) {
+  const types = DIVISION_TRAILER_TYPES[division] || [];
+  return { title: division === 'puerto' ? 'Chasis portacontenedor' : 'Jaulas y tolvas', secondaryTitle: 'Sin clasificar', allLabel: 'Ver todos los remolques',
+    rank: (it) => (types.includes(it.type) ? 1 : !it.type ? 2 : 0) };
+}
+export const trailerItems = (company) => list('trailers', company).map((x) => ({ value: x.placas, label: x.placas, type: x.type || '', sub: [trailerTypeLabel(x.type), x.desc].filter(Boolean).join(' | ') }));
+
 export const KINDS = {
   operators: { store: db.S.operators, title: 'Operadores', one: 'operador', perCompany: true,
     fields: [['name', 'Nombre completo', { autocapitalize: 'words' }]], label: (x) => x.name, sub: () => '' },
@@ -15,7 +29,8 @@ export const KINDS = {
     fields: [['eco', 'Número económico', { inputmode: 'numeric' }], ['placas', 'Placas', { upper: true }], ['desc', 'Descripción (opcional)', {}]],
     label: (x) => 'U' + String(x.eco).padStart(2, '0'), sub: (x) => [x.placas, x.desc].filter(Boolean).join(' | ') },
   trailers: { store: db.S.trailers, title: 'Remolques', one: 'remolque', perCompany: true,
-    fields: [['placas', 'Placas', { upper: true }], ['desc', 'Descripción (marca, medida)', {}]], label: (x) => x.placas, sub: (x) => x.desc || '' },
+    fields: [['placas', 'Placas', { upper: true }], ['type', 'Tipo de remolque', { select: [['', 'Sin clasificar'], ...TRAILER_TYPES] }], ['desc', 'Descripción (marca, medida)', {}]],
+    label: (x) => x.placas, sub: (x) => [trailerTypeLabel(x.type), x.desc].filter(Boolean).join(' | ') },
   places: { store: db.S.places, title: 'Destinos', one: 'destino', perCompany: false,
     fields: [['name', 'Nombre (cliente o almacén)', { upper: true }], ['rfc', 'RFC', { rfc: true }], ['address', 'Dirección de entrega', { textarea: true }], ['contact', 'Contacto o teléfono', {}]],
     label: (x) => x.name, sub: (x) => x.address || '' },

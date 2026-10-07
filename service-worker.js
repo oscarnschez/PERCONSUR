@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '4cc581c047';
+const VERSION = '72835aab79';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const PRECACHE = [
   "./src/auth/gate.js",
   "./src/config/auth.js",
   "./src/config/companies.js",
+  "./src/config/modules.js",
   "./src/config/reference.js",
   "./src/config/seeds.js",
   "./src/config/version.js",
@@ -20,6 +21,8 @@ const PRECACHE = [
   "./src/core/router.js",
   "./src/domain/campo/model.js",
   "./src/domain/campo/sheet.js",
+  "./src/domain/fuel/fuel.js",
+  "./src/domain/fuel/report.js",
   "./src/domain/operators/balance.js",
   "./src/domain/operators/money.js",
   "./src/domain/operators/statement.js",
@@ -36,6 +39,7 @@ const PRECACHE = [
   "./src/services/documents.js",
   "./src/services/drafts.js",
   "./src/services/folios.js",
+  "./src/services/fuel.js",
   "./src/services/libs.js",
   "./src/services/media.js",
   "./src/services/migration.js",
@@ -46,6 +50,8 @@ const PRECACHE = [
   "./src/services/share.js",
   "./src/services/statementPdf.js",
   "./src/services/theme.js",
+  "./src/services/xlsx.js",
+  "./src/ui/components/charts.js",
   "./src/ui/components/docview.js",
   "./src/ui/components/fields.js",
   "./src/ui/components/icons.js",
@@ -60,7 +66,9 @@ const PRECACHE = [
   "./src/ui/screens/documents.js",
   "./src/ui/screens/done.js",
   "./src/ui/screens/excelCodes.js",
+  "./src/ui/screens/fuel.js",
   "./src/ui/screens/home.js",
+  "./src/ui/screens/hubs.js",
   "./src/ui/screens/operatorForms.js",
   "./src/ui/screens/operators.js",
   "./src/ui/screens/puertoWizard.js",
@@ -86,6 +94,8 @@ const PRECACHE = [
   "./assets/brand/track-oasc.png",
   "./assets/brand/track-osc.png",
   "./assets/brand/track-perconsur.png",
+  "./assets/divisions/campo.png",
+  "./assets/divisions/puerto.png",
   "./vendor/pdf-lib.min.js"
 ];
 /* PRECACHE:END */

@@ -34,8 +34,6 @@ export async function settingsScreen() {
       <div class="row-info" data-storage>${icon.info}<span>Calculando almacenamiento…</span></div>
     </div>
     <p class="grp-note">Los documentos, fotos y catálogos se guardan solo en este dispositivo. Exporta un respaldo con regularidad.${mig && mig.found ? ' Los datos del sistema anterior se migraron automáticamente.' : ''}</p></section>
-    <section class="grp"><div class="grp-h"><h3>Catálogos</h3></div><div class="grp-b list-actions">
-      <a class="row-btn" href="#/catalogos">${icon.catalog}<span>Administrar catálogos</span>${icon.chev}</a></div></section>
     <section class="grp"><div class="grp-h"><h3>Aplicación</h3></div><div class="grp-b list-actions">
       <div class="row-info" data-offline>${icon.cloudOff}<span>Revisando uso sin conexión…</span></div>
       ${isStandalone() ? '' : `<button type="button" class="row-btn" data-a="install">${icon.phone}<span>Instalar en la pantalla de inicio</span>${icon.chev}</button>`}

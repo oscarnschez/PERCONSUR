@@ -15,6 +15,11 @@ import {
   computeOperator, movementsOf, filterMovements, MOVE_FILTERS, PERIODS, periodRange, fmtDate, fmtDateShort, todayStr, aggregate, isDate,
 } from '../../domain/operators/balance.js';
 import { icon } from '../components/icons.js';
+import * as media from '../../services/media.js';
+import { listAll, save as saveCatalog } from '../../services/catalogs.js';
+import { compressAvatar } from '../../services/camera.js';
+import { rfcClean } from '../../domain/shared/format.js';
+import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { actionSheet } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { openTripForm, openTripDetail, openLoanForm, openAdjustmentForm, openSettingsForm } from './operatorForms.js';
@@ -24,14 +29,27 @@ const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2
 const amtCls = (c) => (c < 0 ? 'neg' : c > 0 ? 'pos' : '');
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 
+/* Avatar con fotografía (se carga solo cuando es visible) o iniciales */
+export const avatar = (o, cls = '') => `<span class="av ${cls}"${o && o.photoId ? ` data-photo="${esc(o.photoId)}"` : ''} aria-hidden="true">${esc(initials(o ? o.name : ''))}</span>`;
+export function hydrateAvatars(root) {
+  const els = [...root.querySelectorAll('[data-photo]')];
+  const load = async (el) => { const u = await media.ensureURL(el.dataset.photo); if (u) { el.style.backgroundImage = `url("${u}")`; el.classList.add('loaded'); } };
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((ents) => ents.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); load(e.target); } }), { rootMargin: '200px' });
+    els.forEach((el) => io.observe(el));
+  } else els.forEach(load);
+}
+const curpClean = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 18);
+
 /* ===== Listado ===== */
 export async function operatorsScreen() {
   let text = '', fco = 'todas', fbal = '';
   const list = ops.operatorList();
   const companies = [...new Set(list.map((o) => o.company))];
   const s = screen(`<div class="page">
-    <header class="page-top split"><h1 class="title">Operadores</h1>
+    <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Administración</span></button>
       <a class="btn-ghost sm" href="#/operadores/resumen">${icon.chart}<span>Resumen</span></a></header>
+    <h1 class="title">Operadores</h1>
     <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" placeholder="Buscar operador" autocomplete="off" autocorrect="off" enterkeyhint="search"></label>
     <div class="chips filters">
       ${companies.length > 1 ? `<button type="button" class="chip" data-co="todas">Todas</button>${companies.map((c) => `<button type="button" class="chip" data-co="${c}">${esc(list.find((o) => o.company === c).companyShort)}</button>`).join('')}` : ''}
@@ -39,7 +57,7 @@ export async function operatorsScreen() {
       <button type="button" class="chip" data-bal="min">Comisión mínima</button>
     </div>
     <div data-list></div>
-    <p class="grp-note center">Los operadores provienen del catálogo. Para agregar uno ve a <a href="#/catalogos/operators">Catálogos → Operadores</a>.</p>
+    <p class="grp-note center">Los operadores provienen del catálogo. Para agregar uno ve a <a href="#/catalogos/operators">Administración → Catálogos → Operadores</a>.</p>
   </div>`);
   const root = s.el, listEl = root.querySelector('[data-list]');
   const results = new Map(list.map((o) => [o.id, ops.computeFor(o.id)]));
@@ -53,14 +71,16 @@ export async function operatorsScreen() {
       : rows.length ? `<div class="list">${rows.map((o) => {
         const r = results.get(o.id);
         return `<a class="row op-row" href="#/operadores/${esc(o.id)}">
-          <span class="av">${esc(initials(o.name))}</span>
+          ${avatar(o)}
           <span class="row-tx"><span class="row-l1"><b>${esc(o.name)}</b>${r.settings.minEnabled ? '<span class="st st-min">Mínimo</span>' : ''}</span>
             <span class="row-l2">${companies.length > 1 ? esc(o.companyShort) + ' | ' : ''}${plural(r.registered.trips, 'viaje', 'viajes')} | ${money(r.comp.commissions)} en comisiones</span>${r.excluded.trips ? `<span class="row-l3 warn-t">${plural(r.excluded.trips, 'viaje', 'viajes')} después del corte</span>` : ''}</span>
           <span class="op-bal ${amtCls(r.balance)}"><small>Balance</small><b>${money(r.balance)}</b></span>
         </a>`;
       }).join('')}</div>` : '<div class="empty"><p>No hay operadores con ese filtro.</p></div>';
+    hydrateAvatars(listEl);
   }
   on(root, 'click', '[data-co]', (e, b) => { fco = b.dataset.co; draw(); });
+  on(root, 'click', '[data-back]', () => back('/administracion'));
   on(root, 'click', '[data-bal]', (e, b) => { fbal = fbal === b.dataset.bal ? '' : b.dataset.bal; draw(); });
   root.querySelector('.search-in').addEventListener('input', (e) => { text = e.target.value.trim(); draw(); });
   draw();
@@ -119,14 +139,98 @@ function excludedNotice(r) {
     ${r.cutoffIsToday ? '' : '<button type="button" class="link-btn" data-settings>Cambiar a «Hoy» en Configuración</button>'}</span></div>`;
 }
 
+/* ===== Perfil del operador ===== */
+function licenseState(exp) {
+  if (!isDate(exp)) return '';
+  const t = todayStr(); if (exp < t) return '<span class="st st-borrador">Vencida</span>';
+  const d = new Date(exp + 'T00:00:00') - new Date(t + 'T00:00:00'); return d <= 30 * 86400000 ? '<span class="st st-borrador">Vence pronto</span>' : '';
+}
+function profileHTML(op, st) {
+  const lic = op.license || {}, none = '<i>Sin capturar</i>';
+  return `<section class="profile">
+    <div class="pf-top">${avatar(op, 'xl')}<div><h1>${esc(op.name)}</h1><p>${esc(op.companyShort)}${isDate(st.startDate) ? ` | Desde ${esc(fmtDate(st.startDate))}` : ''}</p></div></div>
+    <dl class="sumlist pf-data">
+      <div><dt>RFC</dt><dd class="mono">${op.rfc ? esc(op.rfc) : none}</dd></div>
+      <div><dt>CURP</dt><dd class="mono">${op.curp ? esc(op.curp) : none}</dd></div>
+      <div><dt>Licencia</dt><dd>${lic.number ? `<span class="mono">${esc(lic.number)}</span>${lic.type ? ' | ' + esc(lic.type) : ''}${lic.expires ? `<br><small class="muted">Vence ${esc(fmtDate(lic.expires))}</small> ${licenseState(lic.expires)}` : ''}` : none}</dd></div>
+      <div><dt>Fecha de inicio</dt><dd>${isDate(st.startDate) ? esc(fmtDate(st.startDate)) : none}</dd></div>
+    </dl>
+    <button type="button" class="btn-secondary block" data-profile>${icon.edit}<span>Editar operador</span></button>
+  </section>`;
+}
+function openProfileForm(op, onSaved) {
+  const rec = () => listAll('operators').find((x) => x.id === op.id) || op;
+  const r0 = rec(), lic = r0.license || {};
+  const form = document.createElement('form'); form.className = 'op-form'; form.noValidate = true;
+  form.innerHTML = `<div class="pf-photo"><span data-pv>${avatar(r0, 'xl')}</span><div class="pf-photo-acts">
+      <label class="btn-secondary sm">${icon.camera}<span>Tomar foto</span><input type="file" accept="image/*" capture="environment" hidden data-ph></label>
+      <label class="btn-secondary sm">${icon.image}<span>Elegir de Fotos</span><input type="file" accept="image/*" hidden data-ph></label>
+      <button type="button" class="btn-ghost sm danger" data-phdel ${r0.photoId ? '' : 'hidden'}>${icon.trash}<span>Eliminar foto</span></button></div></div>
+    <label class="fld" data-f="name"><span class="fl">Nombre</span><input class="in" name="name" value="${esc(r0.name)}" autocapitalize="words" enterkeyhint="next"><span class="ferr"></span></label>
+    <div><label class="fld" data-f="rfc"><span class="fl">RFC</span><input class="in mono" name="rfc" value="${esc(r0.rfc || '')}" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next"><span class="fhint" data-h="rfc"></span></label>
+      <label class="fld" data-f="curp"><span class="fl">CURP</span><input class="in mono" name="curp" value="${esc(r0.curp || '')}" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next"><span class="fhint" data-h="curp"></span></label></div>
+    <h3 class="pk-h">Licencia de conducir</h3>
+    <div class="row2"><label class="fld"><span class="fl">Número de licencia</span><input class="in mono" name="licNumber" value="${esc(lic.number || '')}" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="next"></label>
+      <label class="fld"><span class="fl">Tipo (opcional)</span><input class="in" name="licType" value="${esc(lic.type || '')}" placeholder="Ej. Federal tipo E" enterkeyhint="next"></label></div>
+    <div class="row2"><label class="fld"><span class="fl">Expedición (opcional)</span><input class="in" type="date" name="licIssued" value="${esc(lic.issued || '')}"></label>
+      <label class="fld" data-f="licExpires"><span class="fl">Vencimiento (opcional)</span><input class="in" type="date" name="licExpires" value="${esc(lic.expires || '')}"><span class="ferr"></span></label></div>
+    <p class="grp-note">La fecha de inicio de operación se edita en la configuración del balance.</p>
+    <div class="form-foot"><button type="submit" class="btn-primary block lg">Guardar cambios</button></div>`;
+  const sh = openSheet({ title: 'Editar operador', body: form, full: true, className: 'form-sheet' });
+  const hint = () => {
+    const rfc = form.elements.rfc.value, curp = form.elements.curp.value;
+    form.querySelector('[data-h="rfc"]').textContent = rfc && rfc.length !== 12 && rfc.length !== 13 ? 'El RFC tiene 12 o 13 caracteres.' : '';
+    form.querySelector('[data-h="curp"]').textContent = curp && curp.length !== 18 ? 'La CURP tiene 18 caracteres.' : '';
+  };
+  form.addEventListener('input', (e) => {
+    const t = e.target, keep = (v) => { if (t.value !== v) { const p = t.selectionStart; t.value = v; try { t.setSelectionRange(p, p); } catch (err) { /* */ } } };
+    if (t.name === 'rfc') keep(rfcClean(t.value));
+    if (t.name === 'curp') keep(curpClean(t.value));
+    if (t.name === 'licNumber') keep(t.value.toUpperCase().replace(/\s+/g, ''));
+    hint();
+  });
+  hint();
+  const setPreview = () => { form.querySelector('[data-pv]').innerHTML = avatar(rec(), 'xl'); hydrateAvatars(form); form.querySelector('[data-phdel]').hidden = !rec().photoId; };
+  hydrateAvatars(form);
+  form.querySelectorAll('[data-ph]').forEach((inp) => inp.addEventListener('change', async () => {
+    const f = inp.files && inp.files[0]; inp.value = ''; if (!f) return;
+    try {
+      const blob = await compressAvatar(f), cur = rec(), old = cur.photoId;
+      const pid = await media.saveBlob(blob, { owner: 'op:' + op.id, kind: 'avatar', name: 'foto-operador.jpg' });
+      await saveCatalog('operators', { ...cur, photoId: pid });
+      if (old) await media.remove(old);
+      setPreview(); toast(old ? 'Fotografía reemplazada' : 'Fotografía agregada'); onSaved && onSaved();
+    } catch (err) { toast('No se pudo leer esa imagen. Prueba con otra foto.', { type: 'warn' }); }
+  }));
+  form.querySelector('[data-phdel]').addEventListener('click', async () => {
+    if (!(await confirmDestructive('¿Eliminar la fotografía?', op.name, 'Eliminar foto'))) return;
+    const cur = rec(), old = cur.photoId;
+    await saveCatalog('operators', { ...cur, photoId: null }); if (old) await media.remove(old);
+    setPreview(); toast('Fotografía eliminada', { type: 'info' }); onSaved && onSaved();
+  });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const el = form.elements, name = el.name.value.trim().replace(/\s+/g, ' ');
+    const err = (f, msg) => { const box = form.querySelector(`[data-f="${f}"]`); box.classList.add('has-err'); box.querySelector('.ferr').textContent = msg; box.scrollIntoView({ block: 'center', behavior: 'smooth' }); toast(msg, { type: 'warn' }); };
+    if (!name) return err('name', 'Escribe el nombre del operador.');
+    if (el.licIssued.value && el.licExpires.value && el.licExpires.value < el.licIssued.value) return err('licExpires', 'El vencimiento no puede ser anterior a la expedición.');
+    const cur = rec();
+    await saveCatalog('operators', { ...cur, name: nameCaseLocal(name), rfc: rfcClean(el.rfc.value), curp: curpClean(el.curp.value),
+      license: { number: el.licNumber.value.trim().toUpperCase(), type: el.licType.value.trim(), issued: el.licIssued.value || '', expires: el.licExpires.value || '' } });
+    sh.close(); toast('Datos del operador guardados'); onSaved && onSaved();
+  });
+}
+const nameCaseLocal = (t) => t.toLowerCase().split(' ').map((w, i) => (i && ['de', 'del', 'la', 'las', 'los', 'y'].includes(w) ? w : w.charAt(0).toUpperCase() + w.slice(1))).join(' ');
+
 export async function operatorScreen({ id }, q) {
-  const op = ops.operatorById(id);
+  let op = ops.operatorById(id);
   if (!op) { toast('Ese operador ya no está en el catálogo.', { type: 'info' }); go('/operadores', { replace: true }); return null; }
-  let tab = getSetting('opTab', 'viajes'), tdiv = 'todos', tper = 'todo', tcustom = { from: '', to: '' }, mfilter = 'todos';
+  let tab = getSetting('opTab', 'viajes'), tdiv = 'todos', tper = 'todo', tcustom = { from: '', to: '' }, mfilter = 'todos', tShown = 30, mShown = 50;
   const s = screen('<div class="page op-page"></div>', { keepScroll: false });
   const root = s.el;
 
   function render() {
+    op = ops.operatorById(id) || op;
     const rec = ops.recordsOf(id), r = computeOperator(rec), st = r.settings;
     const trips = rec.trips.filter((t) => !t.deletedAt).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.createdAt - a.createdAt));
     const loans = rec.loans.filter((l) => !l.deletedAt).sort((a, b) => (a.date < b.date ? 1 : -1));
@@ -134,7 +238,8 @@ export async function operatorScreen({ id }, q) {
     root.innerHTML = `
       <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Operadores</span></button>
         <button type="button" class="nav-act" data-more aria-label="Más opciones">${icon.more}</button></header>
-      <div class="op-head"><span class="av lg">${esc(initials(op.name))}</span><div><h1>${esc(op.name)}</h1><p>${esc(op.companyShort)}${isDate(st.startDate) ? ` | Desde ${esc(fmtDate(st.startDate))}` : ''}</p></div></div>
+      ${profileHTML(op, st)}
+      <h2 class="sec-h sec-gap">Balance</h2>
       ${balanceCard(r, { sub: `Corte al ${esc(fmtDate(r.cutoff))}${r.cutoffIsToday ? ' (hoy)' : ''}` })}
       <div class="op-acts">
         <button type="button" class="btn-primary" data-new="viaje">${icon.plus}<span>Viaje</span></button>
@@ -161,8 +266,9 @@ export async function operatorScreen({ id }, q) {
           <div class="tile wide"><small>Tarifas acumuladas</small><b>${money(r.registered.fares)}</b></div>
           <div class="tile wide"><small>Comisiones ampliadas</small><b>${r.registered.expanded}${r.registered.expandedAmount ? ` <span class="muted">| ${money(r.registered.expandedAmount, { sign: true })}</span>` : ''}</b></div>
         </div>${r.excluded.trips ? `<p class="grp-note">${plural(r.stats.trips, 'viaje entra', 'viajes entran')} en el balance; ${plural(r.excluded.trips, 'viaje queda', 'viajes quedan')} después del corte.</p>` : ''}</section>
-      <div class="seg wide op-tabs" role="tablist">${[['viajes', 'Viajes'], ['prestamos', 'Préstamos'], ['movimientos', 'Movimientos']].map(([k, l]) => `<button type="button" role="tab" class="seg-b${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
-      <div class="op-tab">${tab === 'viajes' ? tripsTab(trips, r) : tab === 'prestamos' ? loansTab(loans, r) : movesTab(rec, r)}</div>`;
+      <div class="seg wide op-tabs" role="tablist">${[['viajes', 'Viajes'], ['prestamos', 'Préstamos'], ['movimientos', 'Movimientos'], ['estados', 'Estados']].map(([k, l]) => `<button type="button" role="tab" class="seg-b${tab === k ? ' on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
+      <div class="op-tab">${tab === 'viajes' ? tripsTab(trips, r) : tab === 'prestamos' ? loansTab(loans, r) : tab === 'estados' ? statementsTab() : movesTab(rec, r)}</div>`;
+    hydrateAvatars(root);
     window.scrollTo(0, y);
   }
   function tripsTab(trips, r) {
@@ -174,7 +280,7 @@ export async function operatorScreen({ id }, q) {
       ${tper === 'custom' ? `<div class="row2 period-custom"><label class="fld"><span class="fl">Desde</span><input class="in" type="date" data-tc="from" value="${esc(tcustom.from)}"></label><label class="fld"><span class="fl">Hasta</span><input class="in" type="date" data-tc="to" value="${esc(tcustom.to)}"></label></div>` : ''}
       <div class="trip-sum"><span><small>Viajes</small><b>${list.length}</b></span><span><small>Tarifas</small><b>${money(sum((t) => t.fare))}</b></span><span><small>Comisiones</small><b class="pos">${money(sum((t) => t.finalCommission))}</b></span><span><small>Gastos</small><b>${money(sum((t) => t.travelExpenses))}</b></span></div>
       <button type="button" class="add-btn" data-new="viaje">${icon.plus}<span>Registrar viaje</span></button>
-      ${list.length ? `<div class="trip-list">${list.map((t) => tripCard(t, r.cutoff)).join('')}</div>` : `<div class="empty"><p>${trips.length ? 'No hay viajes con ese filtro.' : 'Aún no hay viajes registrados para este operador.'}</p></div>`}`;
+      ${list.length ? `<div class="trip-list">${list.slice(0, tShown).map((t) => tripCard(t, r.cutoff)).join('')}</div>${list.length > tShown ? `<button type="button" class="btn-ghost block" data-tmore>Mostrar más (${list.length - tShown})</button>` : ''}` : `<div class="empty"><p>${trips.length ? 'No hay viajes con ese filtro.' : 'Aún no hay viajes registrados para este operador.'}</p></div>`}`;
   }
   function loansTab(loans, r) {
     return `<div class="total-line"><span>Total de préstamos</span><b class="neg">${money(-r.stats.loanTotal)}</b></div>
@@ -186,15 +292,24 @@ export async function operatorScreen({ id }, q) {
     const all = movementsOf(rec, r), list = filterMovements(all, mfilter);
     return `<div class="chips filters">${MOVE_FILTERS.map(([k, l]) => `<button type="button" class="chip${mfilter === k ? ' on' : ''}" data-mf="${k}">${l}</button>`).join('')}</div>
       <button type="button" class="add-btn" data-new="ajuste">${icon.edit}<span>Registrar ajuste</span></button>
-      ${list.length ? `<div class="list mv-list">${list.slice(0, 300).map(moveRow).join('')}</div>${list.length > 300 ? `<p class="grp-note center">Se muestran los 300 más recientes de ${list.length}.</p>` : ''}` : '<div class="empty"><p>No hay movimientos con ese filtro.</p></div>'}`;
+      ${list.length ? `<div class="list mv-list">${list.slice(0, mShown).map(moveRow).join('')}</div>${list.length > mShown ? `<button type="button" class="btn-ghost block" data-mmore>Mostrar más (${list.length - mShown})</button>` : ''}` : '<div class="empty"><p>No hay movimientos con ese filtro.</p></div>'}`;
+  }
+  function statementsTab() {
+    const list = ops.statementsOf(id);
+    return `<button type="button" class="add-btn" data-stmt>${icon.file}<span>Generar PDF del estado de cuenta</span></button>
+      ${list.length ? `<div class="list">${list.slice(0, 30).map((s1) => `<a class="row" href="#/operadores/${esc(id)}/estado"><span class="row-tx"><span class="row-l1"><b class="mono">${esc(s1.folio)}</b></span><span class="row-l3">Corte ${esc(fmtDate(s1.cutoff))} | emitido ${esc(fmtDate(s1.issued))} | ${s1.pages} pág.</span></span><span class="chev">${icon.chev}</span></a>`).join('')}</div>
+        <p class="grp-note">Para abrir o compartir un estado emitido, entra a la pantalla del estado de cuenta.</p>` : '<div class="empty"><p>Aún no se han emitido estados de cuenta.</p></div>'}`;
   }
 
   const refresh = () => render();
   on(root, 'click', '[data-back]', () => back('/operadores'));
   on(root, 'click', '[data-tab]', (e, b) => { tab = b.dataset.tab; setSetting('opTab', tab); render(); });
-  on(root, 'click', '[data-tdiv]', (e, b) => { tdiv = b.dataset.tdiv; render(); });
+  on(root, 'click', '[data-tdiv]', (e, b) => { tdiv = b.dataset.tdiv; tShown = 30; render(); });
   on(root, 'click', '[data-tper]', (e, b) => { tper = b.dataset.tper; render(); });
-  on(root, 'click', '[data-mf]', (e, b) => { mfilter = b.dataset.mf; render(); });
+  on(root, 'click', '[data-mf]', (e, b) => { mfilter = b.dataset.mf; mShown = 50; render(); });
+  on(root, 'click', '[data-tmore]', () => { tShown += 30; render(); });
+  on(root, 'click', '[data-mmore]', () => { mShown += 50; render(); });
+  on(root, 'click', '[data-profile]', () => openProfileForm(op, render));
   root.addEventListener('change', (e) => { const t = e.target; if (t.dataset.tc) { tcustom[t.dataset.tc] = t.value; render(); } });
   on(root, 'click', '[data-new]', (e, b) => {
     const k = b.dataset.new;
@@ -274,9 +389,10 @@ export async function summaryScreen() {
       ${(() => { const n = list.reduce((a, x) => a + x.r.excluded.trips, 0); return n ? `<p class="op-warn">${icon.alert}<span>${plural(n, 'viaje registrado queda', 'viajes registrados quedan')} después del corte de su operador y no ${n === 1 ? 'entra' : 'entran'} en estos totales.</span></p>` : ''; })()}
       ${manualNote ? '<p class="grp-note">En periodos parciales, los sábados de operadores con ajuste manual se calculan automáticamente dentro del periodo.</p>' : ''}
       <div class="sec-hrow"><h2 class="sec-h">Por operador</h2><button type="button" class="btn-ghost sm" data-csv>${icon.download}<span>Exportar CSV</span></button></div>
-      <div class="list">${list.map(({ o, r }) => `<a class="row op-row" href="#/operadores/${esc(o.id)}"><span class="av">${esc(initials(o.name))}</span>
+      <div class="list">${list.map(({ o, r }) => `<a class="row op-row" href="#/operadores/${esc(o.id)}">${avatar(o)}
         <span class="row-tx"><span class="row-l1"><b>${esc(o.name)}</b></span><span class="row-l2">${plural(r.stats.trips, 'viaje', 'viajes')} | ${money(r.comp.commissions)} comisiones</span></span>
         <span class="op-bal ${amtCls(r.balance)}"><small>Balance</small><b>${money(r.balance)}</b></span></a>`).join('') || '<div class="empty"><p>No hay operadores.</p></div>'}</div>`;
+    hydrateAvatars(root);
   }
   on(root, 'click', '[data-back]', () => back('/operadores'));
   on(root, 'click', '[data-per]', (e, b) => { per = b.dataset.per; render(); });

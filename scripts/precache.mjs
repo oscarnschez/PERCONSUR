@@ -10,9 +10,9 @@ import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const INCLUDE = ['index.html', 'manifest.json', 'src', 'styles', 'assets/icons', 'assets/brand', 'vendor'];
+const INCLUDE = ['index.html', 'manifest.json', 'src', 'styles', 'assets/icons', 'assets/brand', 'assets/divisions', 'vendor'];
 const files = [];
-const walk = (p) => { const s = statSync(p); if (s.isDirectory()) readdirSync(p).sort().forEach((f) => walk(join(p, f))); else if (!/(^|\/)\.|README|\.map$/.test(p)) files.push(p); };
+const walk = (p) => { const s = statSync(p); if (s.isDirectory()) readdirSync(p).sort().forEach((f) => walk(join(p, f))); else if (!/(^|\/)\.|README|\.map$|\/original\//.test(p)) files.push(p); };
 INCLUDE.forEach((x) => walk(join(ROOT, x)));
 /* ===== Versión visible ===== */
 const VFILE = join(ROOT, 'src/config/version.js');

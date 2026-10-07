@@ -123,7 +123,7 @@ try:
     ok('puerto:perconsur' not in info['drafts'],'el borrador se elimina al generar')
     pg.get_by_role('button', name='Ir al inicio').click(); pg.wait_for_timeout(800); shot(pg,'16_inicio_con_recientes')
     # documentos y detalle
-    pg.locator('.tabbar [data-tab="docs"]').click(); pg.wait_for_timeout(700); shot(pg,'17_documentos')
+    pg.locator('.tabbar [data-tab="admin"]').click(); pg.wait_for_timeout(500); pg.locator('.mod-card[href="#/documentos"]').click(); pg.wait_for_timeout(700); shot(pg,'17_documentos')
     pg.locator('.list .row').first.click(); pg.wait_for_timeout(800); shot(pg,'18_detalle')
     pg.get_by_role('button', name='Ver PDF').click(); pg.wait_for_selector('.vw-page'); pg.wait_for_timeout(500); shot(pg,'19_visor')
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)

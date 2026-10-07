@@ -17,6 +17,7 @@ import { loadOperatorData } from './operators.js';
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
+DATA_STORES.push('fuelRecords');
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
 
 const b64 = {
@@ -29,7 +30,8 @@ export async function exportBackup({ includeMedia = false } = {}) {
   for (const s of DATA_STORES) data[s] = await db.all(s);
   const atts = await db.all(db.S.attachments);
   data.attachments = atts
-    .filter((a) => includeMedia || String(a.owner || '').startsWith('draft:'))
+    /* Borradores y fotografías de operadores siempre; PDF y fotos de documentos solo en el respaldo completo */
+    .filter((a) => includeMedia || /^(draft|op):/.test(String(a.owner || '')))
     .map(({ buf, ...rest }) => ({ ...rest, b64: b64.from(buf) }));
   const json = JSON.stringify({ app: 'perconsur', format: 1, version: APP_VERSION, exportedAt: new Date().toISOString(), includeMedia, data });
   const d = new Date(), p = (n) => String(n).padStart(2, '0');
@@ -52,6 +54,7 @@ export async function inspectBackup(file) {
       lines: [
         `Documentos: ${n('documents')}`, `Borradores: ${n('drafts')}`,
         `Catálogos: ${n('operators')} operadores, ${n('vehicles')} unidades, ${n('trailers')} remolques, ${n('places')} destinos`,
+        `Combustible: ${n('fuelRecords')} recargas`,
         `Control de operadores: ${n('operatorTrips')} viajes, ${n('operatorLoans')} préstamos, ${n('operatorAdjustments')} ajustes, ${n('operatorSettings')} configuraciones`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
@@ -83,6 +86,26 @@ export async function importBackup(info) {
     return true;
   });
   for (const st of OP_STORES) for (const r of data[st] || []) if (remap.has(r.operatorId)) r.operatorId = remap.get(r.operatorId);
+  for (const t of data._trailerUpdates || []) await db.put(db.S.trailers, t);
+  for (const a of data.attachments || []) { const m = /^op:(.+)$/.exec(a.owner || ''); if (m && remap.has(m[1])) a.owner = 'op:' + remap.get(m[1]); }
+  /* Unidades: misma regla (empresa + número económico); las recargas se reasignan a la unidad existente */
+  const normEco = (x) => String(x || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+  const exVeh = await db.all(db.S.vehicles), vmap = new Map();
+  data.vehicles = (data.vehicles || []).filter((v) => {
+    if (exVeh.some((e) => e.id === v.id)) return true;
+    const twin = exVeh.find((e) => e.company === v.company && normEco(e.eco) === normEco(v.eco));
+    if (twin) { vmap.set(v.id, twin.id); return false; }
+    return true;
+  });
+  for (const r of data.fuelRecords || []) if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId);
+  /* Remolques: no duplicar por empresa + placas (se conserva el tipo si el existente no lo tiene) */
+  const exTr = await db.all(db.S.trailers);
+  data.trailers = (data.trailers || []).filter((t) => {
+    if (exTr.some((e) => e.id === t.id)) return true;
+    const twin = exTr.find((e) => e.company === t.company && fold(e.placas) === fold(t.placas));
+    if (twin && t.type && !twin.type) { twin.type = t.type; data._trailerUpdates = [...(data._trailerUpdates || []), twin]; }
+    return !twin;
+  });
   if (data.operatorSettings) {
     for (const r of data.operatorSettings) { const cur = await db.get(db.S.operatorSettings, r.operatorId); if (cur && (cur.updatedAt || 0) >= (r.updatedAt || 0)) r._skip = true; }
     data.operatorSettings = data.operatorSettings.filter((r) => !r._skip);

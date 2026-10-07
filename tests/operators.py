@@ -38,8 +38,8 @@ try:
     ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
     pg=ctx.new_page(); pg.on('pageerror',lambda e:errs.append(str(e)))
     login(pg)
-    ok(pg.locator('.tabbar [data-tab="ops"]').count()==1 and pg.locator('.tabbar [data-tab="cat"]').count()==0,'pestaña Operadores en la barra principal')
-    pg.locator('.tabbar [data-tab="ops"]').click(); pg.wait_for_timeout(700); shot(pg,'o01_listado')
+    ok(pg.locator('.tabbar [data-tab="admin"]').count()==1,'Operadores dentro de Administración')
+    pg.locator('.tabbar [data-tab="admin"]').click(); pg.wait_for_timeout(500); pg.locator('.mod-card[href="#/operadores"]').click(); pg.wait_for_timeout(700); shot(pg,'o01_listado')
     names=[x.inner_text() for x in pg.locator('.op-row .row-l1 b').all()]
     ok(len(names)==6 and names==sorted(names,key=lambda s:s.lower()),'6 operadores del catálogo, sin duplicar y en orden alfabético')
     pg.fill('.search-in','pedro'); pg.wait_for_timeout(200); ok(pg.locator('.op-row').count()==1,'buscador'); pg.fill('.search-in','')
@@ -47,7 +47,7 @@ try:
     ok('fecha de inicio' in pg.locator('.op-warn').first.inner_text(),'aviso: falta fecha de inicio'); shot(pg,'o02_ficha_vacia')
     # Ejemplo oficial: 18 sábados × $3,000 ; comisiones 85,000 ; gastos 12,000 ; préstamos 5,000 → 14,000
     settings(pg,start='2026-01-03',cut='2026-05-02',weekly='3000')
-    ok('18' in pg.locator('.sumlist').inner_text() and '$54,000.00' in pg.locator('.bal-card').inner_text(),'18 sábados × $3,000 = $54,000.00 de sábados pagados')
+    ok('18' in pg.locator('.sumlist:not(.pf-data)').inner_text() and '$54,000.00' in pg.locator('.bal-card').inner_text(),'18 sábados × $3,000 = $54,000.00 de sábados pagados')
     trip(pg,'200000','5000'); trip(pg,'200,000.00','5,000',date='2026-03-02',dest='Zapopan'); trip(pg,'166666.67','2000',date='2026-04-01',div='campo',origin='Tesistán',dest='Planta Nextipac')
     pg.locator('[data-new="prestamo"]').first.click(); sheet_form(pg); pg.fill('.op-form [name=date]','2026-03-15'); pg.fill('.op-form [name=amount]','5000'); pg.fill('.op-form [name=concept]','Préstamo personal'); save(pg)
     card=pg.locator('.bal-card').inner_text()
@@ -83,7 +83,7 @@ try:
     ok(bal(pg)=='$23,500.00','ajuste de comisión suma al balance: '+bal(pg))
     # sábados manual
     settings(pg,manual=20)
-    ok(bal(pg)=='$17,500.00' and 'Ajuste manual' in pg.locator('.sumlist').inner_text(),'ajuste manual de sábados (20 × $3,000) identificado: '+bal(pg))
+    ok(bal(pg)=='$17,500.00' and 'Ajuste manual' in pg.locator('.sumlist:not(.pf-data)').inner_text(),'ajuste manual de sábados (20 × $3,000) identificado: '+bal(pg))
     pg.locator('[data-tab="movimientos"]').click(); pg.locator('[data-mf="ajuste"]').click(); pg.wait_for_timeout(300)
     mv=pg.locator('.mv-list').inner_text(); ok('Configuración actualizada' in mv and 'Sábados: Automático → Ajuste manual' in mv,'el cambio de configuración queda registrado en Movimientos')
     pg.locator('[data-mf="todos"]').click(); pg.wait_for_timeout(200); shot(pg,'o07_movimientos')
