@@ -14,7 +14,9 @@ import { STATUS_FILTERS, DIVISIONS, DELAY_CONCEPT, filterItems, summarize } from
 import { icon } from '../components/icons.js';
 import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
-import { formSheet, fail, readMoney, moneyIn } from './operatorForms.js';
+import { formSheet, fail, readMoney, moneyIn, openTripForm } from './operatorForms.js';
+import { operatorById } from '../../services/operators.js';
+import { tripTaxes } from '../../domain/operators/taxes.js';
 
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 const payTag = (paid, f = false) => `<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? (f ? 'Pagada' : 'Pagado') : 'Por cobrar'}</span>`;
@@ -121,6 +123,15 @@ export function openBillingDetail(tripId, onChange, { pay = false } = {}) {
     if (!it) { sh.close(); return; }
     const rows = [...(it.tripRef ? [['Referencia', it.tripRef]] : []), ['Operador', it.operator + (it.company ? ' | ' + it.company : '')], ['División', it.division === 'campo' ? 'Campo' : 'Puerto'], ['Fecha del viaje', fmtDate(it.date)], ['Ruta', `${it.origin} → ${it.destination}`]];
     box.innerHTML = `<dl class="sumlist detail">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+      <h3 class="pk-h">Importe del viaje</h3>
+      ${(() => {
+        const x = tripTaxes(it.trip);
+        const fr = [['Tarifa base', money(x.fareBase)], [`IVA ${x.vatRate}%`, x.applyVat ? money(x.vatAmount, { sign: true }) : 'No aplicado'], [`ISR ${x.isrRate}%`, x.applyIsr ? money(-x.isrAmount) : 'No aplicado'],
+          [`Retención IVA ${x.vatWithholdingRate}%`, x.applyVatWithholding ? money(-x.vatWithholdingAmount) : 'No aplicada']];
+        return `<dl class="sumlist detail">${fr.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}<div><dt>Total después de impuestos</dt><dd><b>${money(x.totalAfterTaxes)}</b></dd></div></dl>`;
+      })()}
+      <button type="button" class="btn-secondary block" data-edittrip>${icon.edit}<span>Editar viaje e impuestos</span></button>
+      <p class="grp-note">Los impuestos cambian el total por cobrar. La comisión del operador se calcula siempre sobre la tarifa base.</p>
       <h3 class="pk-h">Cobro del viaje</h3>
       <div class="cob-state ${it.paid ? 'paid' : 'due'}"><span>${payTag(it.paid)}<small>${it.paid ? esc(paidLine(it)) : it.taxed ? `Total después de impuestos | tarifa base ${money(it.fareBase)}` : 'Tarifa del viaje'}</small></span><b>${money(it.amount)}</b></div>
       ${it.notes ? `<p class="detail-notes">${esc(it.notes)}</p>` : ''}
@@ -131,6 +142,11 @@ export function openBillingDetail(tripId, onChange, { pay = false } = {}) {
       ${it.delays.length ? `<div class="list">${it.delays.map((d) => `<button type="button" class="row" data-delay="${esc(d.id)}"><span class="row-tx"><span class="row-l1"><b>${esc(d.concept)}</b>${payTag(d.paid, true)}</span><span class="row-l3">${esc(fmtDate(d.date))}${d.paid ? ' | ' + esc(paidLine(d)) : ''}${d.notes ? ' | ' + esc(d.notes) : ''}</span></span><b class="mono">${money(d.amount)}</b></button>`).join('')}</div>` : '<p class="grp-note">Este viaje no tiene demoras registradas.</p>'}
       <button type="button" class="add-btn" data-newdelay>${icon.plus}<span>Registrar demora en planta</span></button>`;
   }
+  on(box, 'click', '[data-edittrip]', () => {
+    const it = billing.itemOf(tripId), op = it && operatorById(it.operatorId);
+    if (!op) { toast('El operador de este viaje ya no está en el catálogo; no se puede editar desde aquí.', { type: 'warn', ms: 4500 }); return; }
+    openTripForm(op, it.trip, changed, { focus: 'taxes' });
+  });
   on(box, 'click', '[data-pay]', () => { const it = billing.itemOf(tripId); if (it) openPaymentForm(it, changed); });
   on(box, 'click', '[data-unpay]', async () => {
     const it = billing.itemOf(tripId); if (!it) return;

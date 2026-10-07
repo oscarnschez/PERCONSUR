@@ -81,7 +81,8 @@ export function readMoney(form, name, { required = false, positive = false, labe
 }
 
 /* ===== Viaje ===== */
-export function openTripForm(op, trip, onSaved) {
+/* focus: 'taxes' abre el formulario directamente en la sección de impuestos (lo usa Cobranza) */
+export function openTripForm(op, trip, onSaved, { focus = '' } = {}) {
   const editing = !!trip;
   const current = ruleFromSettings(ops.settingsFor(op.id));
   let rule = editing ? ruleFromTrip(trip) : current;
@@ -144,6 +145,7 @@ export function openTripForm(op, trip, onSaved) {
   const taxHint = () => { form.querySelector('[data-taxhint]').textContent = !editing && division === 'campo' ? 'IVA 16% e ISR 4% se aplican por defecto en División Campo. Puedes desactivarlos para este viaje.' : ''; };
   form.addEventListener('change', (e) => { if (TAXES.includes(e.target.name)) { tax[e.target.name] = e.target.checked; taxTouched = true; preview(); } });
   taxHint();
+  if (focus === 'taxes') setTimeout(() => { const box = form.querySelector('.tax-box'); if (box) box.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 350);
   function preview() {
     const fare = toCents(form.elements.fare.value), exp = toCents(form.elements.exp.value);
     if (fare == null || Number.isNaN(fare)) { prev.innerHTML = '<p class="cm-note">Escribe la tarifa base para calcular los impuestos y la comisión.</p>'; return; }
