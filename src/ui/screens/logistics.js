@@ -22,6 +22,8 @@ import { openPicker } from '../components/picker.js';
 import { toast } from '../components/toast.js';
 import { enterAdvances } from '../components/fields.js';
 import { avatar, hydrateAvatars } from './operators.js';
+import { dossierRef } from '../../services/dossier.js';
+import { generate as generateDossier } from './tripDocs.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -148,7 +150,7 @@ export async function logisticsUnitScreen({ id }) {
     const u = lg.unitById(id);
     if (!u) { go('/operacion/logistica', { replace: true }); return; }
     const op = lg.openOf(id), v = lg.view(op, u), hist = lg.historyOfUnit(id), st = statusOf(op ? op.status : 'inactive'), y = window.scrollY;
-    const trip = op ? lg.tripById(op.tripId) : null;
+    const trip = op ? lg.tripById(op.tripId) : null, xref = op ? dossierRef(op) : {};
     root.innerHTML = `
       <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Logística</span></button>
         ${op ? `<button type="button" class="nav-act" data-edit aria-label="Editar operación">${icon.edit}</button>` : ''}</header>
@@ -177,7 +179,8 @@ export async function logisticsUnitScreen({ id }) {
           <div><dt>Lugar de entrega</dt><dd>${o2(op.deliveryPlace)}</dd></div>
           <div><dt>Referencia</dt><dd>${op.reference ? `<span class="mono">${esc(op.reference)}</span>${op.referenceSource ? `<small>Tomada ${op.referenceSource === 'trip' ? 'del viaje relacionado' : 'del documento relacionado'}</small>` : ''}` : '<i>—</i>'}</dd></div>
           ${trip ? `<div><dt>Viaje</dt><dd>${esc(fmtDate(trip.date))} · ${esc(routeTxt(trip))}</dd></div>` : ''}
-          ${op.documentId ? `<div><dt>Documento</dt><dd><a href="#/doc/${esc(op.documentId)}">Ver documento relacionado</a></dd></div>` : ''}
+          ${xref.docId ? `<div><dt>Documento</dt><dd><a href="#/doc/${esc(xref.docId)}${xref.trip && xref.extra ? `?expediente=${esc(xref.trip.id)}` : ''}">Ver documento relacionado</a>${xref.extra ? `<small>Expediente consolidado: documento + ${xref.extra} adicional${xref.extra === 1 ? '' : 'es'}</small>` : ''}</dd></div>`
+    : xref.trip && xref.extra ? `<div><dt>Expediente</dt><dd><button type="button" class="lg-linkbtn" data-xp>Ver expediente del viaje</button><small>${xref.extra} documento${xref.extra === 1 ? '' : 's'} adicional${xref.extra === 1 ? '' : 'es'}; sin documento principal</small></dd></div>` : ''}
         </dl></section>
       <div class="sheet-acts lg-acts"><button type="button" class="btn-secondary" data-edit>${icon.edit}<span>Editar operación</span></button><button type="button" class="btn-secondary" data-finish>${icon.check}<span>Terminar operación</span></button></div>
       ${(op.statusLog || []).length > 1 ? `<section class="grp"><div class="grp-h"><h3>Bitácora de estados</h3></div><ol class="lg-log">${[...op.statusLog].reverse().slice(0, 8).map((x) => `<li>${statusChip(x.status, 'plain')}<small>${esc(dt(x.at))}</small></li>`).join('')}</ol></section>` : ''}
@@ -194,6 +197,7 @@ export async function logisticsUnitScreen({ id }) {
   on(root, 'click', '[data-status]', () => { const op = lg.openOf(id); if (op) openStatusSheet(op); });
   on(root, 'click', '[data-finish]', () => { const op = lg.openOf(id); if (op) finishOperation(op); });
   on(root, 'click', '[data-hist]', (e, b) => openHistoryDetail(b.dataset.hist));
+  on(root, 'click', '[data-xp]', () => { const op = lg.openOf(id), r = op && dossierRef(op); if (r && r.trip) generateDossier(r.trip); });
   draw();
   s.cleanup = lg.onLogisticsChange(draw);
   return s;
