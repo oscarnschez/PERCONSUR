@@ -1,4 +1,4 @@
-/* Inicio: saludo, divisiones, documentos sin terminar y recientes. */
+/* Inicio: saludo, divisiones, documentos sin terminar, recientes y unidades en operación (Logística). */
 import { screen, on } from '../../core/dom.js';
 import { go } from '../../core/router.js';
 import { allDrafts } from '../../services/drafts.js';
@@ -12,6 +12,7 @@ import { DIVISION_IMG } from '../../config/modules.js';
 import { startPuerto, startCampo, discardDraft, draftRoute } from '../flows.js';
 import { confirmDestructive } from '../components/sheet.js';
 import { docRow } from './documents.js';
+import { mountHomeOps } from './logistics.js';
 
 export function greeting(d = new Date()) { const h = d.getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; }
 
@@ -52,8 +53,11 @@ export async function homeScreen() {
       <div class="sec-hrow"><h2 class="sec-h">Recientes</h2>${docs.length ? '<a class="link" href="#/documentos">Ver todos</a>' : ''}</div>
       ${recent.length ? `<div class="list">${recent.map(docRow).join('')}</div>` : `<div class="empty"><p>Aún no hay documentos generados. Los PDF que generes aparecerán aquí.</p></div>`}
     </section>
+    <section class="sec lg-home" data-lghome aria-label="Unidades en operación"></section>
   </div>`);
   const root = s.el;
+  /* Unidades en operación: se redibuja sola cuando cambia Logística */
+  s.cleanup = mountHomeOps(root.querySelector('[data-lghome]'));
   on(root, 'click', '[data-new]', (e, b) => (b.dataset.new === 'puerto' ? startPuerto() : startCampo()));
   on(root, 'click', '[data-continue]', (e, b) => { const d = pend.find((x) => x.id === b.dataset.continue); if (d) go(draftRoute(d)); });
   on(root, 'click', '[data-discard]', async (e, b) => {

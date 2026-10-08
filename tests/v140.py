@@ -80,7 +80,7 @@ try:
     pg.locator('[data-tab="estados"]').click(); pg.wait_for_timeout(300); ok('Generar PDF del estado de cuenta' in pg.locator('.op-tab').inner_text(),'pestaña Estados de cuenta en la ficha')
     # ===== Combustible =====
     pg.locator('.tabbar [data-tab="op"]').click(); pg.wait_for_timeout(700); shot(pg,'n11_operacion')
-    pg.locator('.mod-card').first.click(); pg.wait_for_timeout(800)
+    pg.locator('.mod-card[href="#/operacion/combustible"]').click(); pg.wait_for_timeout(800)
     pg.locator('[data-new]').first.click(); pg.wait_for_selector('.picker'); pg.locator('.pk-row',has_text='U21').click(); form(pg)
     pg.fill('.op-form [name=date]','2026-10-01'); pg.fill('.op-form [name=time]','08:00'); pg.fill('.op-form [name=odometer]','125,430'); pg.fill('.op-form [name=liters]','300'); pg.fill('.op-form [name=amount]','7350')
     ok('$24.50' in pg.locator('[data-ppl]').inner_text(),'precio por litro calculado en vivo: '+pg.locator('[data-ppl]').inner_text()); shot(pg,'n12_form'); submit(pg)

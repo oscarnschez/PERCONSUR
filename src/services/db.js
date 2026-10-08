@@ -11,10 +11,11 @@
  *   counters    consecutivos de folio
  *   operatorSettings, operatorTrips, operatorLoans, operatorAdjustments   control de operadores (v2)
  *   tripBilling   cobranza: cobro de cada viaje y demoras en planta (v5)
+ *   logisticsOperations   logística: asignación y estado operativo de cada unidad, con historial (v6)
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 5;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza */
+const DB_VERSION = 6;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -22,6 +23,7 @@ export const S = {
   attachments: 'attachments', counters: 'counters',
   operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
   operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords', tripBilling: 'tripBilling',
+  logisticsOperations: 'logisticsOperations',
 };
 
 let dbp = null;
@@ -60,6 +62,8 @@ export function openDB() {
       mk(S.fuelRecords, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['date', 'date']]);
       /* v5 — Cobranza: estado de cobro de cada viaje y sus demoras en planta (un registro por viaje, por tripId) */
       mk(S.tripBilling, { keyPath: 'tripId' });
+      /* v6 — Logística: operaciones por unidad (vehicleId, operatorId, trailerId del catálogo); las cerradas son el historial */
+      mk(S.logisticsOperations, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['operatorId', 'operatorId'], ['trailerId', 'trailerId']]);
     };
     req.onsuccess = () => {
       const db = req.result;

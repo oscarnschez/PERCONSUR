@@ -12,6 +12,8 @@ import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/ope
 import { statementScreen } from './ui/screens/statement.js';
 import { adminScreen, operationScreen } from './ui/screens/hubs.js';
 import { fuelScreen, fuelUnitScreen } from './ui/screens/fuel.js';
+import { logisticsScreen, logisticsUnitScreen, logisticsHistoryScreen } from './ui/screens/logistics.js';
+import { loadLogistics } from './services/logistics.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -76,6 +78,9 @@ function routes() {
   route('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
   route('/administracion', adminScreen, { name: 'admin', tabs: true, tab: 'admin' });
   route('/operacion', operationScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica', logisticsScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/historial', logisticsHistoryScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/u/:id', logisticsUnitScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/combustible/:id', fuelUnitScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'admin' });
@@ -121,7 +126,7 @@ async function boot() {
     await openDB();
     await loadSettings();
     applyTheme();
-    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData()]);
+    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics()]);
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');

@@ -1,7 +1,7 @@
 /*
  * Selector moderno con buscador (sustituye a los <datalist>):
  * recientes, resultados del catálogo y opción para usar lo escrito como valor nuevo.
- * items: [{ value, label, sub, data }]
+ * items: [{ value, label, sub, data, icon }]  (icon: SVG opcional, p. ej. el tipo de remolque)
  */
 import { openSheet } from './sheet.js';
 import { esc } from '../../domain/shared/format.js';
@@ -27,7 +27,7 @@ export function openPicker({ title, items = [], recents = [], placeholder = 'Bus
     const byValue = new Map(items.map((it) => [String(it.value), it]));
     function row(it, cls = '') {
       const sel = String(it.value) === String(current) && current !== '';
-      return `<button type="button" class="pk-row ${cls}${sel ? ' sel' : ''}" data-v="${esc(it.value)}"><span class="pk-tx"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${sel ? `<span class="pk-check">${icon.check}</span>` : ''}</button>`;
+      return `<button type="button" class="pk-row ${cls}${sel ? ' sel' : ''}" data-v="${esc(it.value)}">${it.icon ? `<span class="pk-ic">${it.icon}</span>` : ''}<span class="pk-tx"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</span>${sel ? `<span class="pk-check">${icon.check}</span>` : ''}</button>`;
     }
     function draw() {
       const q = transform(inp.value.trim());

@@ -12,6 +12,8 @@ import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { hasRecords } from '../../services/operators.js';
 import { vehicleHasFuel } from '../../services/fuel.js';
+import { inOpenOperation } from '../../services/logistics.js';
+import { trailerIcon } from '../components/icons.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals'];
@@ -64,7 +66,7 @@ export async function catalogListScreen({ kind }) {
     const items = cat.list(kind, company).filter((x) => !text || fold(def.label(x) + ' ' + def.sub(x)).includes(fold(text)))
       .filter((x) => kind !== 'trailers' || ttype === 'todos' || (x.type || '') === ttype);
     listEl.innerHTML = items.length
-      ? `<div class="list">${items.map((x) => `<button type="button" class="row" data-id="${esc(x.id)}"><span class="row-tx"><span class="row-l1"><b>${esc(def.label(x))}</b>${kind === 'trailers' ? `<span class="st ${x.type ? 'st-generado' : 'st-borrador'}">${esc(cat.trailerTypeLabel(x.type))}</span>` : ''}${x.source === 'auto' ? '<span class="st">Recordado</span>' : ''}</span>${(kind === 'trailers' ? x.desc : def.sub(x)) ? `<span class="row-l2">${esc(kind === 'trailers' ? x.desc : def.sub(x))}</span>` : ''}</span><span class="chev">${icon.chev}</span></button>`).join('')}</div>`
+      ? `<div class="list">${items.map((x) => `<button type="button" class="row" data-id="${esc(x.id)}">${kind === 'trailers' ? `<span class="row-ic tr-ic${x.type ? '' : ' none'}">${trailerIcon(x.type)}</span>` : ''}<span class="row-tx"><span class="row-l1"><b>${esc(def.label(x))}</b>${kind === 'trailers' ? `<span class="st ${x.type ? 'st-generado' : 'st-borrador'}">${esc(cat.trailerTypeLabel(x.type))}</span>` : ''}${x.source === 'auto' ? '<span class="st">Recordado</span>' : ''}</span>${(kind === 'trailers' ? x.desc : def.sub(x)) ? `<span class="row-l2">${esc(kind === 'trailers' ? x.desc : def.sub(x))}</span>` : ''}</span><span class="chev">${icon.chev}</span></button>`).join('')}</div>`
       : `<div class="empty"><p>${text ? 'Sin coincidencias.' : `No hay ${def.title.toLowerCase()} en este catálogo.`}</p><button type="button" class="btn-primary sm" data-add>${icon.plus}<span>Agregar ${esc(def.one)}</span></button></div>`;
   }
   function edit(item) {
@@ -99,6 +101,11 @@ export async function catalogListScreen({ kind }) {
     if (del) del.addEventListener('click', async () => {
       if (kind === 'vehicles' && await vehicleHasFuel(v.id)) {
         toast('Esta unidad tiene recargas de combustible registradas; no se puede eliminar. Puedes editar sus datos.', { type: 'warn', ms: 5500 });
+        return;
+      }
+      const lgField = { vehicles: 'vehicleId', operators: 'operatorId', trailers: 'trailerId' }[kind];
+      if (lgField && await inOpenOperation(lgField, v.id)) {
+        toast(`Este ${def.one} está en una operación activa de Logística; termínala antes de eliminarlo. Puedes editar sus datos.`, { type: 'warn', ms: 5500 });
         return;
       }
       if (kind === 'operators' && hasRecords(v.id)) {

@@ -48,5 +48,14 @@ export const icon = {
   minus: I('<path d="M5 12h14"/>', ' stroke-width="2.4"'),
   chart: I('<path d="M4 20.5h16"/><path d="M7 17V11M12 17V6M17 17v-4"/>'),
   people: I('<circle cx="9" cy="8" r="3.3"/><path d="M2.8 19.5c.6-3.4 3.1-5.2 6.2-5.2s5.6 1.8 6.2 5.2"/><path d="M15.5 4.9a3.2 3.2 0 0 1 0 6.2M17.6 14.5c2 .6 3.3 2.2 3.6 5"/>'),
+  /* Tipos de remolque (mismo trazo que el resto). Chasis: bastidor con cuello de ganso y el contenedor (tenue) encima */
+  trChasis: I('<rect x="3" y="4" width="18" height="6" rx=".5" stroke-opacity=".5" stroke-width="1.5"/><path d="M8.5 5.8v2.4M12 5.8v2.4M15.5 5.8v2.4" stroke-opacity=".5" stroke-width="1.3"/><path d="M4.2 10v2M19.8 10v2"/><path d="M2.5 12h19v2.1H10.8L9.4 12"/><path d="M6.4 12v6M5 18h2.8"/><circle cx="14" cy="17.4" r="1.6"/><circle cx="19" cy="17.4" r="1.6"/>'),
+  /* Jaula: caja abierta de barrotes verticales */
+  trJaula: I('<path d="M2.5 5h19M2.5 14h19M2.5 5v9M21.5 5v9"/><path d="M7.25 5v9M12 5v9M16.75 5v9" stroke-width="1.4"/><path d="M6.4 14v4M5 18h2.8"/><circle cx="14" cy="17.4" r="1.6"/><circle cx="19" cy="17.4" r="1.6"/>'),
+  /* Tolva: caja con dos descargas en «V» por debajo */
+  trTolva: I('<path d="M2.5 5.5h19v7h-19z"/><path d="M3.6 12.5l2.3 3.6h1.9l2.3-3.6M10.1 12.5l2.3 3.6h1.9l2.3-3.6"/><circle cx="17.4" cy="17.2" r="1.6"/><circle cx="20.8" cy="17.2" r="1.6"/>'),
   more: I('<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>', ' stroke-width="2.2"'),
 };
+
+/* Ícono según el tipo del remolque en el catálogo (chasis | jaula | tolva); sin clasificar → remolque genérico */
+export const trailerIcon = (type) => ({ chasis: icon.trChasis, jaula: icon.trJaula, tolva: icon.trTolva }[type] || icon.trailer);
