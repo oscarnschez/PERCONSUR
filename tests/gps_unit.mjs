@@ -1,0 +1,18 @@
+import { freshness, ageText, suggestUnit, hasFix, speedText, coordText, mapsLink, STALE_MS } from '../src/domain/gps/gps.js';
+const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
+const now = new Date(2026, 9, 8, 3, 30, 0).getTime(), min = 60000;
+ok(ageText(now - 24000, now) === 'hace 24 s' && ageText(now - 3 * min, now) === 'hace 3 min' && ageText(now - 125 * min, now) === 'hace 2 h', 'antigüedad: s, min, h');
+const p = { lat: 19.01007, lng: -103.832489 };
+ok(freshness({ ...p, gpsTime: now - 18000 }, now).state === 'live' && freshness({ ...p, gpsTime: now - 18000 }, now).label === 'Actualizado hace 18 s', 'posición reciente: «Actualizado hace 18 s»');
+const parked = freshness({ ...p, gpsTime: now - 40 * min, signalTime: now - 2 * min }, now);
+ok(parked.state === 'parked' && parked.label === 'Detenida · última posición 02:50', 'equipo reporta pero sin moverse: detenida desde 02:50');
+ok(freshness({ ...p, gpsTime: now - STALE_MS - 1000 }, now).state === 'stale' && freshness({ ...p, gpsTime: now - 2 * 3600000, signalTime: now - 3600000 }, now).label === 'Señal GPS sin actualización reciente', 'sin señal reciente: «Señal GPS sin actualización reciente»');
+ok(freshness({ ...p }, now).state === 'stale', 'sin hora: no se presenta como tiempo real');
+ok(freshness(null, now).state === 'none' && freshness({ lat: null, lng: 1 }, now).state === 'none', 'sin coordenadas: no disponible');
+ok(hasFix(p) && !hasFix({ lat: NaN, lng: 1 }), 'coordenadas válidas');
+ok(speedText({ speed: 82.4 }) === '82 km/h' && speedText({ speed: null }) === '', 'velocidad solo si el proveedor la entrega');
+ok(coordText(19.01007) === '19.010070' && mapsLink(p).includes('19.01007,-103.832489'), 'coordenadas y enlace a Google Maps');
+const units = [{ id: 'a', eco: '12', placas: '60-BN-4J' }, { id: 'b', eco: '21', placas: '59-BN-4J' }, { id: 'c', eco: '5', placas: '' }];
+ok(suggestUnit('U12 60-BN-4J', units).id === 'a', 'sugerencia por placas');
+ok(suggestUnit('Unidad u-21', units).id === 'b' && suggestUnit('U05', units).id === 'c', 'sugerencia por número económico');
+ok(suggestUnit('Camioneta oficina', units) === null && suggestUnit('U120', units) === null, 'sin coincidencia clara: sin sugerencia');

@@ -27,6 +27,9 @@ import { dossierRef } from '../../services/dossier.js';
 import { generate as generateDossier } from './tripDocs.js';
 import * as ec from '../../services/empties.js';
 import { notifyEmptyResult } from './empties.js';
+import * as gps from '../../services/gps.js';
+import { freshness, ageText } from '../../domain/gps/gps.js';
+import { createGpsPanel } from './gpsPanel.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -157,6 +160,7 @@ export async function logisticsUnitScreen({ id }) {
   if (!lg.unitById(id)) { toast('Esa unidad ya no está en el catálogo.', { type: 'info' }); go('/operacion/logistica', { replace: true }); return null; }
   const s = screen('<div class="page lg-page lg-detail"></div>');
   const root = s.el;
+  const gpsPanel = createGpsPanel({ vehicleId: id, label: (lg.unitById(id) || {}).label || '', status: () => { const op = lg.openOf(id), st2 = statusOf(op ? op.status : 'inactive'); return { key: st2.key, tone: st2.tone, chip: statusChip(st2.key, 'lg-big') }; } });
   function draw() {
     const u = lg.unitById(id);
     if (!u) { go('/operacion/logistica', { replace: true }); return; }
@@ -195,12 +199,16 @@ export async function logisticsUnitScreen({ id }) {
           ${xref.docId ? `<div><dt>Documento</dt><dd><a href="#/doc/${esc(xref.docId)}${xref.trip && xref.extra ? `?expediente=${esc(xref.trip.id)}` : ''}">Ver documento relacionado</a>${xref.extra ? `<small>Expediente consolidado: documento + ${xref.extra} adicional${xref.extra === 1 ? '' : 'es'}</small>` : ''}</dd></div>`
     : xref.trip && xref.extra ? `<div><dt>Expediente</dt><dd><button type="button" class="lg-linkbtn" data-xp>Ver expediente del viaje</button><small>${xref.extra} documento${xref.extra === 1 ? '' : 's'} adicional${xref.extra === 1 ? '' : 'es'}; sin documento principal</small></dd></div>` : ''}
         </dl></section>
+      <div data-gps-slot></div>
       <div class="sheet-acts lg-acts"><button type="button" class="btn-secondary" data-edit>${icon.edit}<span>Editar operación</span></button><button type="button" class="btn-secondary" data-finish>${icon.check}<span>Terminar operación</span></button></div>
       ${(op.statusLog || []).length > 1 ? `<section class="grp"><div class="grp-h"><h3>Bitácora de estados</h3></div><ol class="lg-log">${[...op.statusLog].reverse().slice(0, 8).map((x) => `<li>${statusChip(x.status, 'plain')}<small>${esc(dt(x.at))}</small></li>`).join('')}</ol></section>` : ''}
       <p class="grp-note">Inicio de la operación: ${esc(dt(op.startedAt))}${op.createdBy ? ' por ' + esc(op.createdBy) : ''} · Última actualización: ${esc(dt(op.updatedAt))}${op.updatedBy ? ' por ' + esc(op.updatedBy) : ''}</p>` : ''}
       <div class="sec-hrow lg-hh"><h2 class="sec-h">Historial de la unidad</h2>${hist.length ? `<span class="count">${hist.length}</span>` : ''}</div>
       ${hist.length ? `<div class="list">${hist.slice(0, 20).map((o) => histRow(o)).join('')}</div>` : '<div class="empty"><p>Sin operaciones anteriores. Al cerrar una operación queda registrada aquí.</p></div>'}`;
     hydrateAvatars(root);
+    /* Ubicación GPS: el panel (con su mapa) se conserva entre redibujos; para unidades sin operación va al final */
+    const slot = root.querySelector('[data-gps-slot]') || root.appendChild(document.createElement('div'));
+    slot.replaceWith(gpsPanel.el); gpsPanel.refresh(); gpsPanel.resize();
     window.scrollTo(0, y);
   }
   const o2 = (x) => (x ? esc(x) : '<i>—</i>');
@@ -214,7 +222,7 @@ export async function logisticsUnitScreen({ id }) {
   await ec.loadEmpties();
   draw();
   const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(draw);
-  s.cleanup = () => { u1(); u2(); };
+  s.cleanup = () => { u1(); u2(); gpsPanel.destroy(); };
   return s;
 }
 const emptyLabel = (r) => (isOverdue(r) ? 'Entrega vencida' : emptyStatusOf(r.status).label);
@@ -494,6 +502,16 @@ function suggestedRoutes() {
 }
 
 /* ===== Inicio → «Unidades en operación» ===== */
+/* Ubicación discreta en la tarjeta de Inicio (sin mapa): dirección o «Ubicación GPS disponible» y su antigüedad */
+function gpsLine(vehicleId) {
+  const imei = gps.configured() ? gps.imeiOf(vehicleId) : '';
+  if (!imei) return '';
+  const p = gps.bestOf(imei), f = freshness(p);
+  if (f.state === 'none') return `<span class="lgh-loc none">${icon.pin}<span>Ubicación GPS no disponible</span></span>`;
+  const place = p.address || 'Ubicación GPS disponible';
+  return `<span class="lgh-loc ${f.state}">${icon.pin}<span class="lgh-loc-tx"><b>${esc(place)}</b>${f.state === 'live'
+    ? `<small data-gps-ts="${f.since}" data-gps-prefix="Actualizado ">Actualizado ${esc(ageText(f.since))}</small>` : `<small>${esc(f.label)}</small>`}</span></span>`;
+}
 function homeCard(e) {
   const v = lg.entryView(e), o = e.op, s = statusOf(e.status);
   return `<button type="button" class="lgh-card lg-t-${s.tone}" data-lgu="${esc(e.unit.id)}" aria-label="${esc(`${v.label}, ${s.label}${v.operator ? ', ' + v.operator : ''}`)}">
@@ -503,6 +521,7 @@ function homeCard(e) {
       <span class="lgh-rail" aria-hidden="true"><i class="a"></i><i class="ln"></i><i class="b"></i><i class="mk"></i></span>
       <span class="lgh-pts"><span><small>Origen</small><b>${esc(o.origin || '—')}</b></span><span><small>Destino</small><b>${esc(o.destination || '—')}</b></span></span>
     </span>` : `<span class="lgh-route none">${icon.pin}<span>Ruta sin registrar</span></span>`}
+    ${gpsLine(e.unit.id)}
     <span class="lgh-foot">${v.trailer ? trailerType(v.trailerType) : '<span class="lg-tt none">Sin remolque</span>'}${o.division ? `<span class="lgh-div">${esc(divisionLabel(o.division, true))}</span>` : ''}${o.reference ? `<span class="lgh-ref">Ref. ${esc(o.reference)}</span>` : ''}</span>
   </button>`;
 }
@@ -524,5 +543,9 @@ export function mountHomeOps(sec) {
   };
   sec.addEventListener('click', (e) => { const b = e.target.closest('[data-lgu]'); if (b) go(`/operacion/logistica/u/${encodeURIComponent(b.dataset.lgu)}`); });
   draw();
-  return lg.onLogisticsChange(draw);
+  /* GPS: posiciones cada 60 s con Inicio visible; dirección por unidad activa como máximo cada 3 min */
+  const wantDetails = () => { if (!gps.configured()) return; homeEntries(lg.fleetBoard()).forEach((e) => { const imei = gps.imeiOf(e.unit.id); if (imei) gps.detail(imei); }); };
+  const u1 = lg.onLogisticsChange(draw), u2 = gps.watch(() => { draw(); wantDetails(); }, 60000), u3 = gps.tickAges(sec);
+  wantDetails();
+  return () => { u1(); u2(); u3(); };
 }

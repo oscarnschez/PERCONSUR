@@ -83,6 +83,8 @@ export const LIBS = {
   pdflib: { global: 'PDFLib', local: './vendor/pdf-lib.min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js' },
   qrcode: { global: 'qrcode', local: './vendor/qrcode.min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js' },
   bwipjs: { global: 'bwipjs', local: './vendor/bwip-js-min.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.10.0/bwip-js-min.js' },
+  /* Mapas de Logística (ubicación GPS). La hoja de estilos se agrega al cargarla (ui/components/gpsMap.js) */
+  leaflet: { global: 'L', local: './vendor/leaflet/leaflet.js', cdn: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js' },
 };
 /* Fuente del logotipo (Archivo), incluida localmente en /vendor/fonts */
 export const FONT_CSS = './vendor/fonts/archivo.css';

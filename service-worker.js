@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'b1254a6cff';
+const VERSION = '4dda0ad9ea';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -27,6 +27,7 @@ const PRECACHE = [
   "./src/domain/empties/empties.js",
   "./src/domain/fuel/fuel.js",
   "./src/domain/fuel/report.js",
+  "./src/domain/gps/gps.js",
   "./src/domain/logistics/logistics.js",
   "./src/domain/operators/balance.js",
   "./src/domain/operators/money.js",
@@ -52,6 +53,7 @@ const PRECACHE = [
   "./src/services/empties.js",
   "./src/services/folios.js",
   "./src/services/fuel.js",
+  "./src/services/gps.js",
   "./src/services/libs.js",
   "./src/services/logistics.js",
   "./src/services/media.js",
@@ -68,6 +70,7 @@ const PRECACHE = [
   "./src/ui/components/charts.js",
   "./src/ui/components/docview.js",
   "./src/ui/components/fields.js",
+  "./src/ui/components/gpsMap.js",
   "./src/ui/components/icons.js",
   "./src/ui/components/picker.js",
   "./src/ui/components/sheet.js",
@@ -84,6 +87,8 @@ const PRECACHE = [
   "./src/ui/screens/empties.js",
   "./src/ui/screens/excelCodes.js",
   "./src/ui/screens/fuel.js",
+  "./src/ui/screens/gpsPanel.js",
+  "./src/ui/screens/gpsSettings.js",
   "./src/ui/screens/home.js",
   "./src/ui/screens/hubs.js",
   "./src/ui/screens/logistics.js",
@@ -124,6 +129,9 @@ const PRECACHE = [
   "./vendor/fonts/archivo.css",
   "./vendor/html2canvas.min.js",
   "./vendor/jspdf.umd.min.js",
+  "./vendor/leaflet/LICENSE.txt",
+  "./vendor/leaflet/leaflet.css",
+  "./vendor/leaflet/leaflet.js",
   "./vendor/pdf-lib.min.js",
   "./vendor/qrcode.min.js"
 ];

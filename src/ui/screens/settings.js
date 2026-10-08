@@ -15,6 +15,7 @@ import { icon } from '../components/icons.js';
 import { openSheet, actionSheet, busy } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { currentSession, logout } from '../../auth/gate.js';
+import { configured as gpsConfigured } from '../../services/gps.js';
 
 export async function settingsScreen() {
   const th = themePref();
@@ -27,6 +28,9 @@ export async function settingsScreen() {
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Empresa</h3></div><div class="grp-b list-actions">
       ${PUERTO_COMPANIES.map((k) => { const c = getCompany(k); return `<a class="row-btn" href="#/ajustes/empresa/${k}"><span class="co-logo sm ${c.mark ? 'mark' : 'wide'}"><img src="${c.logo}" alt=""></span><span>${esc(c.legal)}</span><small>Serie ${c.folioSerie}</small>${icon.chev}</a>`; }).join('')}
+    </div></section>
+    <section class="grp"><div class="grp-h"><h3>Integraciones</h3></div><div class="grp-b list-actions">
+      <a class="row-btn" href="#/ajustes/gps">${icon.pin}<span>Rastreo GPS (IOPGPS)</span><small>${gpsConfigured() ? 'Configurado' : 'Sin configurar'}</small>${icon.chev}</a>
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Datos</h3></div><div class="grp-b list-actions">
       <button type="button" class="row-btn" data-a="export">${icon.download}<span>Exportar respaldo</span>${icon.chev}</button>
