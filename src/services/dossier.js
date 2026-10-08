@@ -8,7 +8,8 @@ import { loadLib } from './libs.js';
 import * as media from './media.js';
 import { getDocument } from './documents.js';
 import { appendFile } from './pdf.js';
-import { listFor, missingFiles } from './tripAttachments.js';
+import { listFor, missingFiles, countFor } from './tripAttachments.js';
+import { allTrips } from './operators.js';
 import { todayStr } from '../domain/operators/balance.js';
 
 /* Por encima de esto se avisa antes de combinar (no se bloquea) */
@@ -20,6 +21,20 @@ export function dossierName(trip, date = todayStr()) {
   return `Expediente-${ref}-${date}.pdf`;
 }
 export const docLabel = (d) => (d ? `${d.type === 'puerto' ? 'Nota de entrega' : 'Asignación de unidades'} ${d.folio}` : '');
+
+/* Viajes cuyo documento relacionado es docId (normalmente uno) */
+export const tripsForDocument = (docId) => (docId ? allTrips().filter((t) => t.documentId === docId) : []);
+/*
+ * Expediente al que apunta un registro con tripId y/o documentId (p. ej. una operación de Logística):
+ * el viaje indicado si su documento coincide; si no, el viaje vinculado a ese documento.
+ * Devuelve { trip, docId, extra (documentos adicionales del viaje) }.
+ */
+export function dossierRef({ tripId = null, documentId = null } = {}) {
+  const t = tripId ? allTrips().find((x) => x.id === tripId) || null : null;
+  const docId = documentId || (t && t.documentId) || null;
+  const trip = t && (!docId || !t.documentId || t.documentId === docId) ? t : tripsForDocument(docId)[0] || null;
+  return { trip, docId, extra: trip ? countFor(trip.id) : 0 };
+}
 
 /* Documento principal del viaje: { doc, missing:'none'|'deleted'|'file'|null } */
 export async function mainDocument(trip) {

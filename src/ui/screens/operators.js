@@ -352,6 +352,8 @@ export async function operatorScreen({ id }, q) {
   });
   render();
   if (q && q.get('nuevo') === 'viaje') s.mounted = () => setTimeout(() => openTripForm(op, null, refresh), 250);
+  /* ?viaje=<tripId>: abre el detalle del viaje (p. ej. desde el expediente de un documento) */
+  else if (q && q.get('viaje')) s.mounted = () => setTimeout(() => { const t = ops.recordsOf(id).trips.find((x) => x.id === q.get('viaje') && !x.deletedAt); if (t) { tab = 'viajes'; render(); openTripDetail(op, t, refresh); } }, 250);
   return s;
 }
 
