@@ -2,7 +2,8 @@
  * Operación → Logística: estado operativo y asignación actual de cada unidad.
  *   #/operacion/logistica            tablero de la flota: buscador, filtros y tarjetas agrupadas por estado
  *   #/operacion/logistica/u/:id      detalle de la unidad: operación activa, cambio rápido de estado e historial
- * Inicio → «Unidades en operación» (mountHomeOps) muestra las unidades con estado ≠ Inactiva y ≠ Vacío.
+ * Inicio → «Unidades en operación» (mountHomeOps) muestra las unidades con estado ≠ Inactiva y ≠ Vacío en fichas deslizables,
+ *   cada una con su mapa GPS (solo vista) cuando la unidad tiene GPS vinculado.
  * Unidades, operadores y remolques salen de los catálogos (por ID); aquí no se capturan como texto libre.
  * Toda pantalla se suscribe a onLogisticsChange: un cambio se refleja al momento sin recargar.
  */
@@ -28,8 +29,9 @@ import { generate as generateDossier } from './tripDocs.js';
 import * as ec from '../../services/empties.js';
 import { notifyEmptyResult } from './empties.js';
 import * as gps from '../../services/gps.js';
-import { freshness, ageText } from '../../domain/gps/gps.js';
+import { freshness, ageText, hasFix } from '../../domain/gps/gps.js';
 import { createGpsPanel } from './gpsPanel.js';
+import { mountMap } from '../components/gpsMap.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -502,7 +504,7 @@ function suggestedRoutes() {
 }
 
 /* ===== Inicio → «Unidades en operación» ===== */
-/* Ubicación discreta en la tarjeta de Inicio (sin mapa): dirección o «Ubicación GPS disponible» y su antigüedad */
+/* Ubicación en la tarjeta de Inicio: dirección o «Ubicación GPS disponible» y su antigüedad (el mapa va encima) */
 function gpsLine(vehicleId) {
   const imei = gps.configured() ? gps.imeiOf(vehicleId) : '';
   if (!imei) return '';
@@ -512,6 +514,13 @@ function gpsLine(vehicleId) {
   return `<span class="lgh-loc ${f.state}">${icon.pin}<span class="lgh-loc-tx"><b>${esc(place)}</b>${f.state === 'live'
     ? `<small data-gps-ts="${f.since}" data-gps-prefix="Actualizado ">Actualizado ${esc(ageText(f.since))}</small>` : `<small>${esc(f.label)}</small>`}</span></span>`;
 }
+/* Lugar del mapa en la tarjeta (solo con GPS vinculado y coordenadas); mountHomeOps coloca ahí el mapa conservado */
+function homePos(vehicleId) {
+  const imei = gps.configured() ? gps.imeiOf(vehicleId) : '';
+  const p = imei ? gps.bestOf(imei) : null;
+  return hasFix(p) ? p : null;
+}
+const mapSlot = (vehicleId) => (homePos(vehicleId) ? `<span class="lgh-map-slot" data-lgmap="${esc(vehicleId)}"></span>` : '');
 function homeCard(e) {
   const v = lg.entryView(e), o = e.op, s = statusOf(e.status);
   return `<button type="button" class="lgh-card lg-t-${s.tone}" data-lgu="${esc(e.unit.id)}" aria-label="${esc(`${v.label}, ${s.label}${v.operator ? ', ' + v.operator : ''}`)}">
@@ -521,7 +530,7 @@ function homeCard(e) {
       <span class="lgh-rail" aria-hidden="true"><i class="a"></i><i class="ln"></i><i class="b"></i><i class="mk"></i></span>
       <span class="lgh-pts"><span><small>Origen</small><b>${esc(o.origin || '—')}</b></span><span><small>Destino</small><b>${esc(o.destination || '—')}</b></span></span>
     </span>` : `<span class="lgh-route none">${icon.pin}<span>Ruta sin registrar</span></span>`}
-    ${gpsLine(e.unit.id)}
+    ${mapSlot(e.unit.id)}${gpsLine(e.unit.id)}
     <span class="lgh-foot">${v.trailer ? trailerType(v.trailerType) : '<span class="lg-tt none">Sin remolque</span>'}${o.division ? `<span class="lgh-div">${esc(divisionLabel(o.division, true))}</span>` : ''}${o.reference ? `<span class="lgh-ref">Ref. ${esc(o.reference)}</span>` : ''}</span>
   </button>`;
 }
@@ -531,21 +540,68 @@ export function homeOpsHTML() {
     <a class="lg-none" href="#/operacion/logistica">${icon.truck}<span>Sin unidades en operación en este momento</span>${icon.chev}</a>`;
   return `<div class="sec-hrow"><h2 class="sec-h">Unidades en operación</h2><a class="link" href="#/operacion/logistica">Ver todas</a></div>
     <p class="lg-live"><i class="lg-pulse" aria-hidden="true"></i>${plural(n, 'unidad activa', 'unidades activas')}<span> · se actualiza al momento</span></p>
-    <div class="lg-rail${n === 1 ? ' one' : ''}">${items.map(homeCard).join('')}</div>`;
+    <div class="lg-rail${n === 1 ? ' one' : ''}">${items.map(homeCard).join('')}</div>
+    ${n > 1 ? `<div class="lg-dots" role="group" aria-label="Unidades activas">${items.map((e, i) => `<button type="button" class="lg-dot${i ? '' : ' on'}" data-dot="${i}" aria-label="Unidad ${i + 1} de ${n}: ${esc(lg.entryView(e).label)}"${i ? '' : ' aria-current="true"'}><i></i></button>`).join('')}</div>` : ''}`;
 }
 /* Monta la sección en Inicio y la mantiene al día; devuelve la función para dejar de escuchar */
 export function mountHomeOps(sec) {
+  /* Mapas por unidad: se conservan entre redibujos (no recargan el mapa base) y se crean al asomar la ficha */
+  const maps = new Map();   /* vehicleId → { el, map, mounting } */
+  let io = null, dead = false;
+  const pinOpts = (id) => { const e = homeEntries(lg.fleetBoard()).find((x) => x.unit.id === id), st = statusOf(e ? e.status : 'inactive'), p = homePos(id);
+    return { label: e ? lg.entryView(e).label : '', tone: st.tone, stale: freshness(p).state === 'stale' }; };
+  function mountOne(id) {
+    const m = maps.get(id); if (!m || m.map || m.mounting) return;
+    const p = homePos(id); if (!p) return;
+    m.mounting = true;
+    mountMap(m.el, { lat: p.lat, lng: p.lng, zoom: 12, interactive: false, ...pinOpts(id) })
+      .then((mm) => { if (dead || maps.get(id) !== m) { mm.destroy(); return; } m.map = mm; setTimeout(() => mm.resize(), 60); })
+      .catch(() => { m.el.classList.add('fail'); })
+      .finally(() => { m.mounting = false; });
+  }
+  function placeMaps() {
+    if (io) { io.disconnect(); io = null; }
+    const rail = sec.querySelector('.lg-rail'), seen = new Set();
+    sec.querySelectorAll('[data-lgmap]').forEach((slot) => {
+      const id = slot.dataset.lgmap; seen.add(id);
+      let m = maps.get(id);
+      if (!m) { const el = document.createElement('span'); el.className = 'lgh-map'; el.setAttribute('aria-hidden', 'true'); m = { el, map: null, mounting: false }; maps.set(id, m); }
+      slot.replaceWith(m.el);
+      if (m.map) { const p = homePos(id); m.map.resize(); m.map.update(p.lat, p.lng, pinOpts(id)); }
+    });
+    for (const [id, m] of maps) if (!seen.has(id)) { if (m.map) m.map.destroy(); maps.delete(id); }
+    const pending = [...maps].filter(([, m]) => !m.map);
+    if (!pending.length) return;
+    if (!rail || typeof IntersectionObserver !== 'function') { pending.forEach(([id]) => mountOne(id)); return; }
+    io = new IntersectionObserver((ents) => ents.forEach((en) => { if (en.isIntersecting) { const id = [...maps].find(([, m]) => m.el === en.target); if (id) { io.unobserve(en.target); mountOne(id[0]); } } }), { root: rail, rootMargin: '0px 50%' });
+    pending.forEach(([, m]) => io.observe(m.el));
+  }
+  /* Indicador de fichas (puntos) al deslizar */
+  function syncDots() {
+    const rail = sec.querySelector('.lg-rail'), dots = sec.querySelectorAll('[data-dot]');
+    if (!rail || !dots.length) return;
+    const cards = rail.querySelectorAll('.lgh-card'), max = rail.scrollWidth - rail.clientWidth;
+    let idx = 0;
+    if (rail.scrollLeft >= max - 4) idx = cards.length - 1;
+    else { let best = Infinity; cards.forEach((c, i) => { const d = Math.abs(c.offsetLeft - cards[0].offsetLeft - rail.scrollLeft); if (d < best) { best = d; idx = i; } }); }
+    dots.forEach((d, i) => { d.classList.toggle('on', i === idx); if (i === idx) d.setAttribute('aria-current', 'true'); else d.removeAttribute('aria-current'); });
+  }
   const draw = () => {
     const rail = sec.querySelector('.lg-rail'), x = rail ? rail.scrollLeft : 0;
     sec.innerHTML = homeOpsHTML();
-    const r2 = sec.querySelector('.lg-rail'); if (r2) r2.scrollLeft = x;
-    hydrateAvatars(sec);
+    const r2 = sec.querySelector('.lg-rail');
+    if (r2) { r2.scrollLeft = x; r2.addEventListener('scroll', syncDots, { passive: true }); }
+    hydrateAvatars(sec); placeMaps(); syncDots();
   };
-  sec.addEventListener('click', (e) => { const b = e.target.closest('[data-lgu]'); if (b) go(`/operacion/logistica/u/${encodeURIComponent(b.dataset.lgu)}`); });
+  sec.addEventListener('click', (e) => {
+    const d = e.target.closest('[data-dot]');
+    if (d) { const rail = sec.querySelector('.lg-rail'), c = rail && rail.querySelectorAll('.lgh-card')[+d.dataset.dot]; if (c) rail.scrollTo({ left: c.offsetLeft - rail.querySelector('.lgh-card').offsetLeft, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); return; }
+    const b = e.target.closest('[data-lgu]'); if (b) go(`/operacion/logistica/u/${encodeURIComponent(b.dataset.lgu)}`);
+  });
   draw();
   /* GPS: posiciones cada 60 s con Inicio visible; dirección por unidad activa como máximo cada 3 min */
   const wantDetails = () => { if (!gps.configured()) return; homeEntries(lg.fleetBoard()).forEach((e) => { const imei = gps.imeiOf(e.unit.id); if (imei) gps.detail(imei); }); };
   const u1 = lg.onLogisticsChange(draw), u2 = gps.watch(() => { draw(); wantDetails(); }, 60000), u3 = gps.tickAges(sec);
   wantDetails();
-  return () => { u1(); u2(); u3(); };
+  return () => { dead = true; u1(); u2(); u3(); if (io) io.disconnect(); for (const m of maps.values()) if (m.map) m.map.destroy(); maps.clear(); };
 }

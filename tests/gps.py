@@ -1,4 +1,4 @@
-"""Rastreo GPS: Ajustes → GPS, vinculación de IMEI, ubicación en Inicio, mapa en vivo en el detalle, posición antigua,
+"""Rastreo GPS: Ajustes → GPS, vinculación de IMEI, ubicación y mapa en Inicio (fichas deslizables), mapa en vivo en el detalle, posición antigua,
 detenida, proveedor caído, respaldo sin la clave y enlace de rastreo. Usa un intermediario simulado. PCS_TEST_USER/PCS_TEST_PASS"""
 import subprocess, time, sys, os, json, base64
 from playwright.sync_api import sync_playwright
@@ -52,9 +52,31 @@ try:
     pg.evaluate("""async(vid)=>{const l=await import('./src/services/logistics.js'); const o=(await import('./src/services/operators.js')).operatorList()[0]; await l.saveOperation({vehicleId:vid,operatorId:o.id,trailerId:null,division:'puerto',status:'to_destination',origin:'Manzanillo',destination:'Guadalajara',reference:'MSCU1234567',deliveryPlace:'CEDIS Guadalajara'})}""", vid)
     pg.goto(BASE+'#/'); pg.wait_for_timeout(1500)
     loc=pg.locator('.lgh-card .lgh-loc'); ok(loc.count()==1 and 'Autopista Colima' in loc.inner_text() and 'Actualizado hace' in loc.inner_text(),'Inicio: ubicación discreta en la tarjeta: '+loc.inner_text().replace('\n',' | '))
-    ok(pg.locator('.lgh-card .leaflet-container').count()==0,'Inicio: sin mapa dentro de la tarjeta')
+    ok(pg.locator('.lgh-card .lgh-map.leaflet-container').count()==1 and pg.locator('.lgh-card .gps-pin').inner_text().strip()=='U12','Inicio: mapa en la tarjeta con el marcador de la unidad')
+    ok(pg.locator('.lgh-card .leaflet-control-zoom').count()==0 and pg.evaluate("getComputedStyle(document.querySelector('.lgh-map')).pointerEvents")=='none','Inicio: mapa de solo vista (sin zoom; el toque llega a la tarjeta)')
+    ok(pg.locator('.lg-dots').count()==0,'una sola unidad: sin puntos de deslizamiento')
     pg.locator('[data-lghome]').scroll_into_view_if_needed(); pg.evaluate('window.scrollBy(0,250)'); shot(pg,'g02_inicio')
-    pg.locator('.lgh-card').first.click(); pg.wait_for_timeout(1500)
+    # segunda unidad activa con GPS: fichas deslizables
+    vid2=pg.evaluate("""async(vid)=>{const c=await import('./src/services/catalogs.js'); const v=c.listAll('vehicles').find(x=>x.id!==vid&&!x.gpsDeviceId); await c.save('vehicles',{...v,gpsDeviceId:'865190071300099',gpsProvider:'iopgps'});
+      const l=await import('./src/services/logistics.js'); const o=(await import('./src/services/operators.js')).operatorList(); await l.saveOperation({vehicleId:v.id,operatorId:(o[1]||o[0]).id,trailerId:null,division:'campo',status:'unloading',origin:'Colima',destination:'Zapopan',reference:''}); return v.id}""", vid)
+    pg.wait_for_timeout(1500)
+    ok(pg.locator('.lgh-card').count()==2 and pg.locator('.lgh-card .lgh-map.leaflet-container').count()>=1,'Inicio: 2 unidades activas, cada una con su mapa')
+    ok(pg.locator('.lg-dots [data-dot]').count()==2 and pg.locator('.lg-dot.on').count()==1,'puntos de deslizamiento: 2')
+    w=pg.evaluate("()=>{const r=document.querySelector('.lg-rail'); return {sw:r.scrollWidth,cw:r.clientWidth,pw:document.documentElement.scrollWidth,vw:innerWidth}}")
+    ok(w['sw']>w['cw'] and w['pw']<=w['vw'],'solo las fichas se deslizan (sin desplazamiento lateral de la página): '+str(w))
+    pg.evaluate("()=>{const r=document.querySelector('.lg-rail'); r.scrollLeft=r.scrollWidth}"); pg.wait_for_timeout(700)
+    ok(pg.locator('.lg-dot').nth(1).get_attribute('class').find('on')>=0,'al deslizar cambia el punto activo')
+    ok(pg.locator('.lgh-card').nth(1).locator('.lgh-map.leaflet-container').count()==1,'el mapa de la segunda ficha se carga al asomar')
+    shot(pg,'g02b_inicio_2')
+    pg.locator('.lg-dot').first.click(); pg.wait_for_timeout(800)
+    ok(pg.evaluate("document.querySelector('.lg-rail').scrollLeft")<5,'tocar un punto lleva a esa ficha')
+    pg.evaluate("()=>{window.__m=document.querySelector('.lgh-map')}")
+    mock['lat']=19.02
+    pg.evaluate("async()=>{const g=await import('./src/services/gps.js'); await g.refresh({force:true});}"); pg.wait_for_timeout(600)
+    ok(pg.evaluate("document.querySelector('.lgh-map')===window.__m && document.body.contains(window.__m)"),'actualizar el GPS conserva el mapa (no recarga el mapa base)')
+    mock['lat']=19.010070
+    pg.evaluate("async()=>{const g=await import('./src/services/gps.js'); await g.refresh({force:true});}"); pg.wait_for_timeout(300)
+    pg.locator(f'.lgh-card[data-lgu="{vid}"]').click(); pg.wait_for_timeout(1500)
     sec=pg.locator('.gps'); ok(sec.count()==1 and 'Ubicación en tiempo real' in sec.inner_text(),'detalle: sección Ubicación en tiempo real')
     ok(pg.locator('.gps .leaflet-container').count()==1 and pg.locator('.gps-pin').inner_text().strip()=='U12','mapa con marcador de la unidad')
     ok('En ruta a destino' in pg.locator('.gps-top').inner_text() and 'Actualizado hace' in pg.locator('.gps-fresh').inner_text(),'estado de Logística sobre el mapa y antigüedad')
@@ -88,7 +110,7 @@ try:
     ok(not r['k'] and r['u'] and r['imei'],'respaldo: incluye dirección e IMEI, no la clave')
     # sin configuración: GPS no estorba
     pg.evaluate("async()=>{const g=await import('./src/services/gps.js'); await g.saveConfig({url:'',key:''});}")
-    pg.goto(BASE+'#/'); pg.wait_for_timeout(800); ok(pg.locator('.lgh-loc').count()==0 and pg.locator('.lgh-card').count()==1,'sin configurar: la tarjeta queda como antes')
+    pg.goto(BASE+'#/'); pg.wait_for_timeout(800); ok(pg.locator('.lgh-loc').count()==0 and pg.locator('.lgh-map').count()==0 and pg.locator('.lgh-card').count()==2,'sin configurar: las tarjetas quedan como antes (sin mapa)')
     pg.goto(BASE+'#/operacion/logistica/u/'+vid); pg.wait_for_timeout(800); ok(pg.locator('.gps').count()==0,'sin configurar ni enlace: no aparece sección GPS')
     # catálogo: IMEI y enlace de rastreo
     pg.goto(BASE+'#/catalogos/vehicles'); pg.wait_for_timeout(500); pg.locator('[data-id]').first.click(); pg.wait_for_selector('.cat-form')
