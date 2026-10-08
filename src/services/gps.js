@@ -17,6 +17,7 @@ import { ageText } from '../domain/gps/gps.js';
 const DETAIL_TTL = 3 * 60 * 1000;
 const state = { devices: new Map(), fetchedAt: 0, error: '', stale: false, loading: null };
 const details = new Map();   /* imei → { at, device } */
+const previous = new Map();  /* imei → lectura anterior (para saber si se movió cuando IOPGPS no entrega velocidad) */
 const pendingDetail = new Map();
 const subs = new Set();
 let timer = null, curInterval = 0;
@@ -37,21 +38,29 @@ export const trackingUrlOf = (vehicleId) => { const v = listAll('vehicles').find
 export const positionOfImei = (imei) => (imei ? state.devices.get(String(imei)) || null : null);
 export const positionOf = (vehicleId) => positionOfImei(imeiOf(vehicleId));
 export const devices = () => [...state.devices.values()];
+export const previousOf = (imei) => previous.get(String(imei)) || null;
 
-async function call(path, cfg = config(), timeout = 12000) {
-  if (!cfg.url || !cfg.key) throw new Error('GPS sin configurar');
+/* Error de la petición: offline = no hubo respuesta (sin conexión o tiempo agotado); status = código HTTP */
+export class GpsError extends Error { constructor(message, { status = 0, offline = false } = {}) { super(message); this.status = status; this.offline = offline; } }
+async function call(path, cfg = config(), timeout = 12000, { method = 'GET', body } = {}) {
+  if (!cfg.url || !cfg.key) throw new GpsError('GPS sin configurar');
   /* La clave solo viaja cifrada (https) */
-  if (!/^https:\/\/[^\s/]+/i.test(cfg.url)) throw new Error('La dirección del servicio GPS debe empezar con https://');
+  if (!/^https:\/\/[^\s/]+/i.test(cfg.url)) throw new GpsError('La dirección del servicio GPS debe empezar con https://');
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeout);
+  let r;
   try {
-    const r = await fetch(cfg.url + path, { headers: { 'X-PCS-Key': cfg.key }, cache: 'no-store', signal: ctl.signal });
-    let body = null; try { body = await r.json(); } catch (e) { /* */ }
-    if (!r.ok || !body || body.ok === false) throw new Error((body && body.error) || `El servicio GPS respondió ${r.status}`);
-    return body;
+    const headers = { 'X-PCS-Key': cfg.key };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    r = await fetch(cfg.url + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), cache: 'no-store', signal: ctl.signal });
   } catch (e) {
-    throw new Error(e.name === 'AbortError' ? 'El servicio GPS no respondió a tiempo' : e.message === 'Failed to fetch' || e.message === 'Load failed' ? 'Sin conexión con el servicio GPS' : e.message);
+    throw new GpsError(e.name === 'AbortError' ? 'El servicio GPS no respondió a tiempo' : 'Sin conexión con el servicio GPS', { offline: true });
   } finally { clearTimeout(t); }
+  let out = null; try { out = await r.json(); } catch (e) { /* */ }
+  if (!r.ok || !out || out.ok === false) throw new GpsError((out && out.error) || `El servicio GPS respondió ${r.status}`, { status: r.status });
+  return out;
 }
+/* Otras rutas del Worker con la misma clave (enlaces de rastreo para clientes) */
+export const request = (path, { method = 'GET', body, timeout = 12000 } = {}) => call(path, config(), timeout, { method, body });
 
 /* Posiciones de la flota (una sola petición; no repite si se pidió hace menos de 10 s) */
 export async function refresh({ force = false } = {}) {
@@ -61,7 +70,9 @@ export async function refresh({ force = false } = {}) {
   state.loading = (async () => {
     try {
       const b = await call('/v1/posiciones');
-      state.devices = new Map((b.devices || []).filter((d) => d && d.imei).map((d) => [String(d.imei), d]));
+      const next = new Map((b.devices || []).filter((d) => d && d.imei).map((d) => [String(d.imei), d]));
+      next.forEach((d, imei) => { const o = state.devices.get(imei); if (o && o.gpsTime && d.gpsTime && o.gpsTime !== d.gpsTime) previous.set(imei, o); });
+      state.devices = next;
       state.fetchedAt = b.fetchedAt || Date.now(); state.stale = !!b.stale; state.error = b.warning || '';
     } catch (e) { state.error = e.message; }
     finally { state.loading = null; emit(); }

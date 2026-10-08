@@ -55,6 +55,8 @@ export const entryView = (e) => view(e.op, e.unit);
 
 /* ===== Consultas ===== */
 export const all = () => live();
+/* Incluye las eliminadas (rastreo para clientes: una operación eliminada también finaliza su enlace) */
+export const allRecords = () => cache || [];
 export const fleetBoard = () => board(units(), live());
 export const openOf = (vehicleId) => openOpOf(live(), vehicleId);
 export const historyOfUnit = (vehicleId) => historyOf(live(), vehicleId);

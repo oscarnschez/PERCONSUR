@@ -12,6 +12,8 @@ export function applyTheme(p = themePref()) {
   const m = document.createElement('meta'); m.name = 'theme-color'; m.content = dark ? '#0E1219' : '#F4F5F8';
   document.head.appendChild(m);
   try { localStorage.setItem('pcs-theme', p); } catch (e) { /* */ }
+  /* Aviso para los mapas (cambian a su estilo claro u oscuro) */
+  window.dispatchEvent(new CustomEvent('pcs:theme', { detail: { theme: effectiveTheme(p) } }));
 }
 export async function setTheme(p) { await setSetting('theme', p); applyTheme(p); }
 mq.addEventListener ? mq.addEventListener('change', () => applyTheme()) : mq.addListener(() => applyTheme());

@@ -113,6 +113,7 @@ export function createGpsPanel({ vehicleId, label, status, target = () => null }
       t && t.loc ? `<a class="btn-secondary" href="${esc(directionsLink(hasFix(p) ? p : null, t.loc))}" target="_blank" rel="noopener">${icon.route}<span>Cómo llegar</span></a>` : '',
       tr ? `<a class="btn-secondary" href="${esc(tr)}" target="_blank" rel="noopener">${icon.eye}<span>Abrir rastreo</span></a>` : '',
       t && t.edit ? `<button type="button" class="btn-secondary" data-g-adjust>${icon.crosshair}<span>${t.loc ? 'Ajustar destino' : 'Ubicar destino'}</span></button>` : '',
+      `<a class="btn-secondary" href="#/operacion/logistica/monitoreo?u=${encodeURIComponent(vehicleId)}">${icon.map}<span>Ver en Monitoreo GPS</span></a>`,
     ].join('');
   }
 

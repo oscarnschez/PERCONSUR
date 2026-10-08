@@ -11,3 +11,8 @@ ALLOWED_ORIGIN = "https://oscarnschez.github.io"
 # [[kv_namespaces]]
 # binding = "LIMITS"
 # id = "<id del espacio KV perconsur-limites>"
+
+# Rastreo para clientes: espacio KV de los enlaces (ver README → Rastreo para clientes)
+# [[kv_namespaces]]
+# binding = "TRACKING"
+# id = "<id del espacio KV perconsur-rastreo>"

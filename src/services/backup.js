@@ -27,8 +27,8 @@ const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents', 'geocodes');
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
-   cambiar a dónde se envía la clave de este dispositivo) */
-const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey', 'gpsUrl']);
+   cambiar a dónde se envía la clave de este dispositivo) y los avisos pendientes de rastreo de este dispositivo */
+const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey', 'gpsUrl', 'trackQueue']);
 
 /*
  * Un respaldo es un archivo externo (llega por WhatsApp, correo…): antes de guardarlo se validan los campos que la app
@@ -81,7 +81,7 @@ export async function exportBackup({ includeMedia = false } = {}) {
   const data = {};
   for (const s of DATA_STORES) data[s] = await db.all(s);
   /* La clave del intermediario GPS no viaja en los respaldos (se vuelve a capturar en Ajustes → GPS) */
-  data.settings = (data.settings || []).filter((r) => r.key !== 'gpsKey');
+  data.settings = (data.settings || []).filter((r) => r.key !== 'gpsKey' && r.key !== 'trackQueue');
   const atts = await db.all(db.S.attachments);
   data.attachments = atts
     /* Borradores y fotografías de operadores siempre; PDF y fotos de documentos solo en el respaldo completo */

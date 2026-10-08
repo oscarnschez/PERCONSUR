@@ -76,6 +76,7 @@ export async function logisticsScreen() {
     <h1 class="title">Logística</h1>
     <p class="page-lead">Estado y asignación actual de las unidades.</p>
     <button type="button" class="btn-primary block lg lg-new" data-new>${icon.plus}<span>Nueva asignación</span></button>
+    <a class="mon-entry" href="#/operacion/logistica/monitoreo"><span class="mod-ic">${icon.map}</span><span class="mon-entry-tx"><b>Monitoreo GPS</b><small>Mapa de la flota en tiempo real y rastreo para clientes</small><span class="mon-entry-n" data-monn></span></span><span class="chev">${icon.chev}</span></a>
     <a class="ec-entry" href="#/operacion/logistica/vacios"><span class="mod-ic">${icon.yard}</span><span class="ec-entry-tx"><b>Control de vacíos</b><small>Seguimiento y entrega de contenedores vacíos</small><span class="ec-entry-n" data-ecn></span></span><span class="chev">${icon.chev}</span></a>
     <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" placeholder="Unidad, placas, operador, referencia, lugar…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar en Logística"></label>
     <div class="chips filters lg-stf" data-stf role="group" aria-label="Filtrar por estado"></div>
@@ -92,8 +93,12 @@ export async function logisticsScreen() {
     const open = ec.openList(), late = open.filter((r) => isOverdue(r)).length;
     root.querySelector('[data-ecn]').innerHTML = `<span class="ec-pend${open.length ? ' on' : ''}">Vacíos pendientes: <b>${open.length}</b></span>${late ? `<span class="ec-late">${icon.alert}${late} vencida${late === 1 ? '' : 's'}</span>` : ''}`;
   }
+  function drawMon() {
+    const n = gps.configured() ? lg.units().filter((u) => gps.imeiOf(u.id)).length : 0;
+    root.querySelector('[data-monn]').innerHTML = gps.configured() ? `<span>Unidades con GPS: <b>${n}</b></span>` : '<span>GPS sin configurar</span>';
+  }
   function draw() {
-    drawEc();
+    drawEc(); drawMon();
     const entries = lg.fleetBoard(), counts = countByStatus(entries);
     stf.innerHTML = [['all', 'Todos', null], ...STATUS_ORDER.map((x) => [x.key, x.label, x.tone])].map(([k, l, tone]) =>
       `<button type="button" class="chip lg-fchip${f.status === k ? ' on' : ''}" data-st="${k}" aria-pressed="${f.status === k}">${tone ? `<i class="lg-dot lg-t-${tone}" aria-hidden="true"></i>` : ''}${esc(l)}<b>${counts[k] || 0}</b></button>`).join('');
@@ -547,10 +552,12 @@ function homeCard(e) {
 }
 export function homeOpsHTML() {
   const items = homeEntries(lg.fleetBoard()), n = items.length;
+  /* Acceso discreto al Centro de Monitoreo GPS (solo con el GPS configurado) */
+  const mapLink = gps.configured() ? `<a class="lg-maplink" href="#/operacion/logistica/monitoreo">${icon.map}<span>Ver mapa de unidades</span></a>` : '';
   if (!n) return `<div class="sec-hrow"><h2 class="sec-h">Unidades en operación</h2><a class="link" href="#/operacion/logistica">Logística</a></div>
-    <a class="lg-none" href="#/operacion/logistica">${icon.truck}<span>Sin unidades en operación en este momento</span>${icon.chev}</a>`;
+    <a class="lg-none" href="#/operacion/logistica">${icon.truck}<span>Sin unidades en operación en este momento</span>${icon.chev}</a>${mapLink ? `<p class="lg-live lg-live-map">${mapLink}</p>` : ''}`;
   return `<div class="sec-hrow"><h2 class="sec-h">Unidades en operación</h2><a class="link" href="#/operacion/logistica">Ver todas</a></div>
-    <p class="lg-live"><i class="lg-pulse" aria-hidden="true"></i>${plural(n, 'unidad activa', 'unidades activas')}<span> · se actualiza al momento</span></p>
+    <p class="lg-live"><i class="lg-pulse" aria-hidden="true"></i>${plural(n, 'unidad activa', 'unidades activas')}<span> · se actualiza al momento</span>${mapLink}</p>
     <div class="lg-rail${n === 1 ? ' one' : ''}">${items.map(homeCard).join('')}</div>
     ${n > 1 ? `<div class="lg-dots" role="group" aria-label="Unidades activas">${items.map((e, i) => `<button type="button" class="lg-dot${i ? '' : ' on'}" data-dot="${i}" aria-label="Unidad ${i + 1} de ${n}: ${esc(lg.entryView(e).label)}"${i ? '' : ' aria-current="true"'}><i></i></button>`).join('')}</div>` : ''}`;
 }

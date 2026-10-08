@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'a42b3c52f2';
+const VERSION = 'f2bb6d31a3';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -27,6 +27,7 @@ const PRECACHE = [
   "./src/domain/empties/empties.js",
   "./src/domain/fuel/fuel.js",
   "./src/domain/fuel/report.js",
+  "./src/domain/gps/fleet.js",
   "./src/domain/gps/geo.js",
   "./src/domain/gps/gps.js",
   "./src/domain/logistics/logistics.js",
@@ -39,7 +40,9 @@ const PRECACHE = [
   "./src/domain/puerto/model.js",
   "./src/domain/puerto/sheet.js",
   "./src/domain/shared/format.js",
+  "./src/domain/tracking/tracking.js",
   "./src/main.js",
+  "./src/portal/main.js",
   "./src/services/backup.js",
   "./src/services/billing.js",
   "./src/services/billingPdf.js",
@@ -68,6 +71,7 @@ const PRECACHE = [
   "./src/services/share.js",
   "./src/services/statementPdf.js",
   "./src/services/theme.js",
+  "./src/services/tracking.js",
   "./src/services/tripAttachments.js",
   "./src/services/xlsx.js",
   "./src/ui/components/charts.js",
@@ -80,6 +84,13 @@ const PRECACHE = [
   "./src/ui/components/sheet.js",
   "./src/ui/components/toast.js",
   "./src/ui/flows.js",
+  "./src/ui/maps/CustomerTrackingMap.js",
+  "./src/ui/maps/FleetMap.js",
+  "./src/ui/maps/MapControls.js",
+  "./src/ui/maps/VehicleMap.js",
+  "./src/ui/maps/VehicleMarker.js",
+  "./src/ui/maps/engine.js",
+  "./src/ui/maps/mapStyle.js",
   "./src/ui/screens/billing.js",
   "./src/ui/screens/billingReport.js",
   "./src/ui/screens/campoWizard.js",
@@ -92,6 +103,7 @@ const PRECACHE = [
   "./src/ui/screens/empties.js",
   "./src/ui/screens/excelCodes.js",
   "./src/ui/screens/fuel.js",
+  "./src/ui/screens/gpsMonitor.js",
   "./src/ui/screens/gpsPanel.js",
   "./src/ui/screens/gpsSettings.js",
   "./src/ui/screens/home.js",
@@ -110,7 +122,10 @@ const PRECACHE = [
   "./styles/components.css",
   "./styles/documents.css",
   "./styles/logistics.css",
+  "./styles/maps.css",
+  "./styles/monitor.css",
   "./styles/operators.css",
+  "./styles/portal.css",
   "./styles/screens.css",
   "./styles/tokens.css",
   "./assets/icons/apple-touch-icon.png",
@@ -137,6 +152,11 @@ const PRECACHE = [
   "./vendor/leaflet/LICENSE.txt",
   "./vendor/leaflet/leaflet.css",
   "./vendor/leaflet/leaflet.js",
+  "./vendor/maplibre/LICENSE.txt",
+  "./vendor/maplibre/maplibre-gl-shared.js",
+  "./vendor/maplibre/maplibre-gl-worker.js",
+  "./vendor/maplibre/maplibre-gl.css",
+  "./vendor/maplibre/maplibre-gl.js",
   "./vendor/pdf-lib.min.js",
   "./vendor/qrcode.min.js"
 ];

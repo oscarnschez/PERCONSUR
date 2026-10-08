@@ -60,6 +60,14 @@ export const icon = {
   /* Patio de contenedores: contenedores apilados */
   yard: I('<rect x="2.5" y="12.5" width="9" height="7" rx=".6"/><rect x="12.5" y="12.5" width="9" height="7" rx=".6"/><rect x="7.5" y="4.5" width="9" height="7" rx=".6"/><path d="M5.5 14.5v3M8.5 14.5v3M15.5 14.5v3M18.5 14.5v3M10.5 6.5v3M13.5 6.5v3" stroke-width="1.3"/>'),
   more: I('<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>', ' stroke-width="2.2"'),
+  /* Mapas: ver toda la flota (encuadre), movimiento, detenida, sin señal, enlace de rastreo */
+  fit: I('<path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15"/><circle cx="12" cy="12" r="2.2"/>'),
+  moving: I('<path d="M12 4.5 18 18l-6-3.2L6 18z"/>'),
+  pause: I('<path d="M9 7v10M15 7v10"/>', ' stroke-width="2.2"'),
+  signalOff: I('<path d="M5 9.5a10 10 0 0 1 14 0M8 13a5.6 5.6 0 0 1 8 0"/><path d="M12 17h.01"/><path d="m4 4 16 16"/>'),
+  link: I('<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>'),
+  linkOff: I('<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/><path d="m4 4 16 16"/>'),
+  map: I('<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'),
 };
 
 /* Ícono según el tipo del remolque en el catálogo (chasis | jaula | tolva); sin clasificar → remolque genérico */

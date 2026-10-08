@@ -42,9 +42,14 @@ Este archivo no contiene credenciales; se puede publicar sin riesgo.
 
 | Ruta | Acceso | Devuelve |
 |---|---|---|
-| `GET /salud` | libre (sin datos sensibles) | estado de secretos, autenticación y número de dispositivos |
+| `GET /salud` | libre (sin datos sensibles) | estado de secretos, autenticación, número de dispositivos y si el rastreo para clientes está listo |
 | `GET /v1/posiciones[?imeis=865…,867…]` | `X-PCS-Key` | `{ ok, fetchedAt, stale, devices: [{ imei, name, lat, lng, gpsTime, signalTime, speed, course, acc, positionType, address }] }` |
 | `GET /v1/ubicacion?imei=865…` | `X-PCS-Key` | `{ ok, fetchedAt, stale, device: { …, address, signalTime } }` (dirección y estado; guardado 2 min) |
+| `GET /v1/enlaces` | `X-PCS-Key` | enlaces de rastreo para clientes (activos y de los últimos 30 días) |
+| `POST /v1/enlaces` | `X-PCS-Key` | crea (o reutiliza) el enlace de una operación de Logística |
+| `POST /v1/enlaces/:id` · `…/finalizar` · `…/revocar` | `X-PCS-Key` | actualiza el estado; finaliza (entrega terminada) o revoca |
+| `GET /r/:token` | **público** (solo con el enlace) | página del portal de rastreo para el cliente |
+| `GET /v1/publico/:token` | **público** (solo con el enlace) | origen, destino, estado y ubicación de esa unidad mientras el enlace está activo |
 
 Tiempos en milisegundos (epoch). Los campos que IOPGPS no entregue llegan como `null`: la app no inventa datos.
 
@@ -71,9 +76,56 @@ Solo se escribe en KV cuando alguien usa una clave incorrecta (el plan gratuito 
 
 La defensa principal sigue siendo una `PCS_KEY` **larga y al azar** (30+ caracteres): con el límite, adivinarla es impráctico.
 
+## Rastreo para clientes (portal público)
+
+Desde **Operación → Logística → Monitoreo GPS** se comparte con el cliente un enlace como
+`https://perconsur-gps.<tu-subdominio>.workers.dev/r/Xq3…` (código al azar de 32 caracteres). El cliente ve una página con
+la identidad de PERCONSUR, el mapa con la ubicación de **su** unidad, el origen, el destino y el estado del viaje.
+
+**El permiso se decide en este Worker, no en el navegador:**
+
+| El cliente ve | El cliente NO ve |
+|---|---|
+| ubicación actual de la unidad del viaje (o «última ubicación reportada» si no hay señal reciente) | velocidad, nombre del operador, número económico, placas, IMEI, referencia |
+| origen, destino y lugar de entrega | otras unidades de la flota |
+| estado: «En camino al destino» · «En el lugar de entrega» · «Entrega finalizada» | nada después de terminar la entrega, revocar o vencer el enlace |
+
+**Cuándo deja de dar la ubicación:**
+- al **terminar la entrega**: la app avisa al pasar la operación a En ruta vacío, Vacío o Inactiva (o al cerrarla); si en ese momento no hay conexión, lo avisa en cuanto la recupera;
+- al **revocarlo** en el Centro de Monitoreo;
+- al crear un enlace para **otro viaje de la misma unidad** (el anterior se finaliza);
+- a las **72 h** como máximo (`TRACK_MAX_HOURS`), aunque nadie lo cierre.
+
+### Activarlo (una sola vez)
+
+1. **Espacio KV para los enlaces:** Storage & Databases → **KV** → Create → nombre `perconsur-rastreo`.
+2. En el Worker → Settings → **Bindings** → Add → KV namespace → *Variable name* `TRACKING` → elige `perconsur-rastreo` → Deploy.
+   (Si ya vinculaste `LIMITS`, el Worker la usa cuando falta `TRACKING`; se recomienda uno propio.)
+3. **Código:** Edit code → pega el `worker.js` completo de esta carpeta → Deploy.
+4. Opcionales en Settings → Variables and Secrets (Text):
+
+   | Nombre | Valor por defecto | Para qué |
+   |---|---|---|
+   | `APP_URL` | `ALLOWED_ORIGIN` + `/PERCONSUR/` (p. ej. `https://oscarnschez.github.io/PERCONSUR/`) | de ahí el portal carga el mapa (MapLibre) y el diseño; solo `https` |
+   | `TRACK_MAX_HOURS` | `72` | vigencia máxima de un enlace (1 a 720 h) |
+
+5. **Prueba:** abre `/salud`; debe decir `"rastreoClientes": { "kv": true, "portal": true }`.
+
+El portal se sirve desde la dirección del Worker (otro sitio que la app: no tiene acceso a los datos guardados en el
+navegador de PERCONSUR) con una política de seguridad de contenido estricta, sin referer y sin indexarse en buscadores. Su
+código y el mapa se cargan desde la app publicada en GitHub Pages (que permite cargarlos desde otro sitio). Un código
+inexistente cuenta como intento fallido: 20 en 15 min bloquean esa conexión.
+
+**Consumo de KV (plan gratuito: 100 000 lecturas y 1 000 escrituras al día):** una escritura al crear, actualizar,
+finalizar o revocar un enlace; cada consulta del portal lee el enlace como máximo una vez cada 15 s por instancia.
+
+**Mapa:** MapLibre GL JS (BSD-3) con mosaicos vectoriales de **OpenFreeMap** (datos de OpenStreetMap, esquema OpenMapTiles):
+uso libre también comercial, sin clave ni límite de consultas; la atribución aparece en el mapa. No usa Google Maps ni
+Leaflet. Para cambiar de proveedor (p. ej. MapTiler o un servidor propio) basta con ajustar `src/ui/maps/mapStyle.js`.
+
 ## Consumo
 
-La app consulta cada 30 s (detalle de la unidad) o 60 s (Inicio), solo con la pantalla visible. El Worker llama a IOPGPS como máximo una vez cada 30 s para toda la flota, muy por debajo del límite gratuito de Cloudflare (100 000 peticiones al día).
+La app consulta cada 30 s (detalle de la unidad y Centro de Monitoreo) o 60 s (Inicio), solo con la pantalla visible; el portal del cliente, cada 30 s mientras está abierto. El Worker llama a IOPGPS como máximo una vez cada 30 s para toda la flota, muy por debajo del límite gratuito de Cloudflare (100 000 peticiones al día).
 
 ## Prueba local
 
