@@ -228,3 +228,63 @@
 .ec-code{margin:0 0 6px}
 .ec-sum{margin:0 0 14px}
 .linkish{border:0;background:none;padding:0;color:var(--tint);font:inherit;font-weight:600;text-decoration:underline}
+
+/* ===== Ubicación GPS ===== */
+/* Inicio: línea discreta en la tarjeta */
+.lgh-loc{display:flex;align-items:flex-start;gap:6px;min-width:0;font-size:13.5px;color:var(--ink-2)}
+.lgh-loc>.ic{flex:none;width:16px;height:16px;margin-top:2px;color:var(--tint)}
+.lgh-loc-tx{display:flex;flex-direction:column;min-width:0}
+.lgh-loc-tx b{font-size:14px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lgh-loc-tx small{font-size:12.5px;color:var(--muted)}
+.lgh-loc.stale>.ic,.lgh-loc.stale small{color:var(--warn)}
+.lgh-loc.none,.lgh-loc.none>.ic{color:var(--muted)}
+/* Detalle: ubicación en tiempo real */
+.gps .grp-h{align-items:baseline}
+.gps-live{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.gps-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;box-shadow:var(--shadow-1)}
+.gps-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
+.gps-fresh{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:600;border-radius:999px;padding:4px 10px;background:var(--fill);color:var(--ink-2)}
+.gps-fresh .ic{width:14px;height:14px}
+.gps-fresh.live{background:var(--ok-t);color:var(--ok)}
+.gps-fresh.live i{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:lgPulse 2.2s ease-out infinite}
+.gps-fresh.stale{background:var(--warn-t);color:var(--warn)}
+.gps-fresh.none:empty{display:none}
+.gps-mapwrap{position:relative;margin:0 0 10px}
+.gps-map{position:relative;z-index:0;isolation:isolate;height:270px;border-radius:12px;overflow:hidden;background:var(--fill)}
+.gps-map.empty{height:150px}
+.gps-map .leaflet-control-attribution{font-size:10px}
+.gps-map .leaflet-control-zoom a{width:34px;height:34px;line-height:34px}
+.gps-center{position:absolute;z-index:1;right:10px;bottom:22px;display:inline-flex;align-items:center;gap:6px;min-height:44px;padding:0 14px;border:0;border-radius:22px;background:var(--surface);color:var(--tint);font-size:15px;font-weight:600;box-shadow:0 2px 10px rgba(20,30,55,.25)}
+.gps-center .ic{width:18px;height:18px}
+.gps-center:active{transform:scale(.97)}
+.gps-msg{position:absolute;z-index:1;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:16px;text-align:center;border-radius:12px;background:color-mix(in srgb,var(--surface) 88%,transparent);color:var(--ink-2)}
+.gps-msg[hidden]{display:none}
+.gps-msg .ic{width:26px;height:26px;color:var(--muted)}
+.gps-msg small{font-size:13px;color:var(--muted)}
+.gps-data{margin:0;padding:0 2px}
+.gps-data dd{font-variant-numeric:tabular-nums}
+.gps-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.gps-acts:empty{display:none}
+.gps-acts>*{min-height:46px;font-size:15px;padding:0 8px}
+.gps-acts>:only-child{grid-column:1/-1}
+.gps-mini{display:flex;flex-direction:column;gap:10px;padding:12px 14px;background:var(--surface);border:1px dashed var(--line-2);border-radius:var(--r);color:var(--ink-2);font-size:14.5px}
+.gps-mini p{display:flex;gap:8px;margin:0}
+.gps-mini p .ic{flex:none;width:18px;height:18px;color:var(--muted)}
+/* Marcador de la unidad (color del estado de Logística) */
+.gps-pin-wrap{background:none;border:0}
+.gps-pin{position:absolute;left:0;top:0;transform:translate(-50%,calc(-100% - 8px));display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 7px;border-radius:999px;background:var(--lg-dot);color:#fff;font:800 13px/1 var(--font);white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.3)}
+.gps-pin::after{content:"";position:absolute;left:50%;bottom:-7px;margin-left:-7px;border:7px solid transparent;border-bottom:0;border-top-color:var(--lg-dot)}
+.gps-pin-dot{width:9px;height:9px;border-radius:50%;background:#fff}
+.gps-pin.stale{filter:grayscale(1);opacity:.75}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .gps-map .leaflet-tile-pane{filter:brightness(.82) contrast(1.08)}}
+:root[data-theme="dark"] .gps-map .leaflet-tile-pane{filter:brightness(.82) contrast(1.08)}
+/* Ajustes → GPS */
+.gps-st{display:flex;align-items:flex-start;gap:8px;margin:0 0 4px;font-size:14px;color:var(--ink-2)}
+.gps-st:empty{display:none}
+.gps-st .ic{flex:none;width:18px;height:18px;margin-top:1px}
+.gps-st.ok{color:var(--ok)}
+.gps-st.warn{color:var(--warn)}
+.gps-set .in-act.on{color:var(--orange)}
+.gps-sug{margin:0 0 12px}
+.gps-dev .row-ic.off{background:var(--fill);color:var(--muted)}
+.gps-dev .row-l1{flex-wrap:wrap}

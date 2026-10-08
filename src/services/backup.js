@@ -24,7 +24,7 @@ const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents');
-const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
+const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey']);
 
 const b64 = {
   from(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); },
@@ -34,6 +34,8 @@ const b64 = {
 export async function exportBackup({ includeMedia = false } = {}) {
   const data = {};
   for (const s of DATA_STORES) data[s] = await db.all(s);
+  /* La clave del intermediario GPS no viaja en los respaldos (se vuelve a capturar en Ajustes → GPS) */
+  data.settings = (data.settings || []).filter((r) => r.key !== 'gpsKey');
   const atts = await db.all(db.S.attachments);
   data.attachments = atts
     /* Borradores y fotografías de operadores siempre; PDF y fotos de documentos solo en el respaldo completo */

@@ -18,6 +18,9 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 doc_dossier.py` — expediente consolidado desde el detalle del documento y desde Logística («Ver documento relacionado»).
 - `python3 empties.py` — Control de vacíos: creación automática al pasar a Vacío, sin duplicados, programación, otro transportista, vencidas, entregado, movimientos, filtros, código para Excel, persistencia y respaldo.
 - `node empties_unit.mjs` — reglas de Control de vacíos: fila para Excel (columnas y orden de la hoja), validación, vencidas y prioridad (sin navegador).
+- `python3 gps.py` — rastreo GPS con un intermediario simulado: Ajustes → GPS, vinculación de IMEI, ubicación en Inicio, mapa en vivo, posición antigua, proveedor caído y respaldo sin la clave.
+- `node gps_unit.mjs` — reglas del GPS: antigüedad, «Señal GPS sin actualización reciente», detenida y sugerencia de unidad (sin navegador).
+- `node ../gps-proxy/test.mjs` — intermediario GPS (Cloudflare Worker) contra un servidor que imita la Open API de IOPGPS.
 - `python3 activity.py` — Actividad cuenta todos los viajes registrados y avisa los que quedan después del corte.
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).
 - `python3 upgrade.py` — actualización de la base de datos v1 → v2 sin pérdida de datos.

@@ -6,7 +6,7 @@ import { getCompany } from '../../services/companies.js';
 import { getSetting, setSetting } from '../../services/settings.js';
 import { PUERTO_COMPANIES } from '../../config/companies.js';
 import { TIPOS } from '../../config/reference.js';
-import { esc, normEco, rfcClean, nameCase, mapsURL } from '../../domain/shared/format.js';
+import { esc, normEco, rfcClean, nameCase, mapsURL, trackURL } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
 import { openSheet, confirmDestructive } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
@@ -83,14 +83,21 @@ export async function catalogListScreen({ kind }) {
       ${isNew ? '' : `<button type="button" class="btn-danger block" data-del>${icon.trash}<span>Eliminar ${esc(def.one)}</span></button>`}</form>`;
     const sh = openSheet({ title: isNew ? `Agregar ${def.one}` : `Editar ${def.one}`, body });
     const form = sh.body.querySelector('form');
-    form.addEventListener('input', (e) => { const t = e.target, o = (def.fields.find(([f]) => f === t.name) || [])[2] || {}; if (o.upper) t.value = t.value.toUpperCase(); if (o.rfc) t.value = rfcClean(t.value); });
+    form.addEventListener('input', (e) => { const t = e.target, o = (def.fields.find(([f]) => f === t.name) || [])[2] || {}; if (o.upper) t.value = t.value.toUpperCase(); if (o.rfc) t.value = rfcClean(t.value); if (o.digits) t.value = t.value.replace(/\D/g, ''); });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = Object.fromEntries(new FormData(form).entries());
       for (const k of Object.keys(data)) data[k] = String(data[k]).trim();
       const first = def.fields[0][0];
       if (!data[first]) { toast(`Falta: ${def.fields[0][1].toLowerCase()}`, { type: 'warn' }); form.elements[first].focus(); return; }
-      if (kind === 'vehicles') { data.eco = normEco(data.eco); if (!data.eco) { toast('El número económico debe tener dígitos', { type: 'warn' }); return; } }
+      if (kind === 'vehicles') {
+        data.eco = normEco(data.eco); if (!data.eco) { toast('El número económico debe tener dígitos', { type: 'warn' }); return; }
+        if (data.gpsDeviceId && !/^\d{8,20}$/.test(data.gpsDeviceId)) { toast('El IMEI del GPS debe tener solo números (normalmente 15).', { type: 'warn' }); return; }
+        const twinGps = data.gpsDeviceId && cat.listAll('vehicles').find((x) => x.id !== v.id && String(x.gpsDeviceId || '') === data.gpsDeviceId);
+        if (twinGps) { toast(`Ese IMEI ya está vinculado a ${def.label(twinGps)}.`, { type: 'warn' }); return; }
+        if (data.trackingUrl && !trackURL(data.trackingUrl)) { toast('El enlace de rastreo no es válido.', { type: 'warn' }); return; }
+        data.gpsProvider = data.gpsDeviceId ? 'iopgps' : '';
+      }
       if (kind === 'operators') data.name = nameCase(data.name);
       if (kind === 'plants' && data.maps && !mapsURL(data.maps)) { toast('El link de Google Maps no es válido', { type: 'warn' }); return; }
       const dup = cat.list(kind, company).find((x) => x.id !== v.id && fold(def.label(x)) === fold(def.label({ ...data })));

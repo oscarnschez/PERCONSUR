@@ -17,6 +17,7 @@ import { loadLogistics } from './services/logistics.js';
 import { loadTripAttachments } from './services/tripAttachments.js';
 import { loadEmpties } from './services/empties.js';
 import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
+import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -102,6 +103,7 @@ function routes() {
   route('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
   route('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/puerto/:company/:step', puertoWizard, { name: 'wizard' });
   route('/campo/:step', campoWizard, { name: 'wizard' });
