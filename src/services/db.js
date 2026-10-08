@@ -13,10 +13,11 @@
  *   tripBilling   cobranza: cobro de cada viaje y demoras en planta (v5)
  *   logisticsOperations   logística: asignación y estado operativo de cada unidad, con historial (v6)
  *   tripAttachments   documentos adicionales de cada viaje (metadatos; el archivo vive en attachments) (v7)
+ *   yards, emptyContainers, emptyContainerEvents   control de vacíos: patios, contenedores por devolver y su historial (v8)
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 7;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes */
+const DB_VERSION = 8;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -25,6 +26,7 @@ export const S = {
   operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
   operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords', tripBilling: 'tripBilling',
   logisticsOperations: 'logisticsOperations', tripAttachments: 'tripAttachments',
+  yards: 'yards', emptyContainers: 'emptyContainers', emptyContainerEvents: 'emptyContainerEvents',
 };
 
 let dbp = null;
@@ -67,6 +69,10 @@ export function openDB() {
       mk(S.logisticsOperations, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['operatorId', 'operatorId'], ['trailerId', 'trailerId']]);
       /* v7 — Documentos adicionales de viajes, relacionados por tripId; el binario se guarda en attachments (storageKey) */
       mk(S.tripAttachments, { keyPath: 'id' }, [['tripId', 'tripId']]);
+      /* v8 — Control de vacíos: catálogo de patios, contenedores por devolver (relacionados por IDs) y sus movimientos */
+      mk(S.yards, { keyPath: 'id' });
+      mk(S.emptyContainers, { keyPath: 'id' }, [['containerNumber', 'containerNumber'], ['tripId', 'tripId'], ['vehicleId', 'vehicleId'], ['logisticsOperationId', 'logisticsOperationId']]);
+      mk(S.emptyContainerEvents, { keyPath: 'id' }, [['emptyContainerId', 'emptyContainerId'], ['createdAt', 'createdAt']]);
     };
     req.onsuccess = () => {
       const db = req.result;

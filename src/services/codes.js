@@ -35,8 +35,12 @@ function hasInk(cv) {
   } catch (e) { return true; }
   return false;
 }
-function pdf417ViaSVG(text) {
-  const svg = window.bwipjs.toSVG({ bcid: 'pdf417', text: unescape(encodeURIComponent(text)), binarytext: true, columns: 6, eclevel: 3, rowmult: 3 });
+/* Altura de fila del PDF417: «rowheight» en bwip-js reciente (el de /vendor); «rowmult» en versiones anteriores.
+   Con la opción equivocada bwip-js no dibuja nada y sin este ajuste se caía siempre al QR de respaldo. */
+const ROW_OPTS = [{ rowheight: 3 }, { rowmult: 3 }];
+function pdf417ViaSVG(text, row) {
+  const svg = window.bwipjs.toSVG({ bcid: 'pdf417', text: unescape(encodeURIComponent(text)), binarytext: true, columns: 6, eclevel: 3, ...row });
+  if (typeof svg !== 'string') throw new Error('No se generó el SVG');
   const vb = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg); if (!vb) throw new Error('SVG sin viewBox');
   const W = +vb[1], H = +vb[2], k = 3, cv = document.createElement('canvas'); cv.width = Math.ceil(W * k); cv.height = Math.ceil(H * k);
   const x = cv.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, cv.width, cv.height); x.scale(k, k);
@@ -66,8 +70,8 @@ export function excelCode(text) {
   let r = null;
   if (window.bwipjs) {
     const tries = [
-      () => { const cv = document.createElement('canvas'); window.bwipjs.toCanvas(cv, { bcid: 'pdf417', text: unescape(encodeURIComponent(text)), binarytext: true, columns: 6, eclevel: 3, rowmult: 3, scale: 3, backgroundcolor: 'FFFFFF' }); return cv; },
-      () => pdf417ViaSVG(text),
+      ...ROW_OPTS.map((row) => () => { const cv = document.createElement('canvas'); window.bwipjs.toCanvas(cv, { bcid: 'pdf417', text: unescape(encodeURIComponent(text)), binarytext: true, columns: 6, eclevel: 3, scale: 3, backgroundcolor: 'FFFFFF', ...row }); return cv; }),
+      ...ROW_OPTS.map((row) => () => pdf417ViaSVG(text, row)),
     ];
     for (const t of tries) {
       try {

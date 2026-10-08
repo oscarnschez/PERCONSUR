@@ -13,10 +13,11 @@ import { toast } from '../components/toast.js';
 import { hasRecords } from '../../services/operators.js';
 import { vehicleHasFuel } from '../../services/fuel.js';
 import { inOpenOperation } from '../../services/logistics.js';
+import { yardInUse } from '../../services/empties.js';
 import { trailerIcon } from '../components/icons.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals'];
+const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'yards'];
 
 export async function catalogsScreen() {
   const co = getSetting('catCompany', 'perconsur');
@@ -26,7 +27,7 @@ export async function catalogsScreen() {
     <p class="page-lead">Datos que se ofrecen al capturar. Operadores, unidades y remolques son de cada empresa; División Campo usa los de PERCONSUR.</p>
     <section class="grp"><div class="grp-b list-actions">${ORDER.map((k) => {
       const d = cat.KINDS[k], n = d.perCompany ? PUERTO_COMPANIES.reduce((t, c) => t + cat.list(k, c).length, 0) : cat.list(k).length;
-      return `<a class="row-btn" href="#/catalogos/${k}"><span class="rb-ic">${{ operators: icon.person, vehicles: icon.truck, trailers: icon.trailer, places: icon.pin, plants: icon.building, terminals: icon.container }[k]}</span><span>${esc(d.title)}</span><small>${n}</small>${icon.chev}</a>`;
+      return `<a class="row-btn" href="#/catalogos/${k}"><span class="rb-ic">${{ operators: icon.person, vehicles: icon.truck, trailers: icon.trailer, places: icon.pin, plants: icon.building, terminals: icon.container, yards: icon.yard }[k]}</span><span>${esc(d.title)}</span><small>${n}</small>${icon.chev}</a>`;
     }).join('')}
       <a class="row-btn" href="#/catalogos/tipos"><span class="rb-ic">${icon.catalog}</span><span>Tipos de contenedor (ISO)</span><small>${TIPOS.length}</small>${icon.chev}</a>
     </div></section>
@@ -101,6 +102,10 @@ export async function catalogListScreen({ kind }) {
     if (del) del.addEventListener('click', async () => {
       if (kind === 'vehicles' && await vehicleHasFuel(v.id)) {
         toast('Esta unidad tiene recargas de combustible registradas; no se puede eliminar. Puedes editar sus datos.', { type: 'warn', ms: 5500 });
+        return;
+      }
+      if (kind === 'yards' && await yardInUse(v.id)) {
+        toast('Este patio está asignado a contenedores vacíos pendientes; no se puede eliminar. Puedes marcarlo como Inactivo.', { type: 'warn', ms: 5500 });
         return;
       }
       const lgField = { vehicles: 'vehicleId', operators: 'operatorId', trailers: 'trailerId' }[kind];
