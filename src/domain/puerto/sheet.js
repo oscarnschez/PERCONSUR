@@ -27,7 +27,7 @@ function coText(co) {
 function trackLink(state, co) {
   if (state.showTrack === false) return '';
   const u = trackURL(state.track);
-  return u ? `<a class="s-track" href="${esc(u)}" target="_blank" rel="noopener" title="Rastreo GPS de la unidad"><img src="${co.track}" alt="">Rastreo GPS</a>` : '';
+  return u ? `<a class="s-track" href="${esc(u)}" target="_blank" rel="noopener" title="Rastreo GPS de la unidad"><img src="${esc(co.track)}" alt="">Rastreo GPS</a>` : '';
 }
 
 function evSummary(state) {
@@ -56,9 +56,9 @@ export function puertoSheetHTML(state, co, ctx, label = '') {
   return `<article class="sheet" style="${coVars(co)}">
     <div class="s-head">
       <div>
-        ${co.mark ? `<div class="s-id"><img class="s-mark" src="${co.logo}" alt="${esc(co.short)}">
+        ${co.mark ? `<div class="s-id"><img class="s-mark" src="${esc(co.logo)}" alt="${esc(co.short)}">
         <div><div class="s-logo">${esc(co.short)}</div>${coText(co)}</div></div>`
-    : `<div class="s-id s-id-w"><img class="s-wlogo" src="${co.logo}" alt="${esc(co.short)}">${coText(co)}</div>`}
+    : `<div class="s-id s-id-w"><img class="s-wlogo" src="${esc(co.logo)}" alt="${esc(co.short)}">${coText(co)}</div>`}
       </div>
       <div>
         <div class="s-box"><h1>NOTA DE ENTREGA - RECEPCIÓN</h1>
@@ -129,7 +129,7 @@ export function puertoSheetHTML(state, co, ctx, label = '') {
 export function puertoAnnexHTML(state, co, ctx) {
   const list = contsWithFotos(state);
   return list.map(({ c, i }) => `<article class="sheet annex" style="${coVars(co)}">
-    <div class="a-head"><img class="a-mark${co.mark ? '' : ' a-wide'}" src="${co.logo}" alt="">
+    <div class="a-head"><img class="a-mark${co.mark ? '' : ' a-wide'}" src="${esc(co.logo)}" alt="">
       <div><div class="a-title">Evidencia fotográfica</div>
       <div class="a-sub">Anexo de la nota ${esc(state.folio)} &nbsp;|&nbsp; ${esc(fmtFecha(state.fecha))}</div></div>
       <div class="a-cont">Contenedor<b>${i + 1} de ${state.conts.length}</b></div></div>

@@ -20,12 +20,57 @@ import { loadLogistics } from './logistics.js';
 import { loadTripAttachments } from './tripAttachments.js';
 import { loadEmpties } from './empties.js';
 import { loadGeocodes } from './geocode.js';
+import { COMPANY_DEFAULTS, EDITABLE_FIELDS, PUERTO_COMPANIES } from '../config/companies.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents', 'geocodes');
-const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey']);
+/* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
+   cambiar a dónde se envía la clave de este dispositivo) */
+const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey', 'gpsUrl']);
+
+/*
+ * Un respaldo es un archivo externo (llega por WhatsApp, correo…): antes de guardarlo se validan los campos que la app
+ * usa como valores fijos (tipos, estados, números) y se descartan los que no corresponden. Las pantallas además escapan
+ * todo lo que muestran; esto evita que un archivo manipulado deje datos con forma inesperada en el dispositivo.
+ */
+const MIME_OK = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const own = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const numOr = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+export function sanitizeImport(data) {
+  const rowsOf = (k) => (Array.isArray(data[k]) ? data[k] : []).filter((r) => r && typeof r === 'object' && !Array.isArray(r));
+  for (const k of Object.keys(data)) if (Array.isArray(data[k])) data[k] = rowsOf(k);
+  /* Empresas: solo los textos editables (logotipo, colores y serie de folio son fijos) */
+  data.companies = rowsOf('companies').filter((r) => typeof r.key === 'string' && own(COMPANY_DEFAULTS, r.key)).map((r) => {
+    const o = r.overrides && typeof r.overrides === 'object' ? r.overrides : {}, overrides = {};
+    for (const [k] of EDITABLE_FIELDS) if (typeof o[k] === 'string') overrides[k] = o[k];
+    return { key: r.key, overrides, updatedAt: numOr(r.updatedAt, Date.now()) };
+  });
+  data.settings = rowsOf('settings').filter((r) => typeof r.key === 'string' && !SKIP_SETTINGS.has(r.key)
+    && (r.key !== 'lastCompany' || PUERTO_COMPANIES.includes(r.value)));
+  /* Archivos: solo tipos inertes (PDF e imágenes) */
+  for (const a of rowsOf('attachments')) if (!MIME_OK.has(a.type)) a.type = 'application/octet-stream';
+  data.tripAttachments = rowsOf('tripAttachments').filter((a) => a.kind === 'pdf' || a.kind === 'img').map((a) => ({
+    ...a, mimeType: a.kind === 'pdf' ? 'application/pdf' : MIME_OK.has(a.mimeType) && a.mimeType !== 'application/pdf' ? a.mimeType : 'image/jpeg', size: numOr(a.size), pages: numOr(a.pages),
+  }));
+  data.documents = rowsOf('documents').filter((d) => d.type === 'puerto' || d.type === 'campo').map((d) => ({
+    ...d, status: d.status === 'compartido' ? 'compartido' : 'generado', pages: numOr(d.pages), size: numOr(d.size),
+    company: d.type === 'puerto' && !PUERTO_COMPANIES.includes(d.company) ? 'perconsur' : d.company,
+  }));
+  data.drafts = rowsOf('drafts').filter((d) => d.type === 'campo' || (d.type === 'puerto' && PUERTO_COMPANIES.includes(d.company))).map((d) => {
+    const out = { ...d, step: Number.isInteger(d.step) && d.step >= 0 && d.step < 20 ? d.step : 0 };
+    if (out.data && Array.isArray(out.data.attachments)) {
+      out.data = { ...out.data, attachments: out.data.attachments.filter((x) => x && (x.kind === 'pdf' || x.kind === 'img')).map((x) => ({ ...x, pages: numOr(x.pages), size: numOr(x.size) })) };
+    }
+    return out;
+  });
+  for (const t of rowsOf('operatorTrips')) if (t.division !== 'puerto' && t.division !== 'campo') t.division = 'puerto';
+  for (const st of rowsOf('operatorStatements')) st.pages = numOr(st.pages);
+  for (const st of rowsOf('operatorSettings')) if (st.satManual != null && !Number.isInteger(Number(st.satManual))) st.satManual = null; else if (st.satManual != null) st.satManual = Number(st.satManual);
+  for (const f of rowsOf('fuelRecords')) f.liters = numOr(f.liters);
+  return data;
+}
 
 const b64 = {
   from(buf) { let s = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); },
@@ -87,7 +132,7 @@ export async function importBackup(info) {
     await reload();
     return r;
   }
-  const { data } = info.obj;
+  const data = sanitizeImport(info.obj.data);
   /* Operadores: no duplicar. Si ya existe uno con la misma empresa y nombre (IDs distintos por venir de otro
      dispositivo), se usa el existente y se reasignan a él los registros importados. */
   const fold = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();

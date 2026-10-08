@@ -37,7 +37,7 @@ export function mountTripDocs(box, { trip: trip0, onChange }) {
           <span class="att-b"><button type="button" class="btn-secondary sm" data-td="link">Vincular</button></span></div>`;
     const rows = list.map((a, i) => { const ok = a.status === 'ok' && !gone.has(a.id); return `<li class="att td-att${ok ? '' : ' err'}" data-id="${esc(a.id)}">
         <span class="td-n" aria-hidden="true">${i + 1}</span>
-        <span class="att-ic ${a.kind}"${a.kind === 'img' && ok ? ` style="background-image:url('${media.urlFor(a.storageKey)}')"` : ''}>${a.kind === 'pdf' ? 'PDF' : ok ? '' : 'IMG'}</span>
+        <span class="att-ic ${esc(a.kind)}"${a.kind === 'img' && ok ? ` style="background-image:url('${media.urlFor(a.storageKey)}')"` : ''}>${a.kind === 'pdf' ? 'PDF' : ok ? '' : 'IMG'}</span>
         <span class="att-tx"><b>${esc(a.name)}</b><small>${ok ? esc(attachmentsMeta(a)) : `<span class="td-errt">${icon.alert}${gone.has(a.id) ? 'Archivo no disponible en este dispositivo' : 'No se pudo procesar este archivo'}</span>`}</small>
           ${ok ? '' : `<span class="td-erracts">${gone.has(a.id) ? '' : `<button type="button" class="btn-secondary sm" data-ta="retry">${icon.refresh}<span>Reintentar</span></button>`}<button type="button" class="btn-ghost sm danger" data-ta="del">${icon.trash}<span>Eliminar</span></button></span>`}</span>
         <span class="att-b"><button type="button" class="icon-btn" data-ta="up" aria-label="Subir ${esc(a.name)}"${i ? '' : ' disabled'}>${icon.up}</button><button type="button" class="icon-btn" data-ta="down" aria-label="Bajar ${esc(a.name)}"${i < list.length - 1 ? '' : ' disabled'}>${icon.down}</button><button type="button" class="icon-btn" data-ta="more" aria-label="Acciones de ${esc(a.name)}">${icon.more}</button></span>
@@ -138,7 +138,9 @@ export function mountTripDocs(box, { trip: trip0, onChange }) {
 async function viewAttachment(a) {
   const blob = await ta.blobOf(a);
   if (!blob) { toast('El archivo ya no está en este dispositivo.', { type: 'warn' }); return; }
-  const file = new File([blob], a.name, { type: blob.type || a.mimeType });
+  /* El tipo sale del kind validado (pdf | img), nunca del dato guardado: un adjunto importado no puede abrirse como página */
+  const type = a.kind === 'img' ? (/^image\/(jpeg|png)$/.test(blob.type) ? blob.type : 'image/jpeg') : 'application/pdf';
+  const file = new File([blob], a.name, { type });
   if (a.kind === 'img') {
     const u = await media.ensureURL(a.storageKey);
     const sh = openSheet({ title: a.name, full: true, body: `<img class="ph-big td-img" src="${u}" alt="${esc(a.name)}"><p class="sheet-lead center">${esc(attachmentsMeta(a))}</p>

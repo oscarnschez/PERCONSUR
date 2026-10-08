@@ -12,6 +12,7 @@
  *   PCS_KEY         Secret  clave propia que usa la app PERCONSUR para consultar este Worker
  *   ALLOWED_ORIGIN  Texto   sitio autorizado, p. ej. https://oscarnschez.github.io (varios separados por coma)
  *   IOP_BASE        Texto   opcional; por defecto https://open.iopgps.com
+ *   LIMITS          KV      opcional; espacio KV para compartir los bloqueos por intentos entre instancias (ver README)
  *
  * Endpoints:
  *   GET /salud                 ¿se pudo autenticar con IOPGPS? (sin credenciales ni ubicaciones; con ?key= añade nombres de campos)
@@ -25,16 +26,35 @@
  *   GET /api/device/location?imei=…                                 → { lat, lng, address, gpsTime, … }
  *   GET /api/device/status?imei=…                                   → { signalTime, gpsTime, accStatus, speed, … }
  * La respuesta se normaliza con tolerancia (lat/latitude, lng/lon/longitude, tiempos en segundos, ms o texto).
+ *
+ * Límite de intentos (rate limit): la clave PCS_KEY es la «contraseña» de este Worker. Para que no se pueda adivinar
+ * probando muchas claves:
+ *   - Por IP: 5 claves incorrectas en 15 min → esa IP queda bloqueada 15 min (el bloqueo se duplica si reincide, hasta 24 h).
+ *     Mientras dura el bloqueo no se revisa ninguna clave, ni la correcta: responde 429 con Retry-After.
+ *   - General: con más de 30 claves incorrectas en 15 min (de cualquier IP), basta 1 fallo para bloquear una IP.
+ *   - Peticiones por IP: máximo 120 por minuto en cualquier ruta (protege también /salud, que consulta a IOPGPS).
+ *   - Si IOPGPS falla, no se le vuelve a llamar durante 30 s (FAIL_BACKOFF): visitas anónimas a /salud no multiplican
+ *     llamadas firmadas con las credenciales mientras el proveedor está caído.
+ * El estado vive en la memoria de la instancia; con el espacio KV opcional LIMITS los bloqueos se comparten entre
+ * instancias y sobreviven a reinicios. Las IP se guardan como huella (no en texto).
  */
 
 const FLEET_TTL = 30 * 1000;      /* posiciones de la flota: una llamada al proveedor cada 30 s como máximo */
 const DETAIL_TTL = 120 * 1000;    /* dirección/estado por unidad: cada 2 min como máximo */
 const TOKEN_MARGIN = 5 * 60 * 1000;
+const FAIL_BACKOFF = 30 * 1000;   /* si IOPGPS falla, no se le vuelve a llamar durante 30 s (aunque lleguen muchas peticiones) */
 
 /* ===== Estado por instancia (Cloudflare reutiliza la instancia entre peticiones) ===== */
-let token = null, tokenExp = 0, tokenPending = null;
+let token = null, tokenExp = 0, tokenPending = null, authFail = null;
+const failures = new Map();   /* clave de caché → { at, err } del último fallo del proveedor */
 const cache = new Map();   /* clave → { at, value } */
 const inflight = new Map();
+
+/* ===== Límite de intentos ===== */
+export const LIMITS = { FAIL_WINDOW: 15 * 60 * 1000, FAIL_MAX: 5, LOCK_BASE: 15 * 60 * 1000, LOCK_MAX: 24 * 3600 * 1000, GLOBAL_FAIL_MAX: 30, REQ_WINDOW: 60 * 1000, REQ_MAX: 120 };
+const fails = new Map();    /* ip → { list: [ts], until, strikes } */
+const reqs = new Map();     /* ip → [ts] */
+let globalFails = [];
 
 /* ===== MD5 (implementación propia: no depende de extensiones de Web Crypto) ===== */
 export function md5(str) {
@@ -77,6 +97,7 @@ function corsHeaders(req, env) {
     h['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
     h['Access-Control-Allow-Headers'] = 'X-PCS-Key';
     h['Access-Control-Max-Age'] = '86400';
+    h['Access-Control-Expose-Headers'] = 'Retry-After';
   }
   return h;
 }
@@ -91,6 +112,61 @@ function sameKey(a, b) {
   return r === 0;
 }
 const appKey = (req, url) => req.headers.get('X-PCS-Key') || url.searchParams.get('key') || '';
+
+/* IP del cliente (Cloudflare la entrega en CF-Connecting-IP) */
+const clientIp = (req) => req.headers.get('CF-Connecting-IP') || req.headers.get('X-Real-IP') || 'sin-ip';
+const recent = (list, win, now) => list.filter((t) => now - t < win);
+function prune(map, now) {
+  if (map.size < 2000) return;
+  for (const [k, v] of map) { const last = Array.isArray(v) ? v[v.length - 1] : Math.max(v.until || 0, v.list[v.list.length - 1] || 0); if (!last || now - last > LIMITS.LOCK_MAX) map.delete(k); }
+}
+/* Peticiones por minuto por IP (cualquier ruta) */
+function tooManyRequests(ip, now = Date.now()) {
+  prune(reqs, now);
+  const list = recent(reqs.get(ip) || [], LIMITS.REQ_WINDOW, now);
+  list.push(now); reqs.set(ip, list);
+  return list.length > LIMITS.REQ_MAX ? Math.ceil((LIMITS.REQ_WINDOW - (now - list[list.length - LIMITS.REQ_MAX - 1])) / 1000) : 0;
+}
+const kvKey = (ip) => 'lim:' + md5('pcs|' + ip);
+async function failState(ip, env) {
+  let st = fails.get(ip);
+  if (!st && env.LIMITS) { try { const v = await env.LIMITS.get(kvKey(ip), 'json'); if (v) { st = { list: v.list || [], until: v.until || 0, strikes: v.strikes || 0 }; fails.set(ip, st); } } catch (e) { /* KV no disponible: solo memoria */ } }
+  return st || { list: [], until: 0, strikes: 0 };
+}
+async function saveFail(ip, st, env) {
+  fails.set(ip, st);
+  if (env.LIMITS) { try { await env.LIMITS.put(kvKey(ip), JSON.stringify(st), { expirationTtl: Math.max(60, Math.ceil((Math.max(st.until, Date.now() + LIMITS.FAIL_WINDOW) - Date.now()) / 1000) + 60) }); } catch (e) { /* */ } }
+}
+/* Segundos de bloqueo que le quedan a una IP (0 = puede intentar) */
+async function lockedFor(ip, env, now = Date.now()) { const st = await failState(ip, env); return st.until > now ? Math.ceil((st.until - now) / 1000) : 0; }
+/* Registra una clave incorrecta; devuelve los segundos de bloqueo si con este fallo se bloquea la IP */
+async function registerFail(ip, env, now = Date.now()) {
+  prune(fails, now);
+  globalFails = recent(globalFails, LIMITS.FAIL_WINDOW, now); globalFails.push(now);
+  const st = await failState(ip, env);
+  st.list = recent(st.list, LIMITS.FAIL_WINDOW, now); st.list.push(now);
+  const max = globalFails.length > LIMITS.GLOBAL_FAIL_MAX ? 1 : LIMITS.FAIL_MAX;
+  let lock = 0;
+  if (st.list.length >= max) {
+    st.strikes = (st.strikes || 0) + 1;
+    const ms = Math.min(LIMITS.LOCK_MAX, LIMITS.LOCK_BASE * 2 ** (st.strikes - 1));
+    st.until = now + ms; st.list = []; lock = Math.ceil(ms / 1000);
+  }
+  await saveFail(ip, st, env);
+  return lock;
+}
+async function clearFails(ip, env) {
+  const st = fails.get(ip);
+  if (!st || (!st.list.length && !st.strikes)) return;
+  fails.delete(ip);
+  if (env.LIMITS) { try { await env.LIMITS.delete(kvKey(ip)); } catch (e) { /* */ } }
+}
+const waitText = (s) => (s < 90 ? `${s} s` : s < 5400 ? `${Math.ceil(s / 60)} min` : `${Math.ceil(s / 3600)} h`);
+function limited(req, env, seconds, error) {
+  const r = json(req, env, 429, { ok: false, error, retryAfter: seconds });
+  r.headers.set('Retry-After', String(seconds));
+  return r;
+}
 
 /* Tiempo → milisegundos (acepta segundos, milisegundos o texto «2026-10-08 03:13:00») */
 export function toMs(v) {
@@ -144,7 +220,11 @@ async function auth(env) {
 }
 async function ensureToken(env) {
   if (token && Date.now() < tokenExp - TOKEN_MARGIN) return token;
-  if (!tokenPending) tokenPending = auth(env).finally(() => { tokenPending = null; });
+  if (!tokenPending) {
+    if (authFail && Date.now() - authFail.at < FAIL_BACKOFF) throw authFail.err;
+    tokenPending = auth(env).then((t) => { authFail = null; return t; }, (e) => { authFail = { at: Date.now(), err: e }; throw e; })
+      .finally(() => { tokenPending = null; });
+  }
   return tokenPending;
 }
 async function iop(env, path, retried = false) {
@@ -162,7 +242,11 @@ async function cached(key, ttl, fn) {
   const c = cache.get(key);
   if (c && Date.now() - c.at < ttl) return { value: c.value, at: c.at, cached: true };
   if (inflight.has(key)) return inflight.get(key);
-  const p = (async () => { const value = await fn(); const at = Date.now(); cache.set(key, { at, value }); return { value, at, cached: false }; })()
+  /* Fallo reciente del proveedor: no se repite la llamada hasta que pase FAIL_BACKOFF */
+  const f = failures.get(key);
+  if (f && Date.now() - f.at < FAIL_BACKOFF) { if (c) return { value: c.value, at: c.at, cached: true, stale: true, error: f.err.message }; throw f.err; }
+  const p = (async () => { const value = await fn(); const at = Date.now(); cache.set(key, { at, value }); failures.delete(key); return { value, at, cached: false }; })()
+    .catch((e) => { failures.set(key, { at: Date.now(), err: e }); throw e; })
     .catch((e) => { if (c) return { value: c.value, at: c.at, cached: true, stale: true, error: e.message }; throw e; })   /* si falla, entrega lo último conocido marcado como antiguo */
     .finally(() => inflight.delete(key));
   inflight.set(key, p);
@@ -192,7 +276,18 @@ export default {
     if (req.method !== 'GET') return json(req, env, 405, { ok: false, error: 'Método no permitido' });
     const o = req.headers.get('Origin');
     if (o && !origins(env).includes(o)) return json(req, env, 403, { ok: false, error: 'Origen no autorizado' });
-    const authorized = sameKey(appKey(req, url), env.PCS_KEY);
+    /* Límite de intentos: antes de revisar cualquier clave */
+    const ip = clientIp(req);
+    const busy = tooManyRequests(ip);
+    if (busy) return limited(req, env, busy, `Demasiadas consultas desde esta conexión. Intenta de nuevo en ${waitText(busy)}.`);
+    const lockS = await lockedFor(ip, env);
+    if (lockS) return limited(req, env, lockS, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lockS)}.`);
+    const given = appKey(req, url);
+    const authorized = sameKey(given, env.PCS_KEY);
+    if (given && !authorized && env.PCS_KEY) {
+      const lock = await registerFail(ip, env);
+      if (lock) return limited(req, env, lock, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lock)}.`);
+    } else if (authorized) await clearFails(ip, env);
     try {
       if (url.pathname === '/' || url.pathname === '/salud') {
         const out = { ok: false, servicio: 'PERCONSUR GPS', proveedor: 'IOPGPS', secretos: { IOP_APPID: !!env.IOP_APPID, IOP_SECRET: !!env.IOP_SECRET, PCS_KEY: !!env.PCS_KEY, ALLOWED_ORIGIN: origins(env).length > 0 } };
@@ -227,4 +322,4 @@ export default {
 };
 
 /* Solo para pruebas locales: reinicia el estado en memoria */
-export function __reset() { token = null; tokenExp = 0; tokenPending = null; cache.clear(); inflight.clear(); }
+export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; }

@@ -26,11 +26,17 @@ export function downloadBlob(blob, filename) {
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
 }
-/* Abre el PDF en el visor del sistema (pestaña nueva en navegador) */
+/*
+ * Abre el PDF en el visor del sistema (pestaña nueva en navegador).
+ * Un blob: se abre con el origen de la app, así que solo se abren tipos inertes (PDF o imagen). Cualquier otro tipo
+ * (HTML, SVG, XML… p. ej. de un adjunto importado de un respaldo) se abre como PDF para que nunca se ejecute como página.
+ */
+const OPEN_SAFE = /^(application\/pdf|image\/(jpeg|png|webp|gif))$/i;
 export function openBlob(blob) {
-  const u = URL.createObjectURL(blob);
+  const safe = OPEN_SAFE.test(blob.type || '') ? blob : new Blob([blob], { type: 'application/pdf' });
+  const u = URL.createObjectURL(safe);
   const w = window.open(u, '_blank');
-  if (!w) location.href = u;
+  if (w) { try { w.opener = null; } catch (e) { /* */ } } else location.href = u;
   setTimeout(() => URL.revokeObjectURL(u), 60000);
 }
 export const waURL = (text) => 'https://wa.me/?text=' + encodeURIComponent(text);

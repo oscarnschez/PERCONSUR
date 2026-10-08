@@ -4,7 +4,7 @@
  */
 import http from 'node:http';
 import { createHash } from 'node:crypto';
-import worker, { md5, toMs, normalize, __reset } from './worker.js';
+import worker, { md5, toMs, normalize, __reset, LIMITS } from './worker.js';
 
 const ok = (c, m) => { console.log((c ? 'OK  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 const nodeMd5 = (s) => createHash('md5').update(s, 'utf8').digest('hex');
@@ -18,11 +18,12 @@ ok(normalize({ imei: '1', lat: 1, lng: 1 }).course === null && normalize({ imei:
 
 /* ===== IOPGPS simulado ===== */
 const APPID = 'APP_PRUEBA', SECRET = 'secreto-de-prueba-0123456789abcdef';
-const stats = { auth: 0, fleet: 0, location: 0, status: 0 };
+const stats = { auth: 0, fleet: 0, location: 0, status: 0, all: 0 };
 let tokens = new Set(), failNextWithToken = false, down = false;
 const srv = http.createServer((req, res) => {
   const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   const u = new URL(req.url, 'http://x');
+  stats.all++;
   if (down) return send(503, { code: 503, msg: 'mantenimiento' });
   if (req.method === 'POST' && u.pathname === '/api/auth') {
     let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => {
@@ -53,8 +54,8 @@ await new Promise((r) => srv.listen(0, '127.0.0.1', r));
 const BASE = `http://127.0.0.1:${srv.address().port}`;
 const ORIGIN = 'https://oscarnschez.github.io';
 const env = { IOP_APPID: APPID, IOP_SECRET: SECRET, PCS_KEY: 'clave-app-PERCONSUR-123', ALLOWED_ORIGIN: ORIGIN, IOP_BASE: BASE };
-const call = async (path, { e = env, origin = ORIGIN, key = env.PCS_KEY, method = 'GET' } = {}) => {
-  const h = {}; if (origin) h.Origin = origin; if (key) h['X-PCS-Key'] = key;
+const call = async (path, { e = env, origin = ORIGIN, key = env.PCS_KEY, method = 'GET', ip = '' } = {}) => {
+  const h = {}; if (origin) h.Origin = origin; if (key) h['X-PCS-Key'] = key; if (ip) h['CF-Connecting-IP'] = ip;
   const r = await worker.fetch(new Request('https://perconsur-gps.ejemplo.workers.dev' + path, { method, headers: h }), e);
   let body = null; try { body = await r.clone().json(); } catch (x) { /* */ }
   return { status: r.status, body, headers: r.headers };
@@ -104,6 +105,67 @@ try {
   __reset(); down = true; r = await call('/v1/posiciones'); down = false;
   ok(r.status === 502 && r.body.ok === false, 'proveedor caído sin datos previos: error claro (502)');
   r = await call('/nada'); ok(r.status === 404, 'ruta desconocida → 404');
+
+  /* IOPGPS caído: /salud (sin clave) no repite llamadas al proveedor durante 30 s, aunque lleguen muchas peticiones */
+  __reset(); stats.all = 0; down = true;
+  for (let i = 0; i < 6; i++) await call('/salud', { origin: null, key: null, ip: `203.0.113.${50 + i}` });
+  ok(stats.all === 1, `proveedor caído: 6 consultas anónimas a /salud → ${stats.all} llamada a IOPGPS (espera de 30 s)`);
+  r = await call('/v1/posiciones'); ok(r.status === 502 && stats.all === 1, 'durante la espera la app recibe el error sin nuevas llamadas al proveedor');
+  { const realNow = Date.now; Date.now = () => realNow() + 31 * 1000; down = false; r = await call('/v1/posiciones'); Date.now = realNow; ok(r.status === 200 && stats.all >= 2, 'pasados 30 s se vuelve a consultar y se recupera'); }
+  down = false;
+
+  /* ===== Límite de intentos (rate limit) ===== */
+  __reset(); await call('/v1/posiciones');   /* caché llena: las pruebas siguientes no dependen del proveedor */
+  const realNow = Date.now; let shift = 0; Date.now = () => realNow() + shift;
+  try {
+    const A = '203.0.113.10', B = '198.51.100.7';
+    let codes = [];
+    for (let i = 0; i < 4; i++) codes.push((await call('/v1/posiciones', { key: 'adivina' + i, ip: A })).status);
+    r = await call('/v1/posiciones', { key: 'adivina-5', ip: A });
+    ok(codes.every((c) => c === 401) && r.status === 429 && +r.headers.get('Retry-After') === 900 && /Intenta de nuevo en 15 min/.test(r.body.error), `5 claves incorrectas desde una IP → bloqueo 15 min (429, Retry-After 900): ${codes.join(',')},${r.status}`);
+    ok(r.headers.get('Access-Control-Allow-Origin') === ORIGIN && /Retry-After/.test(r.headers.get('Access-Control-Expose-Headers') || ''), 'el 429 llega a la app (CORS y Retry-After visibles)');
+    r = await call('/v1/posiciones', { ip: A });
+    ok(r.status === 429, 'IP bloqueada: tampoco se revisa la clave correcta (no se puede seguir adivinando)');
+    r = await call('/salud?key=otra', { origin: null, key: null, ip: A }); ok(r.status === 429, 'IP bloqueada: /salud con clave también');
+    r = await call('/v1/posiciones', { ip: B }); ok(r.status === 200, 'otra IP con la clave correcta sigue funcionando');
+    shift += 15 * 60 * 1000 + 1000;
+    r = await call('/v1/posiciones', { ip: A }); ok(r.status === 200, 'al terminar el bloqueo, la clave correcta funciona');
+    for (let i = 0; i < 3; i++) await call('/v1/posiciones', { key: 'x' + i, ip: B });
+    await call('/v1/posiciones', { ip: B });
+    codes = []; for (let i = 0; i < 4; i++) codes.push((await call('/v1/posiciones', { key: 'y' + i, ip: B })).status);
+    ok(codes.every((c) => c === 401), 'una clave correcta reinicia la cuenta de fallos de esa IP');
+    __reset(); await call('/v1/posiciones');
+    for (let i = 0; i < 5; i++) await call('/v1/posiciones', { key: 'z' + i, ip: A });
+    shift += 15 * 60 * 1000 + 1000;
+    for (let i = 0; i < 4; i++) await call('/v1/posiciones', { key: 'w' + i, ip: A });
+    r = await call('/v1/posiciones', { key: 'w5', ip: A });
+    ok(r.status === 429 && +r.headers.get('Retry-After') === 1800, 'si reincide, el bloqueo se duplica (30 min)');
+    /* Muchas IP distintas (ataque repartido): después de 30 fallos, 1 fallo basta para bloquear */
+    __reset(); await call('/v1/posiciones');
+    for (let i = 0; i < 31; i++) await call('/v1/posiciones', { key: 'k' + i, ip: `192.0.2.${i}` });
+    r = await call('/v1/posiciones', { key: 'nueva', ip: '192.0.2.200' });
+    ok(r.status === 429, 'ataque desde muchas IP: con más de 30 fallos, el primer fallo de una IP la bloquea');
+    r = await call('/v1/posiciones', { ip: '192.0.2.201' }); ok(r.status === 200, 'una IP sin fallos con la clave correcta no se afecta');
+    /* Peticiones por minuto */
+    __reset(); await call('/v1/posiciones', { ip: B });
+    codes = []; for (let i = 0; i < LIMITS.REQ_MAX; i++) codes.push((await call('/v1/posiciones', { ip: B })).status);
+    ok(codes.filter((c) => c === 429).length === 1 && codes[codes.length - 1] === 429, `más de ${LIMITS.REQ_MAX} consultas por minuto desde una IP → 429`);
+    shift += 61 * 1000; r = await call('/v1/posiciones', { ip: B }); ok(r.status === 200, 'al minuto siguiente vuelve a responder');
+    /* Clave sin configurar en el Worker: no bloquea a nadie por error */
+    __reset();
+    codes = []; for (let i = 0; i < 6; i++) codes.push((await call('/v1/posiciones', { e: { ...env, PCS_KEY: '' }, key: 'algo', ip: A })).status);
+    ok(codes.every((c) => c === 401), 'sin PCS_KEY configurada no se cuentan fallos (no se bloquea al propio usuario)');
+    /* Con el espacio KV opcional (LIMITS) el bloqueo se comparte entre instancias */
+    const store = new Map(), puts = [];
+    const kv = { async get(k, t) { const v = store.get(k); return v == null ? null : t === 'json' ? JSON.parse(v) : v; }, async put(k, v, o) { puts.push(o); store.set(k, v); }, async delete(k) { store.delete(k); } };
+    const envKV = { ...env, LIMITS: kv };
+    __reset(); await call('/v1/posiciones', { e: envKV, ip: B });
+    for (let i = 0; i < 5; i++) await call('/v1/posiciones', { e: envKV, key: 'q' + i, ip: A });
+    __reset();   /* otra instancia: memoria vacía */
+    r = await call('/v1/posiciones', { e: envKV, ip: A });
+    ok(r.status === 429 && [...store.keys()].every((k) => k.startsWith('lim:') && !k.includes(A)), 'KV: el bloqueo se respeta en otra instancia y la IP no se guarda en texto');
+    ok(puts.every((o) => o && o.expirationTtl >= 60), 'KV: los registros caducan solos');
+  } finally { Date.now = realNow; }
 } finally { srv.close(); }
 
 /* Hace que la caché parezca vencida sin borrar su contenido */

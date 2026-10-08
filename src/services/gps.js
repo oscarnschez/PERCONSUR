@@ -40,6 +40,8 @@ export const devices = () => [...state.devices.values()];
 
 async function call(path, cfg = config(), timeout = 12000) {
   if (!cfg.url || !cfg.key) throw new Error('GPS sin configurar');
+  /* La clave solo viaja cifrada (https) */
+  if (!/^https:\/\/[^\s/]+/i.test(cfg.url)) throw new Error('La dirección del servicio GPS debe empezar con https://');
   const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeout);
   try {
     const r = await fetch(cfg.url + path, { headers: { 'X-PCS-Key': cfg.key }, cache: 'no-store', signal: ctl.signal });

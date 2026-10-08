@@ -72,12 +72,12 @@ export async function startOperatorTrip() {
 
 export function chooseCompany() {
   return new Promise((resolve) => {
-    const last = getSetting('lastCompany', 'perconsur');
+    const saved = getSetting('lastCompany', 'perconsur'), last = PUERTO_COMPANIES.includes(saved) ? saved : 'perconsur';
     const order = [last, ...PUERTO_COMPANIES.filter((k) => k !== last)];
     const body = `<p class="sheet-lead">La nota se genera con los datos, logotipo y colores de la empresa elegida.</p><div class="co-list">${order.map((k) => {
       const c = getCompany(k);
-      return `<button type="button" class="co-opt" data-k="${k}" style="--c1:${c.colors.c1};--c2:${c.colors.c2}">
-        <span class="co-logo ${c.mark ? 'mark' : 'wide'}"><img src="${c.logo}" alt=""></span>
+      return `<button type="button" class="co-opt" data-k="${esc(k)}" style="--c1:${esc(c.colors.c1)};--c2:${esc(c.colors.c2)}">
+        <span class="co-logo ${c.mark ? 'mark' : 'wide'}"><img src="${esc(c.logo)}" alt=""></span>
         <span class="co-tx"><b>${esc(c.legal)}</b><small>${esc(c.city || '')}${k === last ? ' | Última usada' : ''}</small></span>
         <span class="chev">${icon.chev}</span></button>`;
     }).join('')}</div>`;
@@ -134,7 +134,9 @@ export async function discardDraft(id, { silent = false } = {}) {
   await drafts.removeDraft(id);
   if (!silent) toast('Borrador descartado', { type: 'info' });
 }
-export const draftRoute = (d) => (d.type === 'campo' ? `/campo/${(d.step || 0) + 1}` : `/puerto/${d.company}/${(d.step || 0) + 1}`);
+/* Ruta para continuar un borrador (paso numérico y empresa codificada: los borradores pueden venir de un respaldo) */
+const stepNo = (d) => (Number.isInteger(d.step) && d.step >= 0 ? d.step : 0) + 1;
+export const draftRoute = (d) => (d.type === 'campo' ? `/campo/${stepNo(d)}` : `/puerto/${encodeURIComponent(d.company || 'perconsur')}/${stepNo(d)}`);
 
 /* ===== Generar ===== */
 const fileCache = new Map();

@@ -82,7 +82,7 @@ export function createGpsPanel({ vehicleId, label, status, target = () => null }
     el.querySelector('[data-g-status]').innerHTML = st.chip;
     const fr = el.querySelector('[data-g-fresh]');
     fr.className = `gps-fresh ${f.state}`;
-    fr.innerHTML = f.state === 'live' ? `<i aria-hidden="true"></i><span data-gps-ts="${f.since}" data-gps-prefix="Actualizado ">Actualizado ${esc(ageText(f.since))}</span>` : `${f.state === 'none' ? '' : icon.alert}<span>${esc(f.label)}</span>`;
+    fr.innerHTML = f.state === 'live' ? `<i aria-hidden="true"></i><span data-gps-ts="${Number(f.since) || 0}" data-gps-prefix="Actualizado ">Actualizado ${esc(ageText(f.since))}</span>` : `${f.state === 'none' ? '' : icon.alert}<span>${esc(f.label)}</span>`;
     el.querySelector('[data-g-live]').textContent = s.fetchedAt ? `Consulta: ${dayHm(s.fetchedAt)}` : '';
     const msg = el.querySelector('[data-g-msg]'), mapEl = el.querySelector('[data-g-map]');
     if (!hasFix(p)) {

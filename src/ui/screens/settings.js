@@ -27,7 +27,7 @@ export async function settingsScreen() {
       <div class="seg wide">${[['system', 'Sistema'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([v, l]) => `<button type="button" class="seg-b${th === v ? ' on' : ''}" data-theme-v="${v}">${l}</button>`).join('')}</div>
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Empresa</h3></div><div class="grp-b list-actions">
-      ${PUERTO_COMPANIES.map((k) => { const c = getCompany(k); return `<a class="row-btn" href="#/ajustes/empresa/${k}"><span class="co-logo sm ${c.mark ? 'mark' : 'wide'}"><img src="${c.logo}" alt=""></span><span>${esc(c.legal)}</span><small>Serie ${c.folioSerie}</small>${icon.chev}</a>`; }).join('')}
+      ${PUERTO_COMPANIES.map((k) => { const c = getCompany(k); return `<a class="row-btn" href="#/ajustes/empresa/${k}"><span class="co-logo sm ${c.mark ? 'mark' : 'wide'}"><img src="${esc(c.logo)}" alt=""></span><span>${esc(c.legal)}</span><small>Serie ${esc(c.folioSerie)}</small>${icon.chev}</a>`; }).join('')}
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Integraciones</h3></div><div class="grp-b list-actions">
       <a class="row-btn" href="#/ajustes/gps">${icon.pin}<span>Rastreo GPS (IOPGPS)</span><small>${gpsConfigured() ? 'Configurado' : 'Sin configurar'}</small>${icon.chev}</a>
@@ -111,8 +111,8 @@ export async function companyScreen({ key }) {
   const c = getCompany(key), o = getOverrides(key), base = COMPANY_DEFAULTS[key];
   const s = screen(`<div class="page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Ajustes</span></button></header>
-    <div class="co-hero" style="--c1:${c.colors.c1};--c2:${c.colors.c2}"><span class="co-logo lg ${c.mark ? 'mark' : 'wide'}"><img src="${c.logo}" alt=""></span>
-      <div class="co-sw"><i style="background:${c.colors.c1}"></i><i style="background:${c.colors.c2}"></i><small>${key === 'campo' ? 'Folio AU aleatorio' : 'Serie de folio ' + c.folioSerie}</small></div></div>
+    <div class="co-hero" style="--c1:${esc(c.colors.c1)};--c2:${esc(c.colors.c2)}"><span class="co-logo lg ${c.mark ? 'mark' : 'wide'}"><img src="${esc(c.logo)}" alt=""></span>
+      <div class="co-sw"><i style="background:${esc(c.colors.c1)}"></i><i style="background:${esc(c.colors.c2)}"></i><small>${key === 'campo' ? 'Folio AU aleatorio' : 'Serie de folio ' + esc(c.folioSerie)}</small></div></div>
     <p class="page-lead">Estos datos aparecen en el encabezado y el pie de los documentos${key === 'campo' ? ' de División Campo' : ''}. El logotipo, los colores y la serie de folio son fijos.</p>
     <form class="grp co-form"><div class="grp-b">
       ${EDITABLE_FIELDS.map(([f, l]) => `<label class="fld"><span class="fl">${esc(l)}</span><input class="in" name="${f}" value="${esc(c[f] || '')}" placeholder="${esc(base[f] || '')}" autocomplete="off" ${f === 'email' ? 'type="email" inputmode="email" autocapitalize="none"' : f === 'web' ? 'inputmode="url" autocapitalize="none"' : ''}></label>`).join('')}

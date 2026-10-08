@@ -320,7 +320,7 @@ export function openSettingsForm(op, onSaved) {
       <div class="fld" data-f="satManual"><span class="fl">Sábados contabilizados</span>
         <div class="seg">${[['auto', 'Automático'], ['manual', 'Ajuste manual']].map(([k, l]) => `<button type="button" class="seg-b${satMode === k ? ' on' : ''}" data-sat="${k}">${l}</button>`).join('')}</div>
         <p class="sat-auto" data-satauto></p>
-        <input class="in" name="satManual" inputmode="numeric" placeholder="Número de sábados" value="${st.satManual ?? ''}" ${satMode === 'manual' ? '' : 'hidden'}>${err('satManual')}</div>
+        <input class="in" name="satManual" inputmode="numeric" placeholder="Número de sábados" value="${esc(st.satManual ?? '')}" ${satMode === 'manual' ? '' : 'hidden'}>${err('satManual')}</div>
       ${moneyIn('weekly', 'Monto semanal', centsInput(st.weekly))}
       <p class="sat-total" data-sattotal></p>
       <label class="sw-row"><span class="sw-tx">Comisión mínima garantizada<small>Si la comisión calculada al 15% es menor al mínimo establecido, se aplicará una comisión ampliada.</small></span><input type="checkbox" switch class="sw" name="minEnabled"${st.minEnabled ? ' checked' : ''}></label>

@@ -47,7 +47,7 @@ export async function puertoWizard({ company, step }, q) {
 
   const shell = wizardShell({
     kind: 'Nota de entrega', steps: PUERTO_STEPS, i,
-    chip: `<span class="co-chip" style="--c1:${co.colors.c1}"><img src="${co.logo}" alt="" class="${co.mark ? 'mark' : 'wide'}">${co.mark ? `<b>${esc(co.short)}</b>` : ''}</span>`,
+    chip: `<span class="co-chip" style="--c1:${esc(co.colors.c1)}"><img src="${esc(co.logo)}" alt="" class="${co.mark ? 'mark' : 'wide'}">${co.mark ? `<b>${esc(co.short)}</b>` : ''}</span>`,
     nextLabel: i === N - 1 ? 'Generar PDF' : i === N - 2 ? 'Revisar' : 'Continuar',
     backLabel: i === 0 ? 'Salir' : 'Atrás',
   });
@@ -183,10 +183,11 @@ export async function puertoWizard({ company, step }, q) {
   }
   function attHTML() {
     const a = s.attachments || [];
-    const pages = a.reduce((t, x) => t + (x.kind === 'pdf' ? (x.pages || 0) : 1), 0);
+    const pg = (x) => (Number.isFinite(+x.pages) && +x.pages > 0 ? Math.floor(+x.pages) : 0);
+    const pages = a.reduce((t, x) => t + (x.kind === 'pdf' ? pg(x) : 1), 0);
     return `<ol class="att-list">${a.map((x, k) => `<li class="att">
-        <span class="att-ic ${x.kind}" ${x.kind === 'img' ? `style="background-image:url('${media.urlFor(x.id)}')"` : ''}>${x.kind === 'pdf' ? 'PDF' : ''}</span>
-        <span class="att-tx"><b>${esc(x.name)}</b><small>${x.kind === 'pdf' ? (x.pages ? x.pages + (x.pages > 1 ? ' páginas' : ' página') : 'PDF') : 'Imagen, 1 página'} | ${fmtSize(x.size)}</small></span>
+        <span class="att-ic ${esc(x.kind)}" ${x.kind === 'img' ? `style="background-image:url('${esc(media.urlFor(x.id))}')"` : ''}>${x.kind === 'pdf' ? 'PDF' : ''}</span>
+        <span class="att-tx"><b>${esc(x.name)}</b><small>${x.kind === 'pdf' ? (pg(x) ? pg(x) + (pg(x) > 1 ? ' páginas' : ' página') : 'PDF') : 'Imagen, 1 página'} | ${esc(fmtSize(x.size))}</small></span>
         <span class="att-b"><button type="button" class="icon-btn" data-att="up" data-i="${k}" aria-label="Subir" ${k === 0 ? 'disabled' : ''}>${icon.up}</button><button type="button" class="icon-btn" data-att="dn" data-i="${k}" aria-label="Bajar" ${k === a.length - 1 ? 'disabled' : ''}>${icon.down}</button><button type="button" class="icon-btn danger" data-att="rm" data-i="${k}" aria-label="Quitar">${icon.trash}</button></span>
       </li>`).join('')}</ol>
       <label class="add-btn">${icon.paperclip}<span>Agregar archivos</span><input type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" multiple hidden data-attfile></label>

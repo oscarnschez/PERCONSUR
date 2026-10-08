@@ -515,7 +515,7 @@ function gpsLine(vehicleId) {
   if (f.state === 'none') return `<span class="lgh-loc none">${icon.pin}<span>Ubicación GPS no disponible</span></span>`;
   const place = p.address || 'Ubicación GPS disponible';
   return `<span class="lgh-loc ${f.state}">${icon.pin}<span class="lgh-loc-tx"><b>${esc(place)}</b>${f.state === 'live'
-    ? `<small data-gps-ts="${f.since}" data-gps-prefix="Actualizado ">Actualizado ${esc(ageText(f.since))}</small>` : `<small>${esc(f.label)}</small>`}</span></span>`;
+    ? `<small data-gps-ts="${Number(f.since) || 0}" data-gps-prefix="Actualizado ">Actualizado ${esc(ageText(f.since))}</small>` : `<small>${esc(f.label)}</small>`}</span></span>`;
 }
 /* Lugar del mapa en la tarjeta (solo con GPS vinculado y coordenadas); mountHomeOps coloca ahí el mapa conservado */
 function homePos(vehicleId) {
