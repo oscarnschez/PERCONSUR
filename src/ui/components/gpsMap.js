@@ -1,5 +1,5 @@
 /*
- * Mapa de la ubicación GPS (Leaflet, incluido en /vendor/leaflet). Se carga solo al abrir el detalle de una unidad.
+ * Mapa de la ubicación GPS (Leaflet, incluido en /vendor/leaflet). Se carga al mostrar una unidad con GPS (detalle o tarjeta de Inicio).
  * Mapa base: OpenStreetMap (uso ligero con atribución). El marcador muestra la unidad con el color de su estado de Logística.
  */
 import { loadLib } from '../../services/libs.js';
@@ -18,12 +18,19 @@ const pinIcon = (L, label, tone, stale) => L.divIcon({
   html: `<div class="gps-pin lg-t-${esc(tone)}${stale ? ' stale' : ''}"><span class="gps-pin-dot"></span><b>${esc(label)}</b></div>`,
 });
 
-/* Crea el mapa dentro de el; devuelve { update(lat, lng, opts), recenter(), resize(), destroy() } */
-export async function mountMap(el, { lat, lng, label, tone = 'blue', stale = false, zoom = 13 }) {
+/*
+ * Crea el mapa dentro de el; devuelve { update(lat, lng, opts), recenter(), resize(), destroy() }
+ * interactive: false → vista fija (sin arrastre, zoom ni botones) para las tarjetas de Inicio: no roba el deslizamiento
+ * lateral de las fichas y el toque llega a la tarjeta.
+ */
+export async function mountMap(el, { lat, lng, label, tone = 'blue', stale = false, zoom = 13, interactive = true }) {
   ensureCss();
   await loadLib('leaflet');
   const L = window.L;
-  const map = L.map(el, { zoomControl: true, attributionControl: true, tap: true, scrollWheelZoom: false }).setView([lat, lng], zoom);
+  const map = L.map(el, interactive ? { zoomControl: true, attributionControl: true, tap: true, scrollWheelZoom: false }
+    : { zoomControl: false, attributionControl: true, dragging: false, touchZoom: false, doubleClickZoom: false, scrollWheelZoom: false, boxZoom: false, keyboard: false, tap: false, inertia: false })
+    .setView([lat, lng], zoom);
+  if (!interactive) map.attributionControl.setPrefix(false);
   L.tileLayer(TILES, { maxZoom: 19, attribution: ATTRIB, crossOrigin: true }).addTo(map);
   const marker = L.marker([lat, lng], { icon: pinIcon(L, label, tone, stale), keyboard: false }).addTo(map);
   let follow = true;
@@ -32,7 +39,7 @@ export async function mountMap(el, { lat, lng, label, tone = 'blue', stale = fal
     update(nlat, nlng, opts = {}) {
       marker.setLatLng([nlat, nlng]);
       if (opts.label !== undefined || opts.tone !== undefined || opts.stale !== undefined) marker.setIcon(pinIcon(L, opts.label ?? label, opts.tone ?? tone, !!opts.stale));
-      if (follow) map.panTo([nlat, nlng], { animate: true });
+      if (follow) map.panTo([nlat, nlng], { animate: interactive });
     },
     recenter() { follow = true; map.setView(marker.getLatLng(), Math.max(map.getZoom(), zoom), { animate: true }); },
     resize() { map.invalidateSize(); },
