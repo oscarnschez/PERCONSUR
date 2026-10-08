@@ -1,0 +1,8 @@
+# Configuración para desplegar con la terminal (opcional): npx wrangler deploy
+# Los secretos NO van aquí: npx wrangler secret put IOP_APPID | IOP_SECRET | PCS_KEY
+name = "perconsur-gps"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://oscarnschez.github.io"
