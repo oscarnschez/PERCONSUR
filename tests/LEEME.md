@@ -12,6 +12,8 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 operators.py` — módulo Operadores: fórmula del balance con los ejemplos oficiales, comisión ampliada, validaciones, resumen, CSV, respaldo.
 - `python3 v140.py` — versión 1.4: navegación, perfil, remolques por división, combustible, Excel y respaldo.
 - `node fuel_unit.mjs` — cálculos de combustible (sin navegador).
+- `python3 logistics.py` — Logística: asignación con unidad/operador/remolque del catálogo, avisos de doble asignación, filtros y buscador, Inicio → Unidades en operación en vivo, historial, protección del catálogo y respaldo.
+- `node logistics_unit.mjs` — reglas de Logística: estados, regla de Inicio, filtros, buscador y conflictos (sin navegador).
 - `python3 activity.py` — Actividad cuenta todos los viajes registrados y avisa los que quedan después del corte.
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).
 - `python3 upgrade.py` — actualización de la base de datos v1 → v2 sin pérdida de datos.

@@ -3,6 +3,7 @@
  * basta con añadirlo aquí y registrar su ruta en main.js: la navegación no cambia.
  */
 export const OPERATION_MODULES = [
+  { key: 'logistica', title: 'Logística', desc: 'Estado y asignación actual de las unidades.', route: '/operacion/logistica', icon: 'truck' },
   { key: 'combustible', title: 'Combustible y rendimiento', desc: 'Recargas por unidad, rendimiento km/L, gráficas y reporte en Excel.', route: '/operacion/combustible', icon: 'fuel' },
 ];
 export const ADMIN_MODULES = [

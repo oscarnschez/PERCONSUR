@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '793857b5cb';
+const VERSION = '24ebd1b9c5';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -13,6 +13,7 @@ const PRECACHE = [
   "./src/auth/gate.js",
   "./src/config/auth.js",
   "./src/config/companies.js",
+  "./src/config/logistics.js",
   "./src/config/modules.js",
   "./src/config/reference.js",
   "./src/config/seeds.js",
@@ -25,6 +26,7 @@ const PRECACHE = [
   "./src/domain/campo/sheet.js",
   "./src/domain/fuel/fuel.js",
   "./src/domain/fuel/report.js",
+  "./src/domain/logistics/logistics.js",
   "./src/domain/operators/balance.js",
   "./src/domain/operators/money.js",
   "./src/domain/operators/statement.js",
@@ -48,6 +50,7 @@ const PRECACHE = [
   "./src/services/folios.js",
   "./src/services/fuel.js",
   "./src/services/libs.js",
+  "./src/services/logistics.js",
   "./src/services/media.js",
   "./src/services/migration.js",
   "./src/services/operators.js",
@@ -78,6 +81,7 @@ const PRECACHE = [
   "./src/ui/screens/fuel.js",
   "./src/ui/screens/home.js",
   "./src/ui/screens/hubs.js",
+  "./src/ui/screens/logistics.js",
   "./src/ui/screens/operatorForms.js",
   "./src/ui/screens/operators.js",
   "./src/ui/screens/puertoWizard.js",
@@ -89,6 +93,7 @@ const PRECACHE = [
   "./styles/base.css",
   "./styles/components.css",
   "./styles/documents.css",
+  "./styles/logistics.css",
   "./styles/operators.css",
   "./styles/screens.css",
   "./styles/tokens.css",
