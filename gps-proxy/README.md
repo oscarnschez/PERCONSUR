@@ -10,6 +10,7 @@ open.iopgps.com  ←(appid + secreto, firma, accessToken)—  Worker «perconsur
 - Renueva el permiso de IOPGPS (dura 2 h) automáticamente.
 - Pide las posiciones de **toda la flota en una sola llamada** y las guarda 30 s: varias pantallas abiertas no multiplican las consultas al proveedor.
 - Solo responde a la app (clave `PCS_KEY`) desde el sitio autorizado (`ALLOWED_ORIGIN`).
+- **Límite de intentos:** bloquea temporalmente la conexión que prueba claves incorrectas (ver abajo).
 - Si IOPGPS no responde, entrega la última posición conocida marcada como `stale: true` (antigua) o un error claro.
 
 Este archivo no contiene credenciales; se puede publicar sin riesgo.
@@ -46,6 +47,28 @@ Este archivo no contiene credenciales; se puede publicar sin riesgo.
 | `GET /v1/ubicacion?imei=865…` | `X-PCS-Key` | `{ ok, fetchedAt, stale, device: { …, address, signalTime } }` (dirección y estado; guardado 2 min) |
 
 Tiempos en milisegundos (epoch). Los campos que IOPGPS no entregue llegan como `null`: la app no inventa datos.
+
+## Límite de intentos (rate limit)
+
+`PCS_KEY` funciona como la contraseña del Worker. Para que no se pueda adivinar probando claves:
+
+| Regla | Qué pasa |
+|---|---|
+| 5 claves incorrectas en 15 min desde la misma IP | esa IP queda bloqueada **15 min**; si reincide, el bloqueo se duplica (30 min, 1 h… hasta 24 h) |
+| Mientras dura el bloqueo | no se revisa ninguna clave, **ni la correcta**: responde `429` con `Retry-After` |
+| Más de 30 claves incorrectas en 15 min (de cualquier IP) | ataque repartido: basta **1** fallo para bloquear una IP |
+| Más de 120 consultas por minuto desde una IP | `429` por un momento (protege también `/salud`) |
+
+Una clave correcta reinicia la cuenta de fallos de esa IP. La app muestra el mensaje del Worker («Demasiados intentos con una clave incorrecta. Intenta de nuevo en 15 min.») en Ajustes → GPS.
+
+**Opcional, más robusto — compartir los bloqueos entre instancias.** Cloudflare puede atender las peticiones con varias instancias del Worker; por defecto cada una lleva su propia cuenta. Con un espacio KV los bloqueos se comparten y sobreviven a reinicios:
+
+1. Storage & Databases → **KV** → Create → nombre `perconsur-limites`.
+2. En el Worker → Settings → **Bindings** → Add → KV namespace → *Variable name* `LIMITS` → elige `perconsur-limites` → Deploy.
+
+Solo se escribe en KV cuando alguien usa una clave incorrecta (el plan gratuito incluye 1 000 escrituras al día), y las IP se guardan como huella, no en texto. Sin KV el límite sigue funcionando en memoria.
+
+La defensa principal sigue siendo una `PCS_KEY` **larga y al azar** (30+ caracteres): con el límite, adivinarla es impráctico.
 
 ## Consumo
 
