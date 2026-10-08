@@ -54,6 +54,8 @@ export const icon = {
   trJaula: I('<path d="M2.5 5h19M2.5 14h19M2.5 5v9M21.5 5v9"/><path d="M7.25 5v9M12 5v9M16.75 5v9" stroke-width="1.4"/><path d="M6.4 14v4M5 18h2.8"/><circle cx="14" cy="17.4" r="1.6"/><circle cx="19" cy="17.4" r="1.6"/>'),
   /* Tolva: caja con dos descargas en «V» por debajo */
   trTolva: I('<path d="M2.5 5.5h19v7h-19z"/><path d="M3.6 12.5l2.3 3.6h1.9l2.3-3.6M10.1 12.5l2.3 3.6h1.9l2.3-3.6"/><circle cx="17.4" cy="17.2" r="1.6"/><circle cx="20.8" cy="17.2" r="1.6"/>'),
+  /* Patio de contenedores: contenedores apilados */
+  yard: I('<rect x="2.5" y="12.5" width="9" height="7" rx=".6"/><rect x="12.5" y="12.5" width="9" height="7" rx=".6"/><rect x="7.5" y="4.5" width="9" height="7" rx=".6"/><path d="M5.5 14.5v3M8.5 14.5v3M15.5 14.5v3M18.5 14.5v3M10.5 6.5v3M13.5 6.5v3" stroke-width="1.3"/>'),
   more: I('<circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/>', ' stroke-width="2.2"'),
 };
 

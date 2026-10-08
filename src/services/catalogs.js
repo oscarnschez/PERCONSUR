@@ -3,7 +3,7 @@
  * (Campo usa los de PERCONSUR). Destinos, plantas y terminales son generales.
  */
 import * as db from './db.js';
-import { SEED_OPERATORS, SEED_VEHICLES, SEED_TRAILERS } from '../config/seeds.js';
+import { SEED_OPERATORS, SEED_VEHICLES, SEED_TRAILERS, SEED_YARDS } from '../config/seeds.js';
 import { PLANTAS_SEED, TERMINALES_SEED } from '../config/reference.js';
 import { getSetting, setSetting } from './settings.js';
 import { normEco } from '../domain/shared/format.js';
@@ -39,7 +39,12 @@ export const KINDS = {
     label: (x) => x.name, sub: (x) => x.address || '' },
   terminals: { store: db.S.terminals, title: 'Terminales portuarias', one: 'terminal', perCompany: false,
     fields: [['name', 'Nombre', {}]], label: (x) => x.name, sub: () => '' },
+  yards: { store: db.S.yards, title: 'Patios de vacíos', one: 'patio', perCompany: false,
+    fields: [['name', 'Nombre', { upper: true }], ['address', 'Dirección (opcional)', { textarea: true }], ['notes', 'Observaciones (opcional)', { textarea: true }], ['active', 'Estado', { select: [['', 'Activo'], ['no', 'Inactivo']] }]],
+    label: (x) => x.name, sub: (x) => [x.active === 'no' ? 'Inactivo' : '', x.address].filter(Boolean).join(' | ') },
 };
+/* Patios disponibles para seleccionar (los inactivos se conservan para el historial pero no se ofrecen) */
+export const activeYards = () => list('yards').filter((y) => y.active !== 'no');
 
 const cache = {};
 export async function loadCatalogs() {
@@ -80,6 +85,18 @@ export async function rememberPlacas(company, eco, placas) {
   else if (placas) await save('vehicles', { company, eco: e, placas, desc: '', source: 'auto' });
 }
 export function plantByName(name) { return list('plants').find((p) => p.name === name) || null; }
+
+/* Patios de vacíos: se siembran una vez (también en instalaciones existentes) con la lista del Excel del usuario */
+export async function seedYardsIfNeeded() {
+  if (getSetting('yardsSeeded')) return false;
+  if (!(cache.yards || []).length) {
+    const now = Date.now();
+    await db.putMany(db.S.yards, SEED_YARDS.map((name, i) => ({ id: db.uid('yd_') + i, order: i, name, address: '', notes: '', active: '', createdAt: now, source: 'seed' })));
+    cache.yards = await db.all(db.S.yards);
+  }
+  await setSetting('yardsSeeded', true);
+  return true;
+}
 
 /* Siembra inicial con los datos del HTML original (solo la primera vez) */
 export async function seedIfNeeded() {

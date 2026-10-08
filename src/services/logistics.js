@@ -17,6 +17,11 @@ import { operatorById } from './operators.js';
 import { allTrips } from './operators.js';
 import { isStatus, isWorking, DEFAULT_STATUS } from '../config/logistics.js';
 import { board, openOpOf, historyOf, isOpen, conflicts, suggestions } from '../domain/logistics/logistics.js';
+import { fromOperation } from './empties.js';
+
+/* Resultado del último paso a «Vacío» (controles de vacío creados o reutilizados) para avisar en pantalla */
+let lastEmpty = null;
+export const takeEmptyResult = () => { const r = lastEmpty; lastEmpty = null; return r; };
 
 let cache = null;
 export async function loadLogistics(force = false) { if (!cache || force) cache = await db.all(db.S.logisticsOperations); return cache; }
@@ -113,6 +118,9 @@ export async function saveOperation(rec) {
   }
   out.snap = snapOf(out);
   await write(out);
+  /* Control de vacíos: al pasar a «Vacío» se crea (o reutiliza) el control del contenedor del viaje */
+  lastEmpty = null;
+  if (isOpen(out) && out.status === 'empty' && (!prev || prev.status !== 'empty')) { try { lastEmpty = await fromOperation(out); } catch (e) { console.warn('control de vacíos', e); } }
   changed();
   return out;
 }

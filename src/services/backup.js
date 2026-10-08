@@ -18,11 +18,12 @@ import { loadOperatorData } from './operators.js';
 import { resetBillingCache } from './billing.js';
 import { loadLogistics } from './logistics.js';
 import { loadTripAttachments } from './tripAttachments.js';
+import { loadEmpties } from './empties.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
-DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments');
+DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents');
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
 
 const b64 = {
@@ -64,6 +65,7 @@ export async function inspectBackup(file) {
         `Cobranza: ${n('tripBilling')} viajes con registro de cobro`,
         `Logística: ${n('logisticsOperations')} operaciones (activas e historial)`,
         `Documentos adicionales de viajes: ${n('tripAttachments')}`,
+        `Control de vacíos: ${n('emptyContainers')} contenedores, ${n('emptyContainerEvents')} movimientos, ${n('yards')} patios`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -117,6 +119,19 @@ export async function importBackup(info) {
     return !twin;
   });
   for (const r of data.logisticsOperations || []) if (tmap.has(r.trailerId)) r.trailerId = tmap.get(r.trailerId);
+  /* Control de vacíos: unidad, operadores y remolque al registro existente; patios sin duplicar por nombre */
+  for (const r of data.emptyContainers || []) {
+    if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId); if (tmap.has(r.trailerId)) r.trailerId = tmap.get(r.trailerId);
+    if (remap.has(r.originalOperatorId)) r.originalOperatorId = remap.get(r.originalOperatorId); if (remap.has(r.deliveryOperatorId)) r.deliveryOperatorId = remap.get(r.deliveryOperatorId);
+  }
+  const exYards = await db.all(db.S.yards), ymap = new Map();
+  data.yards = (data.yards || []).filter((y) => {
+    if (exYards.some((e) => e.id === y.id)) return true;
+    const twin = exYards.find((e) => fold(e.name) === fold(y.name));
+    if (twin) ymap.set(y.id, twin.id);
+    return !twin;
+  });
+  for (const r of data.emptyContainers || []) if (ymap.has(r.yardId)) r.yardId = ymap.get(r.yardId);
   for (const t of trUpdates) await db.put(db.S.trailers, t);
   if (data.operatorSettings) {
     for (const r of data.operatorSettings) { const cur = await db.get(db.S.operatorSettings, r.operatorId); if (cur && (cur.updatedAt || 0) >= (r.updatedAt || 0)) r._skip = true; }
@@ -129,6 +144,7 @@ export async function importBackup(info) {
     /* Cobranza: un registro por viaje; se conserva el más reciente */
     if (s === 'tripBilling') { for (const r of rows) { const cur = await db.get(s, r.tripId); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     /* Logística: se conserva la versión más reciente de cada operación */
+    if (s === 'emptyContainers') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'tripAttachments') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'logisticsOperations') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
@@ -141,4 +157,4 @@ export async function importBackup(info) {
   await reload();
   return { documents: (data.documents || []).length };
 }
-async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); }
+async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); }

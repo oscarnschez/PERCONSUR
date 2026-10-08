@@ -6,7 +6,7 @@ import { startRouter, route, go } from './core/router.js';
 import { openDB } from './services/db.js';
 import { loadSettings, getSetting } from './services/settings.js';
 import { loadCompanies } from './services/companies.js';
-import { loadCatalogs, seedIfNeeded } from './services/catalogs.js';
+import { loadCatalogs, seedIfNeeded, seedYardsIfNeeded } from './services/catalogs.js';
 import { loadOperatorData } from './services/operators.js';
 import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/operators.js';
 import { statementScreen } from './ui/screens/statement.js';
@@ -15,6 +15,8 @@ import { fuelScreen, fuelUnitScreen } from './ui/screens/fuel.js';
 import { logisticsScreen, logisticsUnitScreen, logisticsHistoryScreen } from './ui/screens/logistics.js';
 import { loadLogistics } from './services/logistics.js';
 import { loadTripAttachments } from './services/tripAttachments.js';
+import { loadEmpties } from './services/empties.js';
+import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -82,6 +84,8 @@ function routes() {
   route('/operacion/logistica', logisticsScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/historial', logisticsHistoryScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/u/:id', logisticsUnitScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/vacios', emptiesScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/combustible/:id', fuelUnitScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'admin' });
@@ -127,12 +131,13 @@ async function boot() {
     await openDB();
     await loadSettings();
     applyTheme();
-    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments()]);
+    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties()]);
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');
     try { localStorage.setItem('pcs-version', APP_VERSION); } catch (e) { /* */ }
     await seedIfNeeded();
+    await seedYardsIfNeeded();
     await reconcileMirrors();
     const mig = await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
     routes();

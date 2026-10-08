@@ -25,3 +25,6 @@ export const SEED_TRAILERS = [
   ['08-UW-6K', 'Margo'], ['09-UW-6K', 'Margo'], ['13-UW-6K', 'Margo, 40/20'],
   ['788-WR-4', 'MAGU, 40/20'], ['560-WT-2', 'Bush Hog Loadcraft, 20'],
 ];
+
+/* Patios de entrega de vacíos (lista del Excel «Control de vacíos»); se siembran una sola vez y son editables */
+export const SEED_YARDS = ['CIMA ASIPONA', 'SSA EXTERNO', 'ALSECONT', 'ISL / MEDLOG', 'SHANGAI', 'CONTAINERS DEL PACÍFICO', 'IMPALA', 'MAM', 'ALCAM', 'TEP', 'ALMAN', 'EXPRESS PORT'];

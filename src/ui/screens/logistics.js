@@ -14,6 +14,7 @@ import { operatorList } from '../../services/operators.js';
 import { listAll, TRAILER_TYPES, trailerTypeLabel, trailerScope } from '../../services/catalogs.js';
 import { LOGISTICS_STATUSES, STATUS_ORDER, LOGISTICS_DIVISIONS, NEW_STATUS, TYPE_DIVISION, statusOf, statusLabel, divisionLabel, isWorking } from '../../config/logistics.js';
 import { filterEntries, groupByStatus, countByStatus, homeEntries } from '../../domain/logistics/logistics.js';
+import { isOverdue, emptyStatus as emptyStatusOf } from '../../domain/empties/empties.js';
 import { esc, agoText, relDay } from '../../domain/shared/format.js';
 import { fmtDate } from '../../domain/operators/balance.js';
 import { icon, trailerIcon } from '../components/icons.js';
@@ -24,6 +25,8 @@ import { enterAdvances } from '../components/fields.js';
 import { avatar, hydrateAvatars } from './operators.js';
 import { dossierRef } from '../../services/dossier.js';
 import { generate as generateDossier } from './tripDocs.js';
+import * as ec from '../../services/empties.js';
+import { notifyEmptyResult } from './empties.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -66,6 +69,7 @@ export async function logisticsScreen() {
     <h1 class="title">Logística</h1>
     <p class="page-lead">Estado y asignación actual de las unidades.</p>
     <button type="button" class="btn-primary block lg lg-new" data-new>${icon.plus}<span>Nueva asignación</span></button>
+    <a class="ec-entry" href="#/operacion/logistica/vacios"><span class="mod-ic">${icon.yard}</span><span class="ec-entry-tx"><b>Control de vacíos</b><small>Seguimiento y entrega de contenedores vacíos</small><span class="ec-entry-n" data-ecn></span></span><span class="chev">${icon.chev}</span></a>
     <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" placeholder="Unidad, placas, operador, referencia, lugar…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar en Logística"></label>
     <div class="chips filters lg-stf" data-stf role="group" aria-label="Filtrar por estado"></div>
     <div class="chips filters lg-f2" role="group" aria-label="Filtrar por división y tipo de remolque">
@@ -76,7 +80,13 @@ export async function logisticsScreen() {
     <div data-list aria-live="polite"></div>
   </div>`);
   const root = s.el, listEl = root.querySelector('[data-list]'), stf = root.querySelector('[data-stf]');
+  await ec.loadEmpties();
+  function drawEc() {
+    const open = ec.openList(), late = open.filter((r) => isOverdue(r)).length;
+    root.querySelector('[data-ecn]').innerHTML = `<span class="ec-pend${open.length ? ' on' : ''}">Vacíos pendientes: <b>${open.length}</b></span>${late ? `<span class="ec-late">${icon.alert}${late} vencida${late === 1 ? '' : 's'}</span>` : ''}`;
+  }
   function draw() {
+    drawEc();
     const entries = lg.fleetBoard(), counts = countByStatus(entries);
     stf.innerHTML = [['all', 'Todos', null], ...STATUS_ORDER.map((x) => [x.key, x.label, x.tone])].map(([k, l, tone]) =>
       `<button type="button" class="chip lg-fchip${f.status === k ? ' on' : ''}" data-st="${k}" aria-pressed="${f.status === k}">${tone ? `<i class="lg-dot lg-t-${tone}" aria-hidden="true"></i>` : ''}${esc(l)}<b>${counts[k] || 0}</b></button>`).join('');
@@ -100,7 +110,8 @@ export async function logisticsScreen() {
   on(root, 'click', '[data-more]', () => { showIdle = Infinity; draw(); });
   root.querySelector('.search-in').addEventListener('input', (e) => { f.text = e.target.value; draw(); });
   draw();
-  s.cleanup = lg.onLogisticsChange(draw);
+  const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(drawEc);
+  s.cleanup = () => { u1(); u2(); };
   return s;
 }
 
@@ -151,6 +162,7 @@ export async function logisticsUnitScreen({ id }) {
     if (!u) { go('/operacion/logistica', { replace: true }); return; }
     const op = lg.openOf(id), v = lg.view(op, u), hist = lg.historyOfUnit(id), st = statusOf(op ? op.status : 'inactive'), y = window.scrollY;
     const trip = op ? lg.tripById(op.tripId) : null, xref = op ? dossierRef(op) : {};
+    const empties = [...new Map([...ec.openForVehicle(id), ...(op ? ec.openForOperation(op.id) : [])].map((r) => [r.id, r])).values()];
     root.innerHTML = `
       <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Logística</span></button>
         ${op ? `<button type="button" class="nav-act" data-edit aria-label="Editar operación">${icon.edit}</button>` : ''}</header>
@@ -160,6 +172,7 @@ export async function logisticsUnitScreen({ id }) {
         <p class="lg-hero-sub">${op ? `${esc(st.hint)} · actualizado ${esc(agoText(op.updatedAt))}` : 'Sin operación activa. La unidad se considera Inactiva hasta que se le asigne una operación.'}</p>
         ${op ? `<button type="button" class="btn-primary block lg" data-status>${icon.refresh}<span>Actualizar estado</span></button>`
     : `<button type="button" class="btn-primary block lg" data-new>${icon.plus}<span>Nueva asignación</span></button>`}
+        ${empties.map((r) => `<a class="btn-secondary block ec-link" href="#/operacion/logistica/vacios/${esc(r.id)}">${icon.yard}<span>Ver control de vacío<small>${esc(r.containerNumber)} · ${esc(emptyLabel(r))}</small></span></a>`).join('')}
       </section>
       ${op ? `
       <section class="grp"><div class="grp-h"><h3>Operador</h3></div>
@@ -198,10 +211,13 @@ export async function logisticsUnitScreen({ id }) {
   on(root, 'click', '[data-finish]', () => { const op = lg.openOf(id); if (op) finishOperation(op); });
   on(root, 'click', '[data-hist]', (e, b) => openHistoryDetail(b.dataset.hist));
   on(root, 'click', '[data-xp]', () => { const op = lg.openOf(id), r = op && dossierRef(op); if (r && r.trip) generateDossier(r.trip); });
+  await ec.loadEmpties();
   draw();
-  s.cleanup = lg.onLogisticsChange(draw);
+  const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(draw);
+  s.cleanup = () => { u1(); u2(); };
   return s;
 }
+const emptyLabel = (r) => (isOverdue(r) ? 'Entrega vencida' : emptyStatusOf(r.status).label);
 
 /* ===== Cambio rápido de estado (hoja inferior) ===== */
 export function openStatusSheet(op) {
@@ -223,7 +239,8 @@ export function openStatusSheet(op) {
         if (r === 'close') { await lg.closeOperation(op.id); toast(`${v.label}: operación cerrada y guardada en el historial`); return; }
       } else sh.close();
       await lg.setStatus(op.id, k);
-      toast(`${v.label}: ${statusLabel(k)}`);
+      const er = lg.takeEmptyResult();
+      if (er) notifyEmptyResult(er, { vehicleId: op.vehicleId, operationId: op.id }); else toast(`${v.label}: ${statusLabel(k)}`);
     } catch (err) { toast(err.message || 'No se pudo actualizar el estado.', { type: 'warn' }); }
   });
 }
@@ -234,7 +251,7 @@ async function finishOperation(op) {
   const r = await actionSheet({ title: `Terminar la operación de ${v.label}`, message: '¿Cómo queda la unidad?',
     actions: [{ label: 'Vacío', value: 'empty', sub: 'Sigue asignada, sin carga. No aparece en Inicio.' }, { label: 'Inactiva', value: 'close', style: 'primary', sub: 'Se cierra la operación y pasa al historial' }] });
   try {
-    if (r === 'empty') { await lg.setStatus(op.id, 'empty'); toast(`${v.label}: Vacío`); }
+    if (r === 'empty') { await lg.setStatus(op.id, 'empty'); const er = lg.takeEmptyResult(); if (er) notifyEmptyResult(er, { vehicleId: op.vehicleId, operationId: op.id }); else toast(`${v.label}: Vacío`); }
     if (r === 'close') { await lg.closeOperation(op.id); toast(`${v.label}: operación cerrada y guardada en el historial`); }
   } catch (err) { toast(err.message || 'No se pudo terminar la operación.', { type: 'warn' }); }
 }
@@ -460,7 +477,9 @@ export function openOperationForm({ op = null, vehicleId = null, onSaved = null 
     try {
       const out = await lg.saveOperation(editing ? { ...rec, id: op.id } : rec);
       sh.close();
-      toast(editing ? 'Operación actualizada' : `Asignación guardada · ${lg.view(out).label}: ${statusLabel(out.status)}`);
+      const er = lg.takeEmptyResult();
+      if (er) notifyEmptyResult(er, { vehicleId: out.vehicleId, operationId: out.id });
+      else toast(editing ? 'Operación actualizada' : `Asignación guardada · ${lg.view(out).label}: ${statusLabel(out.status)}`);
       if (onSaved) onSaved(out);
     } catch (err) { toast(err.message || 'No se pudo guardar la operación.', { type: 'warn' }); } finally { saving = false; }
   });
