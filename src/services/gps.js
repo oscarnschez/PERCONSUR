@@ -12,7 +12,7 @@
  */
 import { getSetting, setSetting } from './settings.js';
 import { listAll } from './catalogs.js';
-import { ageText } from '../domain/gps/gps.js';
+import { ageText, mergePositions } from '../domain/gps/gps.js';
 
 const DETAIL_TTL = 3 * 60 * 1000;
 const state = { devices: new Map(), fetchedAt: 0, error: '', stale: false, loading: null };
@@ -94,14 +94,7 @@ export async function detail(imei, { force = false } = {}) {
   return p;
 }
 /* Mejor dato disponible: posición de la flota + dirección del detalle si existe */
-export function bestOf(imei) {
-  const p = positionOfImei(imei), d = cachedDetail(imei);
-  if (!p && !d) return null;
-  const out = { ...(d || {}), ...(p || {}) };
-  if (!out.address && d && d.address) out.address = d.address;
-  if (d && d.signalTime && (!out.signalTime || d.signalTime > out.signalTime)) out.signalTime = d.signalTime;
-  return out;
-}
+export const bestOf = (imei) => mergePositions(positionOfImei(imei), cachedDetail(imei));
 
 /* Prueba la conexión con datos sin guardar (Ajustes → GPS) */
 export async function test(url, key) {

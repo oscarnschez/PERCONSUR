@@ -1,6 +1,7 @@
 /* Reglas del Centro de Monitoreo GPS y del rastreo para clientes (sin navegador): node fleet_unit.mjs */
 import { motionOf, fleetKpis, filterRows, sortRows, MOVING_KMH } from '../src/domain/gps/fleet.js';
-import { isTrackable, shareBlock, linkPayload, reconcile, destPoint, linkStateText } from '../src/domain/tracking/tracking.js';
+import { isTrackable, shareBlock, linkPayload, reconcile, destPoint, linkStateText, shortName } from '../src/domain/tracking/tracking.js';
+import { mergePositions, freshness } from '../src/domain/gps/gps.js';
 import { buildStyle, PROVIDER } from '../src/ui/maps/mapStyle.js';
 const ok = (c, m) => { console.log((c ? 'OK  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 const now = new Date(2026, 9, 8, 12, 0, 0).getTime(), min = 60000;
@@ -35,15 +36,27 @@ ok(isTrackable('to_destination') && isTrackable('unloading') && !isTrackable('em
 const op = { id: 'lg_1', vehicleId: 'v1', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', deliveryPlace: 'CEDIS', operatorId: 'o1' };
 ok(shareBlock(op, '865190071363660') === '' && /operación activa/.test(shareBlock({ ...op, closedAt: now }, '1')) && /En ruta a destino o Descargando/.test(shareBlock({ ...op, status: 'empty' }, '1')) && /GPS vinculado/.test(shareBlock(op, '')), 'motivos para no compartir');
 const pay = linkPayload(op, { label: 'U12', trailerType: 'chasis', operator: 'Daniel Rivera', placas: '60-BN-4J' }, '865190071363660', { loc: { lat: 20.66, lng: -103.35, precision: 'city' } });
-ok(pay.opId === 'lg_1' && pay.place === 'CEDIS' && pay.dest.approx === true && !JSON.stringify(pay).includes('Daniel') && !JSON.stringify(pay).includes('60-BN-4J'), 'al compartir no se envían operador ni placas; destino aproximado marcado');
+ok(pay.opId === 'lg_1' && pay.place === 'CEDIS' && pay.dest.approx === true && pay.operator === 'Daniel Rivera' && !JSON.stringify(pay).includes('Antonio') && !JSON.stringify(pay).includes('60-BN-4J'), 'al compartir: operador solo con nombre y apellido, sin placas; destino aproximado marcado');
+ok(shortName('Daniel Antonio Rivera Bautista') === 'Daniel Rivera' && shortName('José Castañeda Villalobos') === 'José Castañeda' && shortName('Juan García') === 'Juan García' && shortName('  Pedro  ') === 'Pedro' && shortName('') === '', 'nombre del operador para el cliente: un nombre y el apellido paterno');
+ok(shortName('Juan de la Cruz Pérez') === 'Juan de la Cruz' && shortName('Luis del Río') === 'Luis del Río' && shortName('María Fernanda de León Ortiz') === 'María de León', 'apellidos con partículas (de, del, de la)');
 ok(destPoint(null) === null && destPoint({ loc: { lat: 1, lng: 2, precision: 'manual' } }).approx === false, 'destino solo si ya está ubicado');
 const L = (o) => ({ id: 'x' + o.opId, state: 'active', status: 'to_destination', hasDest: true, ...o });
-const acts = reconcile([L({ opId: 'a' }), L({ opId: 'b' }), L({ opId: 'c' }), L({ opId: 'd' }), L({ opId: 'e', hasDest: false }), L({ opId: 'f' }), L({ opId: 'g', state: 'finished' })],
-  (id) => ({ a: { status: 'to_destination' }, b: { status: 'empty_transit' }, c: { status: 'inactive', closedAt: now }, d: null, e: { status: 'unloading' }, g: { status: 'empty' } }[id]),
-  () => ({ lat: 20, lng: -103, approx: false }));
+const acts = reconcile([L({ opId: 'a', operator: 'Daniel Rivera' }), L({ opId: 'b' }), L({ opId: 'c' }), L({ opId: 'd' }), L({ opId: 'e', hasDest: false, operator: 'Daniel Rivera' }), L({ opId: 'f' }), L({ opId: 'g', state: 'finished' }), L({ opId: 'h', operator: 'Daniel Rivera' })],
+  (id) => ({ a: { status: 'to_destination', op: 'Daniel Antonio Rivera Bautista' }, b: { status: 'empty_transit' }, c: { status: 'inactive', closedAt: now }, d: null, e: { status: 'unloading', op: 'Daniel Antonio Rivera Bautista' }, g: { status: 'empty' }, h: { status: 'to_destination', op: 'José Castañeda Villalobos' } }[id]),
+  () => ({ lat: 20, lng: -103, approx: false }), (op) => op.op || '');
 const by = Object.fromEntries(acts.map((a) => [a.link.opId, a]));
 ok(!by.a && by.b.action === 'finish' && by.b.body.reason === 'delivered' && by.c.action === 'finish' && by.c.body.reason === 'closed' && by.d.action === 'finish', 'caducidad: al terminar la entrega, cerrar o borrar la operación el enlace se finaliza');
-ok(by.e.action === 'update' && by.e.body.status === 'unloading' && by.e.body.dest.lat === 20 && !by.f && !by.g, 'cambio de estado y destino recién ubicado se envían; operaciones de otro dispositivo y enlaces cerrados no se tocan');
+ok(by.e.action === 'update' && by.e.body.status === 'unloading' && by.e.body.dest.lat === 20 && !by.e.body.operator && !by.f && !by.g, 'cambio de estado y destino recién ubicado se envían; operaciones de otro dispositivo y enlaces cerrados no se tocan');
+ok(by.h.action === 'update' && by.h.body.operator === 'José Castañeda' && !by.a, 'cambio de operador: el cliente ve al nuevo operador');
+
+/* Datos de la flota completados con la consulta por unidad (misma regla en la app y en el Worker) */
+const fl = { lat: 19.01007, lng: -103.832489, gpsTime: null, signalTime: null, speed: 0, address: null };
+const det = { lat: 19.0101, lng: -103.8325, gpsTime: now - 30 * min, signalTime: now - 40000, address: 'Autopista Colima' };
+const mg = mergePositions(fl, det);
+ok(mg.signalTime === det.signalTime && mg.gpsTime === det.gpsTime && mg.lat === fl.lat && mg.address === 'Autopista Colima' && mg.speed === 0, 'flota sin horas: se toman la señal y la hora de la consulta por unidad (mismo lugar) sin perder la posición de la flota');
+ok(freshness(fl, now).state === 'stale' && freshness(mg, now).state === 'parked', 'sin completar se vería «sin señal»; completada: detenida con señal reciente');
+ok(mergePositions({ ...fl, lat: 19.2 }, det).gpsTime === null, 'si la unidad ya se movió, no se le pone la hora de otra posición');
+ok(mergePositions({ ...fl, gpsTime: now - min, signalTime: now - min }, { ...det, signalTime: now - 5000 }).signalTime === now - 5000 && mergePositions(null, det).lat === det.lat, 'la señal más reciente de ambas; sin flota se usa la consulta por unidad');
 ok(/vence en 72 h/.test(linkStateText({ state: 'active', expiresAt: now + 72 * 3600000 }, now)) && /Revocado/.test(linkStateText({ state: 'revoked' }, now)), 'texto del estado del enlace');
 
 /* Estilo cartográfico */

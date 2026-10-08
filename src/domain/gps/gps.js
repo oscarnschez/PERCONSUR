@@ -43,6 +43,26 @@ export function freshness(p, now = Date.now()) {
   return { state: 'live', label: `Actualizado ${ageText(pos || sig, now)}`, since: pos || sig };
 }
 
+/*
+ * Mejor dato de una unidad: la posición de la consulta de la flota (la más reciente) completada con la consulta por
+ * unidad (ubicación + estado). Un campo vacío de la flota nunca borra uno que sí trae la consulta por unidad; la señal
+ * del equipo es la más reciente de ambas. Si la flota no trae la hora de la posición, se toma la de la consulta por
+ * unidad solo si es el mismo lugar (≈ 50 m). (El Worker aplica la misma regla para el portal del cliente.)
+ */
+export function mergePositions(p, d) {
+  if (!p && !d) return null;
+  if (!p) return { ...d };
+  const out = { ...p };
+  if (!d) return out;
+  for (const [k, v] of Object.entries(d)) if (out[k] == null && v != null && k !== 'gpsTime' && k !== 'lat' && k !== 'lng') out[k] = v;
+  if (d.signalTime && (!out.signalTime || d.signalTime > out.signalTime)) out.signalTime = d.signalTime;
+  if (hasFix(d)) {
+    if (!hasFix(p) || (d.gpsTime && p.gpsTime && d.gpsTime > p.gpsTime)) { out.lat = d.lat; out.lng = d.lng; out.gpsTime = d.gpsTime || out.gpsTime || null; }
+    else if (!p.gpsTime && d.gpsTime && Math.abs(d.lat - p.lat) < 0.0005 && Math.abs(d.lng - p.lng) < 0.0005) out.gpsTime = d.gpsTime;
+  }
+  return out;
+}
+
 export const speedText = (p) => (p && Number.isFinite(p.speed) ? `${Math.round(p.speed)} km/h` : '');
 export const coordText = (v) => (Number.isFinite(v) ? v.toFixed(6) : '');
 export const mapsLink = (p) => (hasFix(p) ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : '');

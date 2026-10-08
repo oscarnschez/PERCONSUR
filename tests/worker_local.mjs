@@ -23,7 +23,8 @@ const iop = http.createServer((req, res) => {
     req.on('end', () => { const { time, signature } = JSON.parse(b); send(signature === md5(md5(SECRET) + time) ? { code: 0, accessToken: 'tk', expiresIn: 7200 } : { code: 1001, msg: 'signature error' }); });
     return;
   }
-  if (u.pathname === '/api/device/locations/search-by-organization') return send({ code: 0, data: devices });
+  /* _hideInFleet: campos que la consulta de la flota no trae (como pasa con IOPGPS) pero la consulta por unidad sí */
+  if (u.pathname === '/api/device/locations/search-by-organization') return send({ code: 0, data: devices.map((d) => { const o = { ...d }; (d._hideInFleet || []).forEach((k) => delete o[k]); delete o._hideInFleet; return o; }) });
   const d = devices.find((x) => x.imei === u.searchParams.get('imei')) || {};
   if (u.pathname === '/api/device/location') return send({ code: 0, data: d });
   if (u.pathname === '/api/device/status') return send({ code: 0, data: d });

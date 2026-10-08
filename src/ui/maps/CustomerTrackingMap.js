@@ -1,6 +1,6 @@
 /*
  * CustomerTrackingMap — mapa del portal público de rastreo. Recibe SOLO lo que entrega el Worker para el enlace
- * (/v1/publico/:token): posición actual de la unidad del viaje y el punto de destino. No conoce velocidad, operador,
+ * (/v1/publico/:token): posición actual de la unidad del viaje y el punto de destino. No conoce velocidad,
  * número económico ni otras unidades: el permiso se decide en el backend.
  *   update(data)  data = respuesta del Worker { state, trip, destination, position }
  */

@@ -21,7 +21,7 @@ import { STATUS_ORDER, LOGISTICS_DIVISIONS, statusOf, divisionLabel, showOnHome 
 import { motionOf, fleetKpis, filterRows, sortRows, MOTIONS } from '../../domain/gps/fleet.js';
 import { freshness, hasFix, ageText, dayHm, speedText, coordText } from '../../domain/gps/gps.js';
 import { isApprox, precisionLabel } from '../../domain/gps/geo.js';
-import { linkStateText } from '../../domain/tracking/tracking.js';
+import { linkStateText, shortName } from '../../domain/tracking/tracking.js';
 import { esc } from '../../domain/shared/format.js';
 import { icon, trailerIcon } from '../components/icons.js';
 import { openSheet, confirmDestructive } from '../components/sheet.js';
@@ -268,7 +268,7 @@ export async function gpsMonitorScreen() {
           ${link ? `<a class="btn-secondary" href="${esc(tracking.linkUrl(link))}" target="_blank" rel="noopener" data-open>${icon.eye}<span>Abrir enlace público</span></a>
           <button type="button" class="btn-ghost danger" data-revoke>${icon.linkOff}<span>Revocar enlace activo</span></button>` : ''}
         </div>
-        <p class="grp-note">El cliente ve solo la ubicación, el origen, el destino y el estado del viaje (sin velocidad ni operador). El enlace deja de dar la ubicación al terminar la entrega o al revocarlo.</p>
+        <p class="grp-note">El cliente ve solo la ubicación, el origen, el destino, el estado del viaje y el operador por nombre y apellido${r.operator ? ` (${esc(shortName(r.operator))})` : ''}; nunca la velocidad. El enlace deja de dar la ubicación al terminar la entrega o al revocarlo.</p>
       </div></section>
       <section class="grp"><div class="grp-h"><h3>Acciones</h3></div><div class="mon-acts2">
         <a class="btn-secondary" href="#/operacion/logistica/u/${encodeURIComponent(r.vehicleId)}">${icon.truck}<span>Ver detalle logístico</span></a>
@@ -291,11 +291,20 @@ export async function gpsMonitorScreen() {
     const r = sel && rowById(sel), t = r && r.op ? targetOf(r.op) : null;
     fleet.setDestination(t && t.loc ? { lat: t.loc.lat, lng: t.loc.lng, label: `${t.title}: ${t.name}`, approx: isApprox(t.loc.precision) } : null);
   }
+  /* La consulta de la flota de IOPGPS puede llegar sin horas (posición y señal del equipo): para esas unidades se pide la
+     consulta por unidad (guardada unos minutos), así ninguna se marca «sin señal» por falta de hora */
+  const asked = new Map();
+  function completeTimes() {
+    const now = Date.now();
+    rows.filter((r) => r.pos && hasFix(r.pos) && !r.pos.gpsTime && !r.pos.signalTime && now - (asked.get(r.imei) || 0) > 180000).slice(0, 30)
+      .forEach((r) => { asked.set(r.imei, now); gps.detail(r.imei); });
+  }
   function draw() {
     if (gone) return;
     rows = monitorRows();
     if (sel && !rowById(sel)) sel = null;
     drawUpd(); drawKpis(); drawList(); drawDetail(); drawMap();
+    completeTimes();
   }
 
   /* ===== Selección ===== */
@@ -403,7 +412,8 @@ function openLinkSheet(r, link) {
     <div class="trk-url"><span class="mono" data-url>${esc(url)}</span></div>
     <ul class="trk-what">
       <li>${icon.eye}<span>El cliente ve la ubicación actual, el origen, el destino y el estado del viaje.</span></li>
-      <li>${icon.linkOff}<span>No ve la velocidad, el nombre del operador ni otras unidades.</span></li>
+      <li>${icon.person}<span>${r.operator ? `Operador: <b>${esc(shortName(r.operator))}</b> (solo nombre y apellido).` : 'Sin operador asignado.'}</span></li>
+      <li>${icon.linkOff}<span>No ve la velocidad, las placas ni otras unidades.</span></li>
       <li>${icon.clock}<span>Deja de mostrar la ubicación al terminar la entrega (En ruta vacío, Vacío o Inactiva), si lo revocas o a las ${maxH} h.</span></li>
     </ul>
     <div class="sheet-acts col">

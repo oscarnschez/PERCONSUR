@@ -86,7 +86,8 @@ la identidad de PERCONSUR, el mapa con la ubicación de **su** unidad, el origen
 
 | El cliente ve | El cliente NO ve |
 |---|---|
-| ubicación actual de la unidad del viaje (o «última ubicación reportada» si no hay señal reciente) | velocidad, nombre del operador, número económico, placas, IMEI, referencia |
+| ubicación actual de la unidad del viaje (o «última ubicación reportada» si no hay señal reciente) | velocidad, nombre completo del operador, número económico, placas, IMEI, referencia |
+| operador: **un nombre y un apellido** (p. ej. «Daniel Rivera») | |
 | origen, destino y lugar de entrega | otras unidades de la flota |
 | estado: «En camino al destino» · «En el lugar de entrega» · «Entrega finalizada» | nada después de terminar la entrega, revocar o vencer el enlace |
 
@@ -110,6 +111,11 @@ la identidad de PERCONSUR, el mapa con la ubicación de **su** unidad, el origen
    | `TRACK_MAX_HOURS` | `72` | vigencia máxima de un enlace (1 a 720 h) |
 
 5. **Prueba:** abre `/salud`; debe decir `"rastreoClientes": { "kv": true, "portal": true }`.
+
+**Hora y señal:** la consulta de la flota de IOPGPS puede llegar sin la hora de la posición ni la última señal del
+equipo. En ese caso el portal (igual que el Centro de Monitoreo) las completa con la consulta por unidad (ubicación +
+estado, guardada 2 min), así no muestra «Sin señal reciente» por falta de hora. Solo dice «Sin señal reciente del GPS»
+cuando el equipo de verdad no ha reportado en los últimos 10 min.
 
 El portal se sirve desde la dirección del Worker (otro sitio que la app: no tiene acceso a los datos guardados en el
 navegador de PERCONSUR) con una política de seguridad de contenido estricta, sin referer y sin indexarse en buscadores. Su
