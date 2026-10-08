@@ -127,22 +127,31 @@ async function render(spec, scale, onStep) {
   } finally { host.remove(); }
 }
 
+/*
+ * Agrega un archivo al final de un PDF de pdf-lib (lo usan la nota de Puerto y el expediente de viajes).
+ *   PDF: copia las páginas originales (conserva texto y calidad; no se rasteriza).
+ *   Imagen JPEG (ya normalizada con normImage): una página carta vertical u horizontal según su proporción,
+ *   centrada, sin recortar ni deformar, con margen. Devuelve el número de páginas agregadas.
+ */
+export async function appendFile(doc, { kind, bytes, w, h }) {
+  if (kind === 'pdf') {
+    const src = await window.PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+    const pages = await doc.copyPages(src, src.getPageIndices()); pages.forEach((p) => doc.addPage(p));
+    return pages.length;
+  }
+  const img = await doc.embedJpg(bytes); const iw = w || img.width, ih = h || img.height, land = iw > ih;
+  const W = land ? 792 : 612, H = land ? 612 : 792, m = 28;
+  const k = Math.min((W - 2 * m) / iw, (H - 2 * m) / ih), dw = iw * k, dh = ih * k;
+  const pg = doc.addPage([W, H]); pg.drawImage(img, { x: (W - dw) / 2, y: (H - dh) / 2, width: dw, height: dh });
+  return 1;
+}
+
 async function merge(baseBuf, spec, skipped) {
   const { PDFDocument } = window.PDFLib;
   const doc = await PDFDocument.load(baseBuf);
   for (const a of spec.attachments) {
-    try {
-      const bytes = new Uint8Array(await a.blob.arrayBuffer());
-      if (a.kind === 'pdf') {
-        const src = await PDFDocument.load(bytes, { ignoreEncryption: true });
-        const pages = await doc.copyPages(src, src.getPageIndices()); pages.forEach((p) => doc.addPage(p));
-      } else {
-        const img = await doc.embedJpg(bytes); const land = a.w > a.h;
-        const W = land ? 792 : 612, H = land ? 612 : 792, m = 28;
-        const k = Math.min((W - 2 * m) / a.w, (H - 2 * m) / a.h), w = a.w * k, h = a.h * k;
-        const pg = doc.addPage([W, H]); pg.drawImage(img, { x: (W - w) / 2, y: (H - h) / 2, width: w, height: h });
-      }
-    } catch (e) { console.warn(e); skipped.push(a.name); }
+    try { await appendFile(doc, { kind: a.kind, bytes: new Uint8Array(await a.blob.arrayBuffer()), w: a.w, h: a.h }); }
+    catch (e) { console.warn(e); skipped.push(a.name); }
   }
   doc.setTitle(spec.title); doc.setAuthor(spec.author);
   return { bytes: await doc.save(), pages: doc.getPageCount() };

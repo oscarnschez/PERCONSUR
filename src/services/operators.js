@@ -107,6 +107,12 @@ export function setTripReference(tripId, reference, source = '') {
   if (!t) throw new Error('El viaje ya no existe.');
   return saveRecord('trips', { id: t.id, operatorId: t.operatorId, reference, ...(source ? { referenceSource: source } : {}) });
 }
+/* Vincula (o desvincula con null) el documento relacionado de un viaje. Solo cambia documentId; deja rastro en revisions. */
+export function setTripDocument(tripId, documentId) {
+  const t = cache.trips.find((x) => x.id === tripId && !x.deletedAt);
+  if (!t) throw new Error('El viaje ya no existe.');
+  return saveRecord('trips', { id: t.id, operatorId: t.operatorId, documentId: documentId || null });
+}
 export const saveLoan = (l) => saveRecord('loans', l);
 export const deleteLoan = (id) => softDelete('loans', id);
 export const saveAdjustment = (a) => saveRecord('adjustments', a);

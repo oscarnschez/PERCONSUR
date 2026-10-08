@@ -51,8 +51,8 @@ export async function settingsScreen() {
     const a = b.dataset.a;
     if (a === 'export') {
       const v = await actionSheet({ title: 'Exportar respaldo', message: 'Archivo JSON con catálogos, folios, configuración, borradores y documentos.', actions: [
-        { label: 'Solo datos', sub: 'Ligero; sin los PDF ni las fotos de documentos generados', value: 'data', style: 'primary' },
-        { label: 'Completo', sub: 'Incluye PDF y fotografías (puede ser pesado)', value: 'full' }] });
+        { label: 'Solo datos', sub: 'Ligero; sin los PDF, fotos ni documentos adicionales de viajes', value: 'data', style: 'primary' },
+        { label: 'Completo', sub: 'Incluye PDF, fotografías y documentos adicionales de viajes (puede ser pesado)', value: 'full' }] });
       if (!v) return;
       busy(true, 'Preparando respaldo…');
       let f;

@@ -17,6 +17,7 @@ import { toast } from '../components/toast.js';
 import { formSheet, fail, readMoney, moneyIn, openTripForm } from './operatorForms.js';
 import { operatorById, setTripsTaxes } from '../../services/operators.js';
 import { tripTaxes, computeTaxes } from '../../domain/operators/taxes.js';
+import { attachCount } from './tripDocs.js';
 
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 const payTag = (paid, f = false) => `<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? (f ? 'Pagada' : 'Pagado') : 'Por cobrar'}</span>`;
@@ -25,7 +26,7 @@ const paidLine = (x) => `${fmtDate(x.paidDate) ? 'Pago del ' + fmtDate(x.paidDat
 /* sel: null fuera del modo «marcar varios»; true/false = viaje seleccionado o no */
 function card(it, sel = null) {
   return `<button type="button" class="trip-card cob-card${sel == null ? '' : ' selectable'}${sel ? ' checked' : ''}" data-trip="${esc(it.id)}"${sel == null ? '' : ` aria-pressed="${!!sel}"`}>
-    <span class="tc-top">${sel == null ? '' : `<span class="cob-check">${icon.check}</span>`}${payTag(it.paid)}${it.tripRef ? `<span class="ref-tag">${esc(it.tripRef)}</span>` : ''}${it.delays.length ? `<span class="after-tag">${plural(it.delays.length, 'demora', 'demoras')}</span>` : ''}<span class="tc-date">${esc(fmtDateShort(it.date))}</span></span>
+    <span class="tc-top">${sel == null ? '' : `<span class="cob-check">${icon.check}</span>`}${payTag(it.paid)}${it.tripRef ? `<span class="ref-tag">${esc(it.tripRef)}</span>` : ''}${it.delays.length ? `<span class="after-tag">${plural(it.delays.length, 'demora', 'demoras')}</span>` : ''}${attachCount(it.id)}<span class="tc-date">${esc(fmtDateShort(it.date))}</span></span>
     <b class="tc-route">${esc(it.origin)} → ${esc(it.destination)}</b>
     <span class="cob-op">${esc(it.operator)}${it.company ? ' | ' + esc(it.company) : ''}</span>
     <span class="cob-line"><span>${it.taxed ? 'Total del viaje' : 'Tarifa del viaje'}${it.taxed ? `<small>Tarifa base ${money(it.fareBase)} más impuestos</small>` : ''}${it.paid ? `<small>${esc(paidLine(it))}</small>` : ''}</span><b>${money(it.amount)}</b></span>

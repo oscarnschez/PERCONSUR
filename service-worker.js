@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '24ebd1b9c5';
+const VERSION = 'e8baf81122';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -46,6 +46,7 @@ const PRECACHE = [
   "./src/services/companies.js",
   "./src/services/db.js",
   "./src/services/documents.js",
+  "./src/services/dossier.js",
   "./src/services/drafts.js",
   "./src/services/folios.js",
   "./src/services/fuel.js",
@@ -60,6 +61,7 @@ const PRECACHE = [
   "./src/services/share.js",
   "./src/services/statementPdf.js",
   "./src/services/theme.js",
+  "./src/services/tripAttachments.js",
   "./src/services/xlsx.js",
   "./src/ui/components/charts.js",
   "./src/ui/components/docview.js",
@@ -87,6 +89,7 @@ const PRECACHE = [
   "./src/ui/screens/puertoWizard.js",
   "./src/ui/screens/settings.js",
   "./src/ui/screens/statement.js",
+  "./src/ui/screens/tripDocs.js",
   "./src/ui/screens/tripImport.js",
   "./src/ui/screens/viewer.js",
   "./src/ui/screens/wizardShell.js",
