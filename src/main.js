@@ -16,6 +16,7 @@ import { logisticsScreen, logisticsUnitScreen, logisticsHistoryScreen } from './
 import { loadLogistics } from './services/logistics.js';
 import { loadTripAttachments } from './services/tripAttachments.js';
 import { loadEmpties } from './services/empties.js';
+import { loadGeocodes } from './services/geocode.js';
 import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
 import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
 import { billingScreen } from './ui/screens/billing.js';
@@ -133,7 +134,7 @@ async function boot() {
     await openDB();
     await loadSettings();
     applyTheme();
-    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties()]);
+    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties(), loadGeocodes()]);
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');

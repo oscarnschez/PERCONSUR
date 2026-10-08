@@ -1,0 +1,18 @@
+import { addrKey, coordsIn, cleanAddress, cityOf, geoQueries, precisionOf, distanceKm, distanceText, directionsLink, isApprox } from '../src/domain/gps/geo.js';
+const ok = (c, m) => console.log((c ? 'OK  ' : 'FAIL') + ' ' + m);
+ok(addrKey('Paseo del Cerenero 890,\nNextipac, C.P. 45220') === addrKey('paseo del cerenero 890 nextipac c p 45220') && addrKey('Tecomán') === 'tecoman', 'clave de dirección: sin acentos, mayúsculas ni signos');
+const c1 = coordsIn('19.0523, -104.3141'), c2 = coordsIn('https://www.google.com/maps/place/SSA/@19.0581,-104.2962,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d19.0577!4d-104.2955');
+ok(c1 && c1.lat === 19.0523 && c1.lng === -104.3141, 'coordenadas escritas');
+ok(c2 && c2.lat === 19.0577 && c2.lng === -104.2955, 'link largo de Google Maps: el lugar marcado (no el centro del mapa)');
+ok(coordsIn('https://www.google.com/maps/search/?api=1&query=20.67,-103.35').lat === 20.67 && coordsIn('https://maps.app.goo.gl/7LpgdFcwesjL52Nx5') === null && coordsIn('Av. 5 de Mayo 120') === null && coordsIn('95.1, -104.3') === null, 'query=, link corto sin coordenadas, texto y rangos inválidos');
+ok(cleanAddress('Calle Nogal No. 15, Col. Centro,\nC.P. 28000 Colima, Col.') === 'Calle Nogal 15, Centro, 28000 Colima, Col.', 'limpieza de la dirección: una línea sin No., Col. ni C.P.: ' + cleanAddress('Calle Nogal No. 15, Col. Centro,\nC.P. 28000 Colima, Col.'));
+ok(cityOf('Paseo del Cerenero 890, Nextipac, C.P. 45220, Zapopan, Jalisco') === 'Zapopan, Jalisco' && cityOf('Carretera Panamericana KM 293, C.P. 38260, Villagrán, Guanajuato') === 'Villagrán, Guanajuato', 'municipio y estado: ' + cityOf('Paseo del Cerenero 890, Nextipac, C.P. 45220, Zapopan, Jalisco'));
+const qs = geoQueries('Av. Patria 1891, Col. Puerta de Hierro, C.P. 45116, Zapopan, Jalisco');
+ok(qs.length === 4 && qs[0].q.endsWith('México') && qs[0].max === 'address' && qs[1].max === 'area' && qs[2].postalcode === '45116' && qs[3].max === 'city' && qs[3].q === 'Zapopan, Jalisco, México', 'búsquedas de más precisa a más general: ' + JSON.stringify(qs));
+ok(geoQueries('').length === 0 && geoQueries('Guadalajara').length >= 1, 'sin dirección: sin búsquedas');
+ok(precisionOf({ place_rank: 30 }) === 'address' && precisionOf({ place_rank: 21 }) === 'area' && precisionOf({ place_rank: 16 }) === 'city' && precisionOf({ place_rank: 30 }, 'area') === 'area', 'precisión del resultado, limitada por el tipo de búsqueda');
+ok(isApprox('area') && isApprox('city') && !isApprox('manual') && !isApprox('address'), 'aproximada: colonia/C.P. y municipio');
+const km = distanceKm({ lat: 19.0523, lng: -104.3141 }, { lat: 20.6597, lng: -103.3496 });
+ok(km > 200 && km < 215, 'distancia Manzanillo–Guadalajara en línea recta ≈ 206 km: ' + km.toFixed(1));
+ok(distanceText(0.05) === 'en el lugar' && distanceText(0.43) === 'a 450 m' && distanceText(3.04) === 'a 3 km' && distanceText(3.46) === 'a 3.5 km' && distanceText(206.4) === 'a 206 km', 'texto de distancia');
+ok(directionsLink({ lat: 1, lng: 2 }, { lat: 3, lng: 4 }) === 'https://www.google.com/maps/dir/?api=1&origin=1,2&destination=3,4&travelmode=driving' && directionsLink(null, { lat: 3, lng: 4 }).indexOf('origin') < 0 && directionsLink(null, null) === '', 'Cómo llegar (Google Maps)');

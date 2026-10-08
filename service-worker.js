@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '22a4a269fd';
+const VERSION = '84898289c0';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -27,6 +27,7 @@ const PRECACHE = [
   "./src/domain/empties/empties.js",
   "./src/domain/fuel/fuel.js",
   "./src/domain/fuel/report.js",
+  "./src/domain/gps/geo.js",
   "./src/domain/gps/gps.js",
   "./src/domain/logistics/logistics.js",
   "./src/domain/operators/balance.js",
@@ -47,12 +48,14 @@ const PRECACHE = [
   "./src/services/codes.js",
   "./src/services/companies.js",
   "./src/services/db.js",
+  "./src/services/destinations.js",
   "./src/services/documents.js",
   "./src/services/dossier.js",
   "./src/services/drafts.js",
   "./src/services/empties.js",
   "./src/services/folios.js",
   "./src/services/fuel.js",
+  "./src/services/geocode.js",
   "./src/services/gps.js",
   "./src/services/libs.js",
   "./src/services/logistics.js",
@@ -73,6 +76,7 @@ const PRECACHE = [
   "./src/ui/components/gpsMap.js",
   "./src/ui/components/icons.js",
   "./src/ui/components/picker.js",
+  "./src/ui/components/pinPicker.js",
   "./src/ui/components/sheet.js",
   "./src/ui/components/toast.js",
   "./src/ui/flows.js",
@@ -80,6 +84,7 @@ const PRECACHE = [
   "./src/ui/screens/billingReport.js",
   "./src/ui/screens/campoWizard.js",
   "./src/ui/screens/catalogs.js",
+  "./src/ui/screens/destinationEdit.js",
   "./src/ui/screens/docActions.js",
   "./src/ui/screens/docDetail.js",
   "./src/ui/screens/documents.js",

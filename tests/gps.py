@@ -31,6 +31,7 @@ try:
     b=p.chromium.launch(); ctx=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block')
     ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
     ctx.route(W+'/**', handle); ctx.route('https://tile.openstreetmap.org/**', lambda r: r.fulfill(status=200, body=PNG, headers={'Content-Type':'image/png','Access-Control-Allow-Origin':'*'}))
+    ctx.route('https://nominatim.openstreetmap.org/**', lambda r: r.fulfill(status=200, body='[]', headers={'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}))
     pg=ctx.new_page(); pg.on('pageerror',lambda e:errs.append(str(e))); pg.on('console',lambda m: errs.append('console: '+m.text) if m.type=='error' else None)
     pg.goto(BASE); pg.wait_for_selector('.login'); pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.login',state='detached'); pg.wait_for_timeout(900)
     if pg.locator('.asheet').count(): pg.get_by_role('button',name='Ahora no').click()

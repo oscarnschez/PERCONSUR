@@ -20,6 +20,8 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `node empties_unit.mjs` — reglas de Control de vacíos: fila para Excel (columnas y orden de la hoja), validación, vencidas y prioridad (sin navegador).
 - `python3 gps.py` — rastreo GPS con un intermediario simulado: Ajustes → GPS, vinculación de IMEI, ubicación y mapa en Inicio con fichas deslizables, mapa en vivo, posición antigua, proveedor caído y respaldo sin la clave.
 - `node gps_unit.mjs` — reglas del GPS: antigüedad, «Señal GPS sin actualización reciente», detenida y sugerencia de unidad (sin navegador).
+- `python3 destinations.py` — destino en el mapa: dirección de entrega de la nota, terminal en exportación, patio del control de vacíos, ciudad aproximada, ajuste a mano y terminales con dirección (intermediario GPS y buscador de direcciones simulados).
+- `node geo_unit.mjs` — reglas de ubicación de destinos: coordenadas en links de Google Maps, limpieza de direcciones, búsquedas por precisión y distancia (sin navegador).
 - `node ../gps-proxy/test.mjs` — intermediario GPS (Cloudflare Worker) contra un servidor que imita la Open API de IOPGPS.
 - `python3 activity.py` — Actividad cuenta todos los viajes registrados y avisa los que quedan después del corte.
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).

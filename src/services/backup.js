@@ -19,11 +19,12 @@ import { resetBillingCache } from './billing.js';
 import { loadLogistics } from './logistics.js';
 import { loadTripAttachments } from './tripAttachments.js';
 import { loadEmpties } from './empties.js';
+import { loadGeocodes } from './geocode.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
-DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents');
+DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents', 'geocodes');
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey']);
 
 const b64 = {
@@ -68,6 +69,7 @@ export async function inspectBackup(file) {
         `Logística: ${n('logisticsOperations')} operaciones (activas e historial)`,
         `Documentos adicionales de viajes: ${n('tripAttachments')}`,
         `Control de vacíos: ${n('emptyContainers')} contenedores, ${n('emptyContainerEvents')} movimientos, ${n('yards')} patios`,
+        `Ubicaciones de destinos en el mapa: ${(obj.data.geocodes || []).filter((g) => g && g.precision !== 'none').length}`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -149,6 +151,15 @@ export async function importBackup(info) {
     if (s === 'emptyContainers') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'tripAttachments') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'logisticsOperations') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
+    /* Ubicaciones de direcciones: un punto fijado a mano nunca se reemplaza por uno buscado automáticamente */
+    if (s === 'geocodes') {
+      for (const r of rows) {
+        if (!r || !r.key) continue;
+        const cur = await db.get(s, r.key), man = (x) => x && x.precision === 'manual';
+        if (!cur || (man(r) && (!man(cur) || (r.at || 0) > (cur.at || 0))) || (!man(cur) && r.precision !== 'none' && (cur.precision === 'none' || (r.at || 0) > (cur.at || 0)))) await db.put(s, r);
+      }
+      continue;
+    }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (rows.length) await db.putMany(s, rows);
   }
@@ -159,4 +170,4 @@ export async function importBackup(info) {
   await reload();
   return { documents: (data.documents || []).length };
 }
-async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); }
+async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); }
