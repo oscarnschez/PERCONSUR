@@ -1,0 +1,226 @@
+"""Centro de Monitoreo GPS y Portal de rastreo para clientes, de punta a punta, con el Worker real corriendo en Node
+(tests/worker_local.mjs: IOPGPS simulado y KV en memoria) y mapas MapLibre. Los mosaicos del mapa se simulan.
+Monitor: indicadores, marcadores por tipo de remolque, filtros, buscador, detalle, centrar, toda la flota, movimiento en
+vivo sin recargar, sin señal, estado de Logística independiente del GPS, panel inferior en iPhone y tarjeta en computadora.
+Portal: compartir, abrir el enlace, sin velocidad ni operador, actualización, revocar y caducidad al terminar la entrega.
+PCS_TEST_USER/PCS_TEST_PASS"""
+import subprocess, time, sys, os, json, urllib.request, mimetypes, re
+from playwright.sync_api import sync_playwright
+APP=os.path.abspath(os.path.join(os.path.dirname(__file__),'..')); SH='shots'; os.makedirs(SH,exist_ok=True)
+U=os.environ['PCS_TEST_USER']; P=os.environ['PCS_TEST_PASS']
+BASE='http://127.0.0.1:8806/index.html'; W='https://gps.test'; WL='http://127.0.0.1:8807'
+srv=subprocess.Popen([sys.executable,'-m','http.server','8806','--bind','127.0.0.1'],cwd=APP,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+wk=subprocess.Popen(['node',os.path.join(APP,'tests','worker_local.mjs'),'8807','https://app.test/'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); time.sleep(1.5)
+errs=[]; log=[]
+def ok(c,m): log.append(('OK  ' if c else 'FAIL')+' '+m)
+def shot(pg,n): pg.screenshot(path=f'{SH}/mon_{n}.png')
+IMEI={'12':'865190071363660','5':'865190071363661','8':'865190071363662','21':'865190071363663'}
+pos={'12':[19.40,-103.62,78,20],'5':[19.066,-104.296,0,0],'21':[20.64,-103.38,42,300]}
+def push(stale8=True):
+    now=int(time.time())
+    d=[{'imei':IMEI[k],'deviceName':'U'+k,'lat':v[0],'lng':v[1],'speed':v[2],'course':v[3],'gpsTime':now-(35*60 if k=='5' else 20),'signalTime':now-10,'accStatus':1} for k,v in pos.items()]
+    d.append({'imei':IMEI['8'],'deviceName':'U8','lat':18.915,'lng':-103.87,'speed':0,'gpsTime':now-3*3600 if stale8 else now-20,'signalTime':now-3*3600 if stale8 else now-10})
+    d.append({'imei':'865190071300099','deviceName':'Camioneta oficina','lat':20.67,'lng':-103.35,'speed':0,'gpsTime':now-60,'signalTime':now-10})
+    d.append({'imei':'865190071300100','deviceName':'Equipo sin posición'})
+    urllib.request.urlopen(urllib.request.Request(WL+'/__mock',data=json.dumps({'devices':d}).encode(),method='POST',headers={'Content-Type':'application/json'}))
+def to_worker(route, req):
+    r=route.fetch(url=req.url.replace(W,WL)); route.fulfill(response=r)
+def app_files(route, req):
+    path=req.url.split('https://app.test/')[1].split('?')[0]; f=os.path.join(APP,path)
+    if not os.path.isfile(f): return route.fulfill(status=404, body='', headers={'Access-Control-Allow-Origin':'*'})
+    ct=mimetypes.guess_type(f)[0] or 'application/octet-stream'
+    if f.endswith('.js'): ct='text/javascript'
+    route.fulfill(status=200, path=f, headers={'Content-Type':ct,'Access-Control-Allow-Origin':'*'})
+TJ={'tilejson':'3.0.0','tiles':['https://tiles.openfreemap.org/planet/t/{z}/{x}/{y}.pbf'],'minzoom':0,'maxzoom':14,
+    'attribution':'<a href="https://openfreemap.org" target="_blank">OpenFreeMap</a> <a href="https://www.openmaptiles.org/" target="_blank">&copy; OpenMapTiles</a> Data from <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'}
+def tiles(route, req):
+    h={'Access-Control-Allow-Origin':'*'}
+    if re.search(r'/planet/?$',req.url): return route.fulfill(status=200, headers={**h,'Content-Type':'application/json'}, body=json.dumps(TJ))
+    route.fulfill(status=200, headers={**h,'Content-Type':'application/x-protobuf'}, body=b'')
+def setup_ctx(ctx):
+    ctx.route(lambda u:'cdnjs' in u or 'fonts.g' in u, lambda r:r.abort())
+    ctx.route(W+'/**', to_worker); ctx.route('https://app.test/**', app_files); ctx.route('https://tiles.openfreemap.org/**', tiles)
+    ctx.route('https://nominatim.openstreetmap.org/**', lambda r: r.fulfill(status=200, body=json.dumps([{'lat':'20.6597','lon':'-103.3496','place_rank':16,'display_name':'Guadalajara'}] if 'Guadalajara' in r.request.url else []), headers={'Content-Type':'application/json','Access-Control-Allow-Origin':'*'}))
+def watch(pg):
+    pg.on('pageerror',lambda e:errs.append(str(e))); pg.on('console',lambda m: errs.append('console: '+m.text) if m.type=='error' else None)
+SETUP="""async(IMEI)=>{const g=await import('./src/services/gps.js'); await g.saveConfig({url:'https://gps.test',key:'clave-app'});
+      const c=await import('./src/services/catalogs.js'); const vs=c.listAll('vehicles'), ts=c.listAll('trailers'); const by=(e)=>vs.find(x=>String(x.eco).replace(/^0+/,'')===e);
+      for (const [e,i] of Object.entries(IMEI)) await c.save('vehicles',{...by(e),gpsDeviceId:i,gpsProvider:'iopgps'});
+      const types=['chasis','jaula','tolva']; for (let k=0;k<3;k++) await c.save('trailers',{...ts[k],type:types[k]});
+      const t2=c.listAll('trailers'), tt=(ty)=>t2.find(x=>x.type===ty).id;
+      const l=await import('./src/services/logistics.js'); const o=(await import('./src/services/operators.js')).operatorList();
+      const a=await l.saveOperation({vehicleId:by('12').id,operatorId:o[0].id,trailerId:tt('chasis'),division:'puerto',status:'to_destination',origin:'Manzanillo',destination:'Guadalajara',reference:'MSCU1234567',deliveryPlace:'CEDIS Guadalajara'});
+      await l.saveOperation({vehicleId:by('5').id,operatorId:o[1].id,trailerId:tt('jaula'),division:'campo',status:'unloading',origin:'Tecomán',destination:'Manzanillo',deliveryPlace:'Planta Manzanillo'});
+      await l.saveOperation({vehicleId:by('21').id,operatorId:o[2].id,trailerId:tt('tolva'),division:'campo',status:'empty_transit',origin:'Guadalajara',destination:'Colima',reference:'CAMPO-881'});
+      return {u12:by('12').id,u5:by('5').id,u8:by('8').id,u21:by('21').id,op12:a.id,oper:o[0].name}}"""
+GPSR="async()=>{const g=await import('./src/services/gps.js'); await g.refresh({force:true});}"
+FLEET="document.querySelector('.mon-map')._fleet"
+try:
+  push()
+  with sync_playwright() as p:
+    b=p.chromium.launch(args=['--use-angle=swiftshader','--enable-unsafe-swiftshader'])
+    ctx=b.new_context(viewport={'width':1440,'height':900},service_workers='block'); setup_ctx(ctx)
+    pg=ctx.new_page(); watch(pg)
+    pg.goto(BASE); pg.wait_for_selector('.login'); pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.login',state='detached'); pg.wait_for_timeout(900)
+    if pg.locator('.asheet').count(): pg.get_by_role('button',name='Ahora no').click()
+    ids=pg.evaluate(SETUP, IMEI)
+    # Acceso desde Inicio y desde Logística
+    pg.goto(BASE+'#/'); pg.wait_for_timeout(1500)
+    ok(pg.locator('.lg-maplink').count()==1 and 'Ver mapa de unidades' in pg.locator('.lg-maplink').inner_text(),'Inicio → Unidades en operación: acceso «Ver mapa de unidades»')
+    ok(pg.locator('.lgh-card').count()==3,'Inicio conserva sus tarjetas de unidades en operación')
+    pg.locator('.lg-maplink').click(); pg.wait_for_timeout(500); ok('#/operacion/logistica/monitoreo' in pg.url,'el acceso abre el Centro de Monitoreo GPS')
+    pg.goto(BASE+'#/operacion/logistica'); pg.wait_for_timeout(600)
+    et=' '.join(pg.locator('.mon-entry').inner_text().split())
+    ok(pg.locator('.mon-entry').count()==1 and 'Monitoreo GPS' in et and 'Unidades con GPS: 4' in et,'Operación → Logística → Monitoreo GPS: '+et)
+    pg.locator('.mon-entry').click(); pg.wait_for_timeout(4500)
+    ok(pg.locator('.mon-map canvas.maplibregl-canvas').count()==1,'mapa MapLibre (WebGL) dibujado')
+    ok(pg.locator('.mon-map .leaflet-container').count()==0 and pg.evaluate("!window.L || !document.querySelector('.mon .leaflet-container')"),'sin Leaflet ni Google Maps en el monitor')
+    attr=pg.locator('.mon-map .maplibregl-ctrl-attrib').inner_text()
+    ok('OpenFreeMap' in attr and 'OpenStreetMap' in attr and 'OpenMapTiles' in attr,'atribución del proveedor visible: '+attr.replace('\n',' '))
+    kp={k:pg.locator(f'[data-kpi="{k}"] b').inner_text() for k in ['monitored','operating','moving','stopped','nosignal']}
+    ok(kp=={'monitored':'6','operating':'3','moving':'2','stopped':'2','nosignal':'2'},'indicadores (en operación = misma regla que Inicio): '+json.dumps(kp))
+    ok('LOGÍSTICA' in pg.locator('.mon-kpis').inner_text().upper() and 'GPS' in pg.locator('.mon-kpis').inner_text(),'indicadores separados: Logística y GPS')
+    nm=pg.locator('.mon .vm').count(); ok(nm==5,f'marcadores solo de unidades con coordenadas (5 de 6; el equipo sin posición no se inventa): {nm}')
+    mk=pg.evaluate("()=>Object.fromEntries([...document.querySelectorAll('.mon .vm')].map(e=>[e.querySelector('.vm-lbl').textContent,{m:e.dataset.motion,t:e.dataset.tone,ic:e.querySelector('.vm-ic').innerHTML.length}]))")
+    ok(mk['U12']['m']=='moving' and mk['U05']['m']=='stopped' and mk['U08']['m']=='nosignal' and mk['U12']['t']=='blue' and mk['U05']['t']=='amber','marcadores: color = estado de Logística, insignia = GPS: '+json.dumps({k:[v['m'],v['t']] for k,v in mk.items()}))
+    icons=pg.evaluate("()=>{const g=(l)=>[...document.querySelectorAll('.mon .vm')].find(e=>e.querySelector('.vm-lbl').textContent===l).querySelector('.vm-ic').innerHTML; return [g('U12'),g('U05'),g('U21')]}")
+    ok(len(set(icons))==3,'figura distinta para chasis portacontenedor, jaula y tolva')
+    rows=pg.locator('.mon-row').all_inner_texts(); ok(len(rows)==6 and 'U12' in rows[0],'lista de unidades (en operación primero)')
+    r12=rows[0].replace('\n',' ')
+    ok(all(x in r12 for x in ['En ruta a destino','En movimiento','78 km/h',ids['oper'].split()[0],'Puerto','Chasis','Manzanillo','Guadalajara','MSCU1234567','GPS hace']),'fila: estado, movimiento, operador, división, remolque, ruta, referencia y última actualización: '+r12)
+    shot(pg,'01_escritorio')
+    # Filtros y buscador
+    def vis(): return pg.locator('.mon-row').count()
+    pg.locator('[data-fd="campo"]').click(); pg.wait_for_timeout(300); ok(vis()==2 and pg.locator('.mon .vm').count()==2,'filtro División Campo (lista y mapa)')
+    pg.locator('[data-fd="campo"]').click(); pg.locator('[data-fd="puerto"]').click(); pg.wait_for_timeout(300); ok(vis()==1,'filtro División Puerto')
+    pg.locator('[data-fd="puerto"]').click(); pg.locator('[data-fg="moving"]').click(); pg.wait_for_timeout(300); ok(vis()==2,'filtro En movimiento')
+    pg.locator('[data-fg="nosignal"]').click(); pg.wait_for_timeout(300); ok(vis()==2 and 'Sin posición GPS' in pg.locator('.mon-list').inner_text(),'filtro Sin señal (incluye el equipo sin coordenadas)')
+    pg.locator('[data-fg="stopped"]').click(); pg.wait_for_timeout(300); ok(vis()==2,'filtro Detenidas')
+    pg.locator('[data-fg="all"]').click(); pg.select_option('[data-fs]','unloading'); pg.wait_for_timeout(300); ok(vis()==1 and 'U05' in pg.locator('.mon-list').inner_text(),'filtro por estado del viaje')
+    pg.select_option('[data-fs]','all'); pg.locator('[data-ft="tolva"]').click(); pg.wait_for_timeout(300); ok(vis()==1 and 'U21' in pg.locator('.mon-list').inner_text(),'filtro por tipo de remolque')
+    pg.locator('[data-ft="tolva"]').click(); pg.locator('[data-kpi="operating"]').click(); pg.wait_for_timeout(300); ok(vis()==3,'indicador «En operación» filtra la lista')
+    pg.locator('[data-kpi="monitored"]').click()
+    for q,exp in [('U12','U12'),('60-BN','U12'),(ids['oper'].split()[0].lower(),'U12'),('MSCU1234567','U12'),('camioneta','Camioneta oficina')]:
+        pg.fill('[data-q]',q); pg.wait_for_timeout(250); t=pg.locator('.mon-list').inner_text()
+        ok(vis()==1 and exp in t,f'buscador «{q}» → {exp}')
+    pg.fill('[data-q]',''); pg.wait_for_timeout(250); ok(vis()==6,'sin filtros: todas las unidades')
+    # Selección: centrar, detalle y tarjeta del marcador
+    canvas0=pg.evaluate("()=>{window.__cv=document.querySelector('.mon-map canvas'); return true}")
+    pg.locator(f'.mon-row[data-u="{ids["u12"]}"]').click(); pg.wait_for_timeout(1800)
+    st=pg.evaluate(f"()=>{{const f={FLEET}; const c=f.map.getCenter(); return {{sel:f.selected(), z:f.map.getZoom(), dlat:Math.abs(c.lat-19.40), dlng:Math.abs(c.lng+103.62)}}}}")
+    ok(st['sel']==ids['u12'] and st['z']>=13.4 and st['dlat']<0.01 and st['dlng']<0.01,'al elegir una unidad el mapa acerca y la centra suavemente: '+json.dumps(st))
+    d=pg.locator('[data-pv-detail]').inner_text()
+    ok(all(x in d for x in ['Unidad y operador','Número económico','Placas','Viaje','División Puerto','Origen','Destino','Referencia','Lugar de entrega','CEDIS Guadalajara','GPS','Latitud','Longitud','19.400000','-103.620000','Última posición','Velocidad','78 km/h']),'detalle: unidad, operador, viaje, GPS (lat, lng, hora y velocidad)')
+    ok(all(x in d for x in ['Ver detalle logístico','Actualizar estado','Compartir rastreo con cliente','Centrar en el mapa','Ver toda la flota']),'detalle: acciones')
+    ok(pg.locator('.vm-pop').count()==1 and 'U12' in pg.locator('.vm-pop').inner_text() and 'En ruta a destino' in pg.locator('.vm-pop').inner_text(),'computadora: tarjeta resumida junto al marcador')
+    ok(pg.locator('.vm.is-sel').count()==1 and pg.locator('.vm-dest').count()==1,'marcador elegido resaltado y bandera del destino (sin dibujar recorridos)')
+    sty=pg.evaluate(f"()=>{{const s={FLEET}.map.getStyle(); return {{src:Object.keys(s.sources), lines:s.layers.filter(l=>l.source!=='omt'&&l.type!=='background').length}}}}")
+    ok(sty['src']==['omt'] and sty['lines']==0,'no se dibuja ninguna línea de trayecto (solo el mapa base y los marcadores): '+json.dumps(sty))
+    shot(pg,'02_seleccion')
+    # En vivo: mover la unidad sin recargar
+    pos['12']=[19.42,-103.60,80,25]; push(); pg.evaluate(GPSR); pg.wait_for_timeout(1600)
+    ll=pg.evaluate(f"()=>{{const f={FLEET}; const m=[...document.querySelectorAll('.vm')].find(e=>e.classList.contains('is-sel')); return {{same:document.querySelector('.mon-map canvas')===window.__cv, lbl:m.querySelector('.vm-lbl').textContent}}}}")
+    lat=pg.evaluate("()=>{const f=document.querySelector('.mon-map')._fleet; const c=f.map.getCenter(); return Math.abs(c.lat-19.42)<0.01}")
+    ok(ll['same'] and lat,'actualización: el marcador se mueve a la nueva posición y la vista lo acompaña, sin reconstruir el mapa')
+    ok('19.420000' in pg.locator('[data-pv-detail]').inner_text(),'el detalle muestra la nueva posición')
+    # GPS detenido: la Logística no cambia
+    pos['12']=[19.42,-103.60,0,25]; push(); pg.evaluate(GPSR); pg.wait_for_timeout(600)
+    ok(pg.locator('.vm.is-sel').get_attribute('data-motion')=='stopped' and 'En ruta a destino' in pg.locator('[data-pv-detail] .mon-dcard').inner_text(),'una unidad detenida no cambia su estado de Logística (sigue En ruta a destino)')
+    st2=pg.evaluate("async(id)=>{const l=await import('./src/services/logistics.js'); return l.openOf(id).status}", ids['u12']); ok(st2=='to_destination','estado guardado intacto')
+    # Ver toda la flota
+    pg.locator('[data-fitall]').first.click(); pg.wait_for_timeout(1300)
+    fit=pg.evaluate(f"()=>{{const f={FLEET}; const b=f.map.getBounds(); return {{sel:f.selected(), all:[[19.42,-103.60],[19.066,-104.296],[20.64,-103.38],[18.915,-103.87],[20.67,-103.35]].every(([a,o])=>b.contains([o,a]))}}}}")
+    ok(fit['sel'] is None and fit['all'],'«Ver toda la flota»: vuelve a la vista general con todas las unidades')
+    # Compartir rastreo
+    pg.locator(f'.mon-row[data-u="{ids["u12"]}"]').click(); pg.wait_for_timeout(900)
+    pg.locator('[data-share]').click(); pg.wait_for_timeout(1500)
+    url=pg.locator('.trk-sheet [data-url]').inner_text().strip()
+    ok(re.match(r'^https://gps\.test/r/[A-Za-z0-9_-]{32}$',url) is not None,'compartir: enlace público con código al azar: '+url)
+    ok('No ve la velocidad, el nombre del operador' in pg.locator('.trk-sheet').inner_text(),'la hoja explica qué ve el cliente y cuándo deja de funcionar')
+    shot(pg,'03_compartir')
+    pg.keyboard.press('Escape'); pg.wait_for_timeout(500)
+    ok('Activo · vence en 72 h' in pg.locator('[data-pv-detail]').inner_text() and pg.locator('[data-pv-detail] [data-open]').get_attribute('href')==url,'detalle: enlace activo y «Abrir enlace público»')
+    ok(pg.locator(f'.mon-row[data-u="{ids["u12"]}"] .mon-lnk').count()==1,'lista: indicador «Rastreo activo»')
+    # Portal del cliente
+    cp=ctx.new_page(); watch(cp); cp.goto(url); cp.wait_for_timeout(4500)
+    t=cp.locator('#portal').inner_text()
+    ok('PERCONSUR' in t and 'En camino al destino' in t and 'Manzanillo' in t and 'Guadalajara' in t and 'CEDIS Guadalajara' in t,'portal: identidad PERCONSUR, estado, origen y destino')
+    ok('km/h' not in t and ids['oper'].split()[0] not in t and 'U12' not in t and '60-BN' not in t and 'MSCU' not in t,'portal: sin velocidad, operador, número económico, placas ni referencia')
+    ok(cp.locator('.pt-map canvas.maplibregl-canvas').count()==1 and cp.locator('.pt-map .vm').count()==1 and cp.locator('.pt-map .vm-dest').count()==1,'portal: mapa MapLibre con el marcador del envío y el destino')
+    ok('Ubicación actualizada' in t,'portal: hora de la última posición')
+    raw=cp.evaluate("async()=>{const r=await fetch(document.getElementById('portal').dataset.api); return await r.text()}")
+    ok('speed' not in raw and 'imei' not in raw.lower() and '865190071363660' not in raw and 'operator' not in raw and '20.64' not in raw,'datos del portal: el backend no entrega velocidad, IMEI, operador ni otras unidades')
+    csp=cp.evaluate("async()=>{const r=await fetch(location.href); return r.headers.get('content-security-policy')}")
+    ok('frame-ancestors' in (csp or '') and "script-src https://app.test/" in (csp or ''),'portal: política de seguridad de contenido del Worker')
+    shot(cp,'04_portal'); cp.evaluate("()=>{window.__pcv=document.querySelector('.pt-map canvas')}")
+    pos['12']=[19.45,-103.58,70,25]; push(); cp.evaluate("window.__pcsPortal.reload()"); cp.wait_for_timeout(1800)
+    pl=cp.evaluate("()=>{const v=document.querySelector('.pt-map')._vmap, u=v.vehicle(), b=v.map.getBounds(); return {n:document.querySelectorAll('.pt-map .vm').length, lat:u.lat, lng:u.lng, inView:b.contains([u.lng,u.lat]), same:document.querySelector('.pt-map canvas')===window.__pcv}}")
+    ok(pl['n']==1 and abs(pl['lat']-19.45)<1e-6 and pl['same'],'portal: el marcador se mueve solo a la nueva posición (mismo mapa): '+json.dumps(pl))
+    ok(pl['inView'],'portal: la unidad sigue a la vista junto con el destino')
+    cp.locator('.pt-map [data-mc="center"]').click(); cp.wait_for_timeout(1200)
+    c2=cp.evaluate("()=>{const v=document.querySelector('.pt-map')._vmap, c=v.map.getCenter(); return [c.lat,c.lng,v.map.getZoom()]}")
+    ok(abs(c2[0]-19.45)<0.01 and c2[2]>=13,'portal: «Centrar mi envío» acerca y centra la unidad: '+str(c2))
+    # Revocar
+    pg.once('dialog', lambda d: d.accept())
+    pg.locator('[data-revoke]').click(); pg.wait_for_timeout(400); pg.locator('.asheet .as-btn.destructive').click(); pg.wait_for_timeout(1200)
+    cp.evaluate("window.__pcsPortal.reload()"); cp.wait_for_timeout(1500)
+    t=cp.locator('#portal').inner_text()
+    ok('ya no está disponible' in t and cp.locator('.pt-map .vm').count()==0 and 'Manzanillo' not in t,'revocar: el portal deja de mostrar la ubicación y los datos del viaje')
+    ok('Revocar enlace activo' not in pg.locator('[data-pv-detail]').inner_text(),'monitor: sin enlace activo tras revocar')
+    # Caducidad automática al terminar la entrega
+    pg.locator('[data-share]').click(); pg.wait_for_timeout(1500); url2=pg.locator('.trk-sheet [data-url]').inner_text().strip(); pg.keyboard.press('Escape'); pg.wait_for_timeout(400)
+    ok(url2!=url,'un enlace nuevo tiene otro código')
+    cp.goto(url2); cp.wait_for_timeout(3500); ok('En camino al destino' in cp.locator('#portal').inner_text(),'nuevo enlace activo')
+    pg.locator('[data-status]').click(); pg.wait_for_timeout(500); pg.locator('[data-set="empty_transit"]').click(); pg.wait_for_timeout(3000)
+    cp.evaluate("window.__pcsPortal.reload()"); cp.wait_for_timeout(1500)
+    t=cp.locator('#portal').inner_text()
+    ok('Entrega finalizada' in t and cp.locator('.pt-map .vm').count()==0 and cp.locator('[data-pt-mapwrap]').is_hidden(),'al terminar la entrega (En ruta vacío) el enlace se finaliza solo y deja de dar la ubicación')
+    shot(cp,'05_portal_finalizado')
+    ok('Ver detalle logístico' in pg.locator('[data-pv-detail]').inner_text() and 'En ruta vacío' in pg.locator('[data-pv-detail]').inner_text(),'el monitor refleja el nuevo estado al momento')
+    pg.locator('[data-pv-detail] a:has-text("Ver detalle logístico")').click(); pg.wait_for_timeout(900)
+    ok('/operacion/logistica/u/' in pg.url and pg.locator('.mon-map').count()==0,'«Ver detalle logístico» abre Logística; al salir se libera el mapa')
+    ok(pg.locator('a:has-text("Ver en Monitoreo GPS")').count()==1,'detalle logístico: acceso «Ver en Monitoreo GPS»')
+    pg.locator('a:has-text("Ver en Monitoreo GPS")').click(); pg.wait_for_timeout(3500)
+    ok(pg.evaluate(f"{FLEET}.selected()")==ids['u12'],'«Ver en Monitoreo GPS» abre el monitor con la unidad elegida')
+    # Tema oscuro
+    pg.evaluate("async()=>{const t=await import('./src/services/theme.js'); await t.setTheme('dark');}"); pg.wait_for_timeout(1200)
+    ok(pg.evaluate(f"{FLEET}.map.getStyle().name")=='PERCONSUR oscuro','modo oscuro: el mapa cambia a su estilo oscuro sin recargar')
+    pg.evaluate("async()=>{const t=await import('./src/services/theme.js'); await t.setTheme('system');}")
+    # Muchas unidades: agrupación
+    pg.evaluate(f"""()=>{{const f={FLEET}; const L=[]; for(let i=0;i<120;i++) L.push({{id:'x'+i,lat:19+Math.random()*1.5,lng:-104.2+Math.random()*1.0,label:'X'+i,tone:'blue',trailerType:'chasis',motion:'moving'}}); f.setVehicles(L); f.fitFleet({{animate:false}})}}""")
+    pg.wait_for_timeout(1500)
+    ok(pg.locator('.mon .vm-cl').count()>0 and pg.locator('.mon .vm').count()<120,f'120 unidades: las cercanas se agrupan al alejar ({pg.locator(".mon .vm-cl").count()} grupos, {pg.locator(".mon .vm").count()} marcadores sueltos)')
+    pg.evaluate(GPSR); pg.wait_for_timeout(800)
+    ctx.close()
+    # iPhone: panel inferior deslizable
+    ctx=b.new_context(viewport={'width':390,'height':844},device_scale_factor=2,is_mobile=True,has_touch=True,service_workers='block'); setup_ctx(ctx)
+    pg=ctx.new_page(); watch(pg)
+    pg.goto(BASE); pg.wait_for_selector('.login'); pg.fill('#lg-user',U); pg.fill('#lg-pass',P); pg.click('#lg-go'); pg.wait_for_selector('.login',state='detached'); pg.wait_for_timeout(900)
+    if pg.locator('.asheet').count(): pg.get_by_role('button',name='Ahora no').click()
+    pg.evaluate(SETUP, IMEI)
+    pg.goto(BASE+'#/operacion/logistica/monitoreo'); pg.wait_for_timeout(4000)
+    ok(pg.locator('.mon').get_attribute('data-layout')=='mobile' and pg.locator('.mon').get_attribute('data-sheet')=='peek','iPhone: mapa principal con panel inferior en resumen')
+    hh=pg.evaluate("()=>{const m=document.querySelector('.mon-map').getBoundingClientRect(), p=document.querySelector('.mon-panel').getBoundingClientRect(); return {map:m.height, vis:m.bottom-p.top, page:document.documentElement.scrollWidth<=innerWidth}}")
+    ok(hh['vis']<=200 and hh['map']>500 and hh['page'],'el panel no tapa el mapa (resumen ≤ 200 px) y sin desplazamiento lateral: '+json.dumps(hh))
+    shot(pg,'06_iphone')
+    pg.locator('.mon .vm').filter(has_text='U05').click(); pg.wait_for_timeout(1500)
+    ok(pg.locator('.vm-pop').count()==0 and 'U05' in pg.locator('[data-pv-detail]').inner_text() and pg.locator('.mon').get_attribute('data-sheet')=='half','iPhone: tocar un marcador muestra la tarjeta en el panel (sin ventana sobre el mapa)')
+    box=pg.evaluate("()=>{const m=document.querySelector('.vm.is-sel').getBoundingClientRect(), mp=document.querySelector('.mon-map').getBoundingClientRect(), p=document.querySelector('.mon-panel').getBoundingClientRect(); return {y:m.top+m.height/2, top:mp.top, sheet:p.top}}")
+    ok(box['top']<box['y']<box['sheet'],'la unidad elegida queda visible arriba del panel: '+json.dumps(box))
+    shot(pg,'07_iphone_detalle')
+    pg.locator('[data-grab]').click(); pg.wait_for_timeout(500); ok(pg.locator('.mon').get_attribute('data-sheet')=='full','tocar la barra: panel completo')
+    pg.locator('[data-grab]').click(); pg.wait_for_timeout(500); ok(pg.locator('.mon').get_attribute('data-sheet')=='peek','tocar otra vez: vuelve al resumen')
+    # Segundo plano: al volver se actualiza
+    calls=pg.evaluate("()=>{window.__f=0; const o=window.fetch; window.fetch=(...a)=>{if(String(a[0]).includes('/v1/posiciones')) window.__f++; return o(...a)}; return 1}")
+    pg.evaluate("()=>{Object.defineProperty(document,'visibilityState',{value:'hidden',configurable:true}); document.dispatchEvent(new Event('visibilitychange'))}")
+    pg.wait_for_timeout(500)
+    pg.evaluate("()=>{Object.defineProperty(document,'visibilityState',{value:'visible',configurable:true}); document.dispatchEvent(new Event('visibilitychange'))}")
+    pg.wait_for_timeout(1500)
+    ok(pg.evaluate("window.__f")>=0 and pg.locator('.mon .vm').count()==5,'al volver del segundo plano el mapa sigue funcionando')
+    pg.goto(BASE+'#/'); pg.wait_for_timeout(600); ok(pg.locator('.maplibregl-map').count()==0,'al salir del monitor se liberan el mapa y sus temporizadores')
+    ctx.close(); b.close()
+finally:
+  srv.terminate(); wk.terminate()
+  bad=[e for e in errs if 'ERR_TUNNEL' not in e and 'Failed to load resource' not in e]
+  ok(not bad,'sin errores de JavaScript: '+' | '.join(bad[:5]))
+  print('\n'.join(log)); print(f"\n{sum(1 for l in log if l.startswith('OK'))}/{len(log)} OK")

@@ -1,0 +1,78 @@
+/*
+ * Mapas MapLibre (Centro de Monitoreo GPS y portal del cliente): marcadores de unidad, destino, grupos, tarjeta,
+ * controles y atribución. Lo comparten la app y el portal (ambos cargan tokens.css).
+ */
+/* Color del estado de Logística (mismos tonos que los chips) */
+.vm,.vm-cl{--vm-c:#354FA3;--vm-lbl:#FFFFFF;--vm-lbl-ink:#1A2233;--vm-ring:#FFFFFF}
+.vm[data-tone="teal"]{--vm-c:#1C8A9C}
+.vm[data-tone="amber"]{--vm-c:#D48A0C}
+.vm[data-tone="light"]{--vm-c:#8D96A8}
+.vm[data-tone="gray"]{--vm-c:#68718A}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .vm,:root:not([data-theme="light"]) .vm-cl{--vm-lbl:#1C2230;--vm-lbl-ink:#E8EBF2;--vm-ring:#E8EBF2}}
+:root[data-theme="dark"] .vm,:root[data-theme="dark"] .vm-cl{--vm-lbl:#1C2230;--vm-lbl-ink:#E8EBF2;--vm-ring:#E8EBF2}
+
+/* Marcador de unidad: círculo con la figura del remolque + insignia GPS + número económico */
+.vm{width:42px;height:42px;padding:0;margin:0;border:0;background:none;cursor:pointer;-webkit-tap-highlight-color:transparent;font:inherit;color:inherit}
+.vm-pin{position:absolute;inset:2px;display:grid;place-items:center;border-radius:50%;background:var(--vm-c);color:#fff;border:2.5px solid var(--vm-ring);
+  box-shadow:0 2px 8px rgba(15,25,45,.38);transition:transform .22s var(--ease,ease),opacity .3s,filter .3s}
+.vm-ic{display:grid;place-items:center}
+.vm-ic .ic{width:23px;height:23px;stroke-width:1.9}
+.vm-badge{position:absolute;right:-7px;top:-7px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#fff;color:#4A5468;box-shadow:0 1px 4px rgba(0,0,0,.32)}
+.vm-badge svg{width:12px;height:12px;transition:transform .4s var(--ease,ease)}
+.vm[data-motion="moving"] .vm-badge{background:#1E7A4C;color:#fff}
+.vm.has-heading .vm-badge svg{transform:rotate(var(--vm-rot,0deg))}
+.vm[data-motion="live"] .vm-badge{background:#1E7A4C;color:#fff}
+.vm[data-motion="live"] .vm-badge svg{animation:vmLive 2s ease-in-out infinite}
+.vm[data-motion="nosignal"] .vm-pin{filter:grayscale(1);opacity:.66;border-style:dashed}
+.vm[data-motion="nosignal"] .vm-badge{background:#B4441A;color:#fff}
+.vm-lbl{position:absolute;left:50%;top:100%;transform:translate(-50%,3px);padding:2px 7px;border-radius:7px;background:var(--vm-lbl);color:var(--vm-lbl-ink);
+  font:800 11.5px/1.25 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;white-space:nowrap;box-shadow:0 1px 4px rgba(15,25,45,.3);pointer-events:none}
+.vm.no-lbl .vm-lbl{display:none}
+.maplibregl-marker:has(.is-sel),.maplibregl-marker.vm.is-sel{z-index:3}
+.vm.is-sel .vm-pin{transform:scale(1.18);box-shadow:0 0 0 4px rgba(242,111,34,.6),0 5px 16px rgba(15,25,45,.42)}
+.vm.vm-upd .vm-pin{animation:vmUpd .8s ease-out}
+.vm:focus-visible{outline:none}
+.vm:focus-visible .vm-pin{box-shadow:0 0 0 4px var(--orange,#F26F22)}
+@keyframes vmUpd{from{box-shadow:0 0 0 0 rgba(53,79,163,.6),0 2px 8px rgba(15,25,45,.38)}to{box-shadow:0 0 0 16px rgba(53,79,163,0),0 2px 8px rgba(15,25,45,.38)}}
+@keyframes vmLive{0%,100%{opacity:1}50%{opacity:.45}}
+
+/* Grupo de unidades cercanas (al alejar con muchas unidades) */
+.vm-cl{display:grid;place-items:center;width:46px;height:46px;padding:0;border:3px solid var(--vm-ring);border-radius:50%;background:#233878;color:#fff;cursor:pointer;
+  box-shadow:0 0 0 5px rgba(53,79,163,.28),0 3px 10px rgba(15,25,45,.35);font:800 15px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+
+/* Destino: bandera discreta (aproximado → borde punteado) */
+.vm-dest{--vd-bg:#1E2638;--vd-ink:#fff;--vd-ring:#fff;position:relative;display:inline-flex;align-items:center;gap:5px;max-width:200px;padding:4px 10px 4px 5px;border-radius:999px;background:var(--vd-bg);color:var(--vd-ink);border:2px solid var(--vd-ring);
+  box-shadow:0 3px 10px rgba(0,0,0,.3);font:700 12px/1.2 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;pointer-events:none}
+.vm-dest::after{content:"";position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:var(--vd-ring)}
+.vm-dest-ic{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#F26F22;color:#fff}
+.vm-dest-ic svg{width:13px;height:13px}
+.vm-dest-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vm-dest.approx{--vd-bg:#5A6275;border-style:dashed}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .vm-dest{--vd-bg:#E8ECF5;--vd-ink:#1E2638;--vd-ring:#1E2638}}
+:root[data-theme="dark"] .vm-dest{--vd-bg:#E8ECF5;--vd-ink:#1E2638;--vd-ring:#1E2638}
+
+/* Controles propios */
+.mc{display:flex;flex-direction:column;gap:8px}
+.mc-g{display:flex;flex-direction:column;border-radius:12px;background:var(--surface,#fff);box-shadow:0 2px 10px rgba(15,25,45,.22);overflow:hidden}
+.mc-b{display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:none;color:var(--ink,#1A2233);cursor:pointer}
+.mc-b+.mc-b{border-top:1px solid var(--line,#E3E6ED)}
+.mc-b .ic{width:21px;height:21px}
+.mc-b:active{background:var(--fill,#E9EBF0)}
+.mc-b:disabled{color:var(--muted,#7A8395);opacity:.45;cursor:default}
+.maplibregl-ctrl-top-right .mc{margin:10px 10px 0 0}
+
+/* Tarjeta al tocar un marcador */
+.vm-pop .maplibregl-popup-content{padding:12px 14px 12px;border-radius:14px;background:var(--surface,#fff);color:var(--ink,#1A2233);box-shadow:0 10px 30px rgba(15,25,45,.28);font-family:var(--font,inherit)}
+.vm-pop .maplibregl-popup-close-button{width:32px;height:32px;font-size:20px;color:var(--muted,#7A8395);border-radius:0 14px 0 10px}
+.vm-pop.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,.vm-pop.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,.vm-pop.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip{border-top-color:var(--surface,#fff)}
+.vm-pop.maplibregl-popup-anchor-top .maplibregl-popup-tip,.vm-pop.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,.vm-pop.maplibregl-popup-anchor-top-right .maplibregl-popup-tip{border-bottom-color:var(--surface,#fff)}
+.vm-pop.maplibregl-popup-anchor-left .maplibregl-popup-tip{border-right-color:var(--surface,#fff)}
+.vm-pop.maplibregl-popup-anchor-right .maplibregl-popup-tip{border-left-color:var(--surface,#fff)}
+
+/* Atribución del proveedor de mapas (siempre accesible) */
+.maplibregl-ctrl-attrib{font-size:10.5px;line-height:1.35}
+.maplibregl-ctrl.maplibregl-ctrl-attrib{background:color-mix(in srgb,var(--surface,#fff) 84%,transparent);color:var(--ink-2,#4A5468)}
+.maplibregl-ctrl-attrib a{color:var(--ink-2,#4A5468)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .maplibregl-ctrl-attrib-button{filter:invert(1)}}
+:root[data-theme="dark"] .maplibregl-ctrl-attrib-button{filter:invert(1)}
+@media (prefers-reduced-motion:reduce){.vm-pin,.vm-badge svg{transition:none}.vm.vm-upd .vm-pin,.vm[data-motion="live"] .vm-badge svg{animation:none}}

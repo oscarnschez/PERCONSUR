@@ -19,6 +19,8 @@ import { loadEmpties } from './services/empties.js';
 import { loadGeocodes } from './services/geocode.js';
 import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
 import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
+import { gpsMonitorScreen } from './ui/screens/gpsMonitor.js';
+import { startTracking } from './services/tracking.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -86,6 +88,7 @@ function routes() {
   route('/operacion/logistica', logisticsScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/historial', logisticsHistoryScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/u/:id', logisticsUnitScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/logistica/monitoreo', gpsMonitorScreen, { name: 'monitor', tabs: true, tab: 'op' });
   route('/operacion/logistica/vacios', emptiesScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
@@ -147,6 +150,8 @@ async function boot() {
     mountTabbar();
     watchKeyboard();
     startRouter(document.getElementById('view'));
+    /* Rastreo para clientes: finaliza solo los enlaces de entregas terminadas (escucha Logística) */
+    startTracking();
     if (!('switch' in document.createElement('input'))) document.documentElement.classList.add('sw-fallback');
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
     else if (updated) toast(`PERCONSUR se actualizó a la versión ${APP_VERSION}`, { type: 'info', ms: 5000 });

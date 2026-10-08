@@ -13,11 +13,25 @@
  *   ALLOWED_ORIGIN  Texto   sitio autorizado, p. ej. https://oscarnschez.github.io (varios separados por coma)
  *   IOP_BASE        Texto   opcional; por defecto https://open.iopgps.com
  *   LIMITS          KV      opcional; espacio KV para compartir los bloqueos por intentos entre instancias (ver README)
+ *   TRACKING        KV      espacio KV para los enlaces de rastreo para clientes (si falta, se usa LIMITS)
+ *   APP_URL         Texto   opcional; dirección de la app (por defecto ALLOWED_ORIGIN + /PERCONSUR/). El portal del cliente
+ *                           carga de ahí el mapa y su diseño.
+ *   TRACK_MAX_HOURS Texto   opcional; vigencia máxima de un enlace de rastreo en horas (por defecto 72)
  *
  * Endpoints:
  *   GET /salud                 ¿se pudo autenticar con IOPGPS? (sin credenciales ni ubicaciones; con ?key= añade nombres de campos)
  *   GET /v1/posiciones         posiciones de la flota (header X-PCS-Key o ?key=). Opcional: ?imeis=865…,867…
  *   GET /v1/ubicacion?imei=…   posición de una unidad con dirección y estado (header X-PCS-Key o ?key=)
+ *   Rastreo para clientes (X-PCS-Key):
+ *   GET  /v1/enlaces                       enlaces de rastreo (activos y recientes)
+ *   POST /v1/enlaces                       crea (o reutiliza) el enlace de una operación de Logística
+ *   POST /v1/enlaces/:id                   actualiza estado, origen y destino; un estado sin rastreo lo finaliza
+ *   POST /v1/enlaces/:id/finalizar         la entrega terminó: el enlace deja de dar la ubicación
+ *   POST /v1/enlaces/:id/revocar           revocación manual
+ *   Públicos (sin clave; solo con el enlace):
+ *   GET /r/:token              página del portal de rastreo (identidad PERCONSUR; el mapa y el diseño vienen de APP_URL)
+ *   GET /v1/publico/:token     datos del portal: origen, destino, estado y ubicación actual de ESA unidad mientras el
+ *                              enlace está activo. Nunca velocidad, operador, IMEI, placas ni otras unidades.
  *
  * API de IOPGPS utilizada (documentación pública de terceros; confirmar con el proveedor):
  *   POST /api/auth  { appid, time, signature = md5(md5(secreto) + time) } → { accessToken, expiresIn }
@@ -37,6 +51,12 @@
  *     llamadas firmadas con las credenciales mientras el proveedor está caído.
  * El estado vive en la memoria de la instancia; con el espacio KV opcional LIMITS los bloqueos se comparten entre
  * instancias y sobreviven a reinicios. Las IP se guardan como huella (no en texto).
+ *
+ * Rastreo para clientes: el permiso se decide AQUÍ, no en el navegador. Cada enlace es un código al azar de 192 bits
+ * ligado a una unidad (IMEI) y a una operación; la ruta pública solo entrega la posición de esa unidad mientras el
+ * enlace está activo. Termina al finalizar la entrega (la app lo avisa al pasar la operación a En ruta vacío, Vacío o
+ * Inactiva), al revocarlo, al crear un enlace de otra operación para la misma unidad o al cumplirse TRACK_MAX_HOURS.
+ * Códigos inexistentes cuentan como intentos fallidos (20 en 15 min bloquean la IP).
  */
 
 const FLEET_TTL = 30 * 1000;      /* posiciones de la flota: una llamada al proveedor cada 30 s como máximo */
@@ -51,7 +71,7 @@ const cache = new Map();   /* clave → { at, value } */
 const inflight = new Map();
 
 /* ===== Límite de intentos ===== */
-export const LIMITS = { FAIL_WINDOW: 15 * 60 * 1000, FAIL_MAX: 5, LOCK_BASE: 15 * 60 * 1000, LOCK_MAX: 24 * 3600 * 1000, GLOBAL_FAIL_MAX: 30, REQ_WINDOW: 60 * 1000, REQ_MAX: 120 };
+export const LIMITS = { FAIL_WINDOW: 15 * 60 * 1000, FAIL_MAX: 5, LOCK_BASE: 15 * 60 * 1000, LOCK_MAX: 24 * 3600 * 1000, GLOBAL_FAIL_MAX: 30, REQ_WINDOW: 60 * 1000, REQ_MAX: 120, TOKEN_FAIL_MAX: 20 };
 const fails = new Map();    /* ip → { list: [ts], until, strikes } */
 const reqs = new Map();     /* ip → [ts] */
 let globalFails = [];
@@ -94,8 +114,8 @@ function corsHeaders(req, env) {
   const h = { 'Vary': 'Origin' };
   if (o && allow.includes(o)) {
     h['Access-Control-Allow-Origin'] = o;
-    h['Access-Control-Allow-Methods'] = 'GET, OPTIONS';
-    h['Access-Control-Allow-Headers'] = 'X-PCS-Key';
+    h['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
+    h['Access-Control-Allow-Headers'] = 'X-PCS-Key, Content-Type';
     h['Access-Control-Max-Age'] = '86400';
     h['Access-Control-Expose-Headers'] = 'Retry-After';
   }
@@ -139,13 +159,14 @@ async function saveFail(ip, st, env) {
 }
 /* Segundos de bloqueo que le quedan a una IP (0 = puede intentar) */
 async function lockedFor(ip, env, now = Date.now()) { const st = await failState(ip, env); return st.until > now ? Math.ceil((st.until - now) / 1000) : 0; }
-/* Registra una clave incorrecta; devuelve los segundos de bloqueo si con este fallo se bloquea la IP */
-async function registerFail(ip, env, now = Date.now()) {
+/* Registra una clave incorrecta (o un código de rastreo inexistente: global=false, máximo propio); devuelve los segundos de
+   bloqueo si con este fallo se bloquea la IP */
+async function registerFail(ip, env, now = Date.now(), { global = true, maxFails = LIMITS.FAIL_MAX } = {}) {
   prune(fails, now);
-  globalFails = recent(globalFails, LIMITS.FAIL_WINDOW, now); globalFails.push(now);
+  if (global) { globalFails = recent(globalFails, LIMITS.FAIL_WINDOW, now); globalFails.push(now); }
   const st = await failState(ip, env);
   st.list = recent(st.list, LIMITS.FAIL_WINDOW, now); st.list.push(now);
-  const max = globalFails.length > LIMITS.GLOBAL_FAIL_MAX ? 1 : LIMITS.FAIL_MAX;
+  const max = global && globalFails.length > LIMITS.GLOBAL_FAIL_MAX ? 1 : maxFails;
   let lock = 0;
   if (st.list.length >= max) {
     st.strikes = (st.strikes || 0) + 1;
@@ -268,20 +289,208 @@ async function detail(env, imei) {
   });
 }
 
+/* ===== Rastreo para clientes ===== */
+/* Estados de Logística con rastreo y el texto que ve el cliente (el resto de estados finaliza el enlace) */
+export const TRACK_STATUS_TEXT = { to_destination: 'En camino al destino', unloading: 'En el lugar de entrega' };
+const TRACK_DONE_TEXT = 'Entrega finalizada';
+const TRACK_KEEP = 30 * 24 * 3600;   /* un enlace cerrado se conserva 30 días (para mostrar «Entrega finalizada»), después se borra */
+const LINK_MEM_TTL = 15 * 1000;      /* lectura del enlace guardada 15 s por instancia (menos lecturas de KV) */
+const POS_STALE_MS = 10 * 60 * 1000; /* sin señal del equipo durante más de esto: la posición no se presenta como actual */
+const TOKEN_RE = /^[A-Za-z0-9_-]{32}$/;
+const TRAILERS = ['chasis', 'jaula', 'tolva'];
+const linkMem = new Map();   /* id → { at, rec } */
+let listMem = null;          /* { at, items } */
+
+const kvOf = (env) => env.TRACKING || env.LIMITS || null;
+const maxHours = (env) => { const h = Number(env.TRACK_MAX_HOURS); return Number.isFinite(h) && h >= 1 ? Math.min(h, 720) : 72; };
+/* Dirección de la app (de ahí el portal carga el mapa y el diseño). Solo https y terminada en / */
+export function appUrl(env) {
+  let u = String(env.APP_URL || '').trim();
+  if (!u) { const o = origins(env)[0]; u = o ? o + '/PERCONSUR/' : ''; }
+  if (u && !u.endsWith('/')) u += '/';
+  return /^https:\/\/[A-Za-z0-9.-]+(:\d+)?(\/[A-Za-z0-9._~%-]+)*\/$/.test(u) ? u : '';
+}
+export function newToken() {
+  const b = new Uint8Array(24); crypto.getRandomValues(b);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+const point = (p) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) && Math.abs(+p.lat) <= 90 && Math.abs(+p.lng) <= 180
+  ? { lat: Math.round(+p.lat * 1e6) / 1e6, lng: Math.round(+p.lng * 1e6) / 1e6, approx: !!p.approx } : null);
+/* active | finished | revoked | expired (vencido por tiempo) */
+const stateOf = (rec, now = Date.now()) => (rec.state === 'active' && now > rec.expiresAt ? 'expired' : rec.state);
+const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
+/* Vista interna (solo con PCS_KEY) */
+const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
+
+class TrackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
+function needKv(env) {
+  const kv = kvOf(env);
+  if (!kv) throw new TrackError('Falta vincular el espacio KV «TRACKING» en el Worker (ver README → Rastreo para clientes).', 503);
+  return kv;
+}
+async function getLink(env, id, fresh = false) {
+  const m = linkMem.get(id);
+  if (!fresh && m && Date.now() - m.at < LINK_MEM_TTL) return m.rec;
+  const rec = await needKv(env).get('lnk:' + id, 'json');
+  linkMem.set(id, { at: Date.now(), rec: rec || null });
+  if (linkMem.size > 2000) linkMem.delete(linkMem.keys().next().value);
+  return rec || null;
+}
+async function putLink(env, rec) {
+  const end = rec.state === 'active' ? rec.expiresAt : rec.closedAt || Date.now();
+  const ttl = Math.max(60, Math.ceil((end - Date.now()) / 1000) + TRACK_KEEP);
+  await needKv(env).put('lnk:' + rec.id, JSON.stringify(rec), { expirationTtl: ttl, metadata: metaOf(rec) });
+  linkMem.set(rec.id, { at: Date.now(), rec }); listMem = null;
+  return rec;
+}
+async function listLinks(env) {
+  if (listMem && Date.now() - listMem.at < 20000) return listMem.items;
+  const kv = needKv(env), items = [];
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await kv.list({ prefix: 'lnk:', cursor });
+    for (const k of r.keys || []) if (k.metadata) items.push({ id: k.name.slice(4), ...k.metadata });
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+  listMem = { at: Date.now(), items };
+  return items;
+}
+async function readBody(req) {
+  const t = await req.text();
+  if (t.length > 8192) throw new TrackError('Datos demasiado grandes', 413);
+  try { const b = t ? JSON.parse(t) : {}; return b && typeof b === 'object' && !Array.isArray(b) ? b : {}; } catch (e) { throw new TrackError('Datos inválidos'); }
+}
+/* Campos que la app puede fijar (todo se limpia y se acota) */
+function applyFields(rec, b) {
+  if (b.imei !== undefined) { if (!/^\d{8,20}$/.test(String(b.imei))) throw new TrackError('IMEI inválido'); rec.imei = String(b.imei); }
+  if (b.unit !== undefined) rec.unit = txt(b.unit, 40);
+  if (b.trailerType !== undefined) rec.trailerType = TRAILERS.includes(b.trailerType) ? b.trailerType : '';
+  if (b.origin !== undefined) rec.origin = txt(b.origin);
+  if (b.destination !== undefined) rec.destination = txt(b.destination);
+  if (b.place !== undefined) rec.place = txt(b.place);
+  if (b.dest !== undefined) rec.dest = point(b.dest);
+  return rec;
+}
+function close(rec, state, reason, now = Date.now()) {
+  if (rec.state !== 'active') return rec;
+  rec.state = state; rec.closedAt = now; rec.closeReason = reason; rec.updatedAt = now;
+  return rec;
+}
+
+/* POST /v1/enlaces — una operación tiene un solo enlace activo; otro enlace activo de la misma unidad (otro viaje) se finaliza */
+async function createLink(env, b) {
+  const opId = String(b.opId || '');
+  if (!/^[\w-]{1,64}$/.test(opId)) throw new TrackError('Operación inválida');
+  if (!/^\d{8,20}$/.test(String(b.imei || ''))) throw new TrackError('Esta unidad no tiene un GPS vinculado.');
+  if (!TRACK_STATUS_TEXT[b.status]) throw new TrackError('El rastreo para clientes solo está disponible con la unidad En ruta a destino o Descargando.', 409);
+  const now = Date.now(), list = await listLinks(env);
+  const mine = list.filter((l) => l.opId === opId && stateOf(l, now) === 'active');
+  for (const l of mine) {
+    const rec = await getLink(env, l.id, true);
+    if (rec && stateOf(rec, now) === 'active') { applyFields(rec, b); rec.status = b.status; rec.updatedAt = now; await putLink(env, rec); return { rec, reused: true }; }
+  }
+  for (const l of list.filter((x) => x.imei === String(b.imei) && x.opId !== opId && stateOf(x, now) === 'active')) {
+    const rec = await getLink(env, l.id, true);
+    if (rec && rec.state === 'active') await putLink(env, close(rec, 'finished', 'replaced', now));
+  }
+  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', trailerType: '', origin: '', destination: '', place: '', dest: null,
+    status: b.status, state: 'active', createdAt: now, updatedAt: now, expiresAt: now + maxHours(env) * 3600 * 1000, closedAt: null, closeReason: null }, b);
+  await putLink(env, rec);
+  return { rec, reused: false };
+}
+async function updateLink(env, id, b, action) {
+  const rec = await getLink(env, id, true);
+  if (!rec) throw new TrackError('El enlace no existe', 404);
+  const now = Date.now();
+  if (stateOf(rec, now) !== 'active') return rec;   /* ya cerrado: sin cambios (idempotente) */
+  if (action === 'revocar') return putLink(env, close(rec, 'revoked', 'revoked', now));
+  if (action === 'finalizar') return putLink(env, close(rec, 'finished', ['delivered', 'closed', 'manual'].includes(b.reason) ? b.reason : 'delivered', now));
+  applyFields(rec, b);
+  if (b.status !== undefined) {
+    if (!TRACK_STATUS_TEXT[b.status]) return putLink(env, close(rec, 'finished', 'delivered', now));
+    rec.status = b.status;
+  }
+  rec.updatedAt = now;
+  return putLink(env, rec);
+}
+
+/* GET /v1/publico/:token — lo único que ve el cliente */
+async function publicView(env, rec) {
+  const now = Date.now(), st = stateOf(rec, now);
+  const out = { ok: true, state: st, refreshIn: 30 };
+  if (st === 'revoked' || st === 'expired') return out;
+  out.trip = { origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '',
+    status: st === 'finished' ? 'delivered' : rec.status, statusText: st === 'finished' ? TRACK_DONE_TEXT : TRACK_STATUS_TEXT[rec.status] || TRACK_STATUS_TEXT.to_destination };
+  if (st === 'finished') { out.closedAt = rec.closedAt; return out; }
+  out.destination = rec.dest || null;
+  out.expiresAt = rec.expiresAt;
+  out.position = null;
+  try {
+    const f = await fleet(env), d = f.value.find((x) => x.imei === rec.imei);
+    out.fetchedAt = f.at;
+    if (d && d.lat != null && d.lng != null) {
+      const sig = Math.max(d.signalTime || 0, d.gpsTime || 0);
+      out.position = { lat: d.lat, lng: d.lng, at: d.gpsTime || d.signalTime || null, live: !!sig && now - sig < POS_STALE_MS, heading: d.course };
+    }
+  } catch (e) { out.warning = 'La ubicación no está disponible en este momento.'; }
+  return out;
+}
+
+/* Página del portal: solo el armazón con la marca; el mapa y los datos los carga src/portal/main.js desde APP_URL */
+const htmlEsc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+export function portalHTML(app, token) {
+  const a = htmlEsc(app), t = htmlEsc(token);
+  return `<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rastreo de tu envío · PERCONSUR</title>
+<meta name="description" content="Ubicación y estado de tu envío con PERCONSUR.">
+<meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer">
+<meta property="og:title" content="Rastreo de tu envío · PERCONSUR"><meta property="og:description" content="Consulta la ubicación y el estado de tu envío.">
+<meta property="og:image" content="${a}assets/icons/icon-512.png">
+<meta name="color-scheme" content="light dark"><meta name="theme-color" content="#354FA3">
+<link rel="icon" type="image/png" href="${a}assets/icons/favicon-32.png"><link rel="apple-touch-icon" href="${a}assets/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://tiles.openfreemap.org" crossorigin>
+<link rel="stylesheet" href="${a}vendor/fonts/archivo.css"><link rel="stylesheet" href="${a}vendor/maplibre/maplibre-gl.css"><link rel="stylesheet" href="${a}styles/tokens.css"><link rel="stylesheet" href="${a}styles/maps.css"><link rel="stylesheet" href="${a}styles/portal.css">
+</head><body class="pt-body">
+<main id="portal" class="pt nomap" data-api="/v1/publico/${t}" data-app="${a}">
+<header class="pt-head"><img class="pt-mark" src="${a}assets/brand/perconsur-mark.png" alt=""><span class="pt-word">PERCONSUR</span><span class="pt-tag">Rastreo de envío</span></header>
+<div class="pt-band" aria-hidden="true"></div>
+<p class="pt-loading" role="status">Cargando la ubicación de tu envío…</p>
+</main>
+<script type="module" src="${a}src/portal/main.js"></script>
+</body></html>`;
+}
+function portalResponse(env, token, status = 200) {
+  const app = appUrl(env);
+  const html = app ? portalHTML(app, token) : '<!DOCTYPE html><meta charset="utf-8"><title>PERCONSUR</title><p style="font-family:Arial;padding:24px">El portal de rastreo no está configurado (APP_URL).</p>';
+  const src = app || "'none'";
+  const csp = `default-src 'none'; script-src ${src}; style-src ${src} 'unsafe-inline'; img-src ${src} data: blob:; font-src ${src} data:; connect-src 'self' https://tiles.openfreemap.org ${src}; worker-src blob: ${src}; child-src blob:; manifest-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`;
+  return new Response(html, { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': csp,
+    'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow', 'Permissions-Policy': 'geolocation=(), camera=(), microphone=()' } });
+}
+
 /* ===== Router ===== */
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req, env) });
-    if (req.method !== 'GET') return json(req, env, 405, { ok: false, error: 'Método no permitido' });
+    const isPost = req.method === 'POST';
+    if (req.method !== 'GET' && !(isPost && url.pathname.startsWith('/v1/enlaces'))) return json(req, env, 405, { ok: false, error: 'Método no permitido' });
     const o = req.headers.get('Origin');
-    if (o && !origins(env).includes(o)) return json(req, env, 403, { ok: false, error: 'Origen no autorizado' });
+    /* El portal del cliente se sirve desde este mismo Worker: su propio origen siempre está permitido */
+    if (o && o !== url.origin && !origins(env).includes(o)) return json(req, env, 403, { ok: false, error: 'Origen no autorizado' });
     /* Límite de intentos: antes de revisar cualquier clave */
     const ip = clientIp(req);
     const busy = tooManyRequests(ip);
     if (busy) return limited(req, env, busy, `Demasiadas consultas desde esta conexión. Intenta de nuevo en ${waitText(busy)}.`);
     const lockS = await lockedFor(ip, env);
     if (lockS) return limited(req, env, lockS, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lockS)}.`);
+    /* Rastreo para clientes: rutas públicas, sin clave (el código del enlace es el permiso) */
+    const pub = req.method === 'GET' && /^\/(r|v1\/publico)\/([^/]*)\/?$/.exec(url.pathname);
+    if (pub) return publicRoute(req, env, ip, pub[1], pub[2]);
     const given = appKey(req, url);
     const authorized = sameKey(given, env.PCS_KEY);
     if (given && !authorized && env.PCS_KEY) {
@@ -299,6 +508,7 @@ export default {
             out.camposDelProveedor = raw[0] ? Object.keys(raw[0]) : [];
           }
         } catch (e) { out.autenticacion = out.autenticacion || 'fallida'; out.error = e.message; }
+        out.rastreoClientes = { kv: !!kvOf(env), portal: !!appUrl(env) };
         return json(req, env, out.ok ? 200 : 502, out);
       }
       if (!authorized) return json(req, env, 401, { ok: false, error: 'Clave de PERCONSUR inválida o ausente' });
@@ -314,6 +524,20 @@ export default {
         const d = await detail(env, imei);
         return json(req, env, 200, { ok: true, fetchedAt: d.at, stale: !!d.stale, ...(d.error ? { warning: d.error } : {}), device: d.value });
       }
+      if (url.pathname === '/v1/enlaces') {
+        if (!isPost) {
+          const now = Date.now();
+          const links = (await listLinks(env)).filter((l) => now - (l.closedAt || l.createdAt || 0) < TRACK_KEEP * 1000).map((l) => internal(l.id, l, now)).sort((a, b) => b.createdAt - a.createdAt);
+          return json(req, env, 200, { ok: true, links, maxHours: maxHours(env) });
+        }
+        const { rec, reused } = await createLink(env, await readBody(req));
+        return json(req, env, reused ? 200 : 201, { ok: true, reused, link: internal(rec.id, rec) });
+      }
+      const lm = /^\/v1\/enlaces\/([A-Za-z0-9_-]{32})(?:\/(finalizar|revocar))?$/.exec(url.pathname);
+      if (lm && isPost) {
+        const rec = await updateLink(env, lm[1], await readBody(req), lm[2] || '');
+        return json(req, env, 200, { ok: true, link: internal(rec.id, rec) });
+      }
       return json(req, env, 404, { ok: false, error: 'Ruta no encontrada' });
     } catch (e) {
       return json(req, env, e.status || 502, { ok: false, error: e.message || 'Error al consultar IOPGPS' });
@@ -321,5 +545,24 @@ export default {
   },
 };
 
+/* Rutas públicas del rastreo. Un código inexistente cuenta como intento fallido (sin sumar al contador general) */
+async function publicRoute(req, env, ip, kind, token) {
+  const valid = TOKEN_RE.test(token);
+  if (kind === 'r') return portalResponse(env, valid ? token : 'no-valido', valid ? 200 : 404);
+  const miss = async () => {
+    const lock = await registerFail(ip, env, Date.now(), { global: false, maxFails: LIMITS.TOKEN_FAIL_MAX });
+    if (lock) return limited(req, env, lock, `Demasiados intentos. Intenta de nuevo en ${waitText(lock)}.`);
+    return json(req, env, 404, { ok: false, state: 'unknown' });
+  };
+  if (!valid) return miss();
+  try {
+    const rec = await getLink(env, token);
+    if (!rec) return miss();
+    return json(req, env, 200, await publicView(env, rec));
+  } catch (e) {
+    return json(req, env, e.status === 503 ? 503 : 502, { ok: false, state: 'error', error: 'El rastreo no está disponible en este momento.' });
+  }
+}
+
 /* Solo para pruebas locales: reinicia el estado en memoria */
-export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; }
+export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; linkMem.clear(); listMem = null; }

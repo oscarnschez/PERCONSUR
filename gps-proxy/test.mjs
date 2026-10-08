@@ -4,7 +4,7 @@
  */
 import http from 'node:http';
 import { createHash } from 'node:crypto';
-import worker, { md5, toMs, normalize, __reset, LIMITS } from './worker.js';
+import worker, { md5, toMs, normalize, __reset, LIMITS, appUrl, newToken } from './worker.js';
 
 const ok = (c, m) => { console.log((c ? 'OK  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
 const nodeMd5 = (s) => createHash('md5').update(s, 'utf8').digest('hex');
@@ -54,11 +54,12 @@ await new Promise((r) => srv.listen(0, '127.0.0.1', r));
 const BASE = `http://127.0.0.1:${srv.address().port}`;
 const ORIGIN = 'https://oscarnschez.github.io';
 const env = { IOP_APPID: APPID, IOP_SECRET: SECRET, PCS_KEY: 'clave-app-PERCONSUR-123', ALLOWED_ORIGIN: ORIGIN, IOP_BASE: BASE };
-const call = async (path, { e = env, origin = ORIGIN, key = env.PCS_KEY, method = 'GET', ip = '' } = {}) => {
+const call = async (path, { e = env, origin = ORIGIN, key = env.PCS_KEY, method = 'GET', ip = '', body } = {}) => {
   const h = {}; if (origin) h.Origin = origin; if (key) h['X-PCS-Key'] = key; if (ip) h['CF-Connecting-IP'] = ip;
-  const r = await worker.fetch(new Request('https://perconsur-gps.ejemplo.workers.dev' + path, { method, headers: h }), e);
-  let body = null; try { body = await r.clone().json(); } catch (x) { /* */ }
-  return { status: r.status, body, headers: r.headers };
+  if (body !== undefined) h['Content-Type'] = 'application/json';
+  const r = await worker.fetch(new Request('https://perconsur-gps.ejemplo.workers.dev' + path, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }), e);
+  let out = null; try { out = await r.clone().json(); } catch (x) { /* */ }
+  return { status: r.status, body: out, headers: r.headers };
 };
 
 try {
@@ -166,7 +167,101 @@ try {
     ok(r.status === 429 && [...store.keys()].every((k) => k.startsWith('lim:') && !k.includes(A)), 'KV: el bloqueo se respeta en otra instancia y la IP no se guarda en texto');
     ok(puts.every((o) => o && o.expirationTtl >= 60), 'KV: los registros caducan solos');
   } finally { Date.now = realNow; }
+
+  /* ===== Rastreo para clientes ===== */
+  const kvT = memKV(), envT = { ...env, TRACKING: kvT };
+  const WORKER_ORIGIN = 'https://perconsur-gps.ejemplo.workers.dev';
+  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', trailerType: 'chasis', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
+  __reset();
+  r = await call('/v1/enlaces', { method: 'POST', body: op1 });
+  ok(r.status === 503 && /KV «TRACKING»/.test(r.body.error), 'enlaces sin espacio KV: aviso claro (503)');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: op1, key: null });
+  ok(r.status === 401, 'crear enlace sin clave → 401');
+  r = await call('/v1/enlaces', { e: envT, method: 'OPTIONS', key: null });
+  ok(r.status === 204 && /POST/.test(r.headers.get('Access-Control-Allow-Methods')) && /Content-Type/.test(r.headers.get('Access-Control-Allow-Headers')), 'preflight CORS permite POST con JSON');
+  r = await call('/v1/posiciones', { e: envT, method: 'POST', body: {} }); ok(r.status === 405, 'POST fuera de /v1/enlaces → 405');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, status: 'empty' } });
+  ok(r.status === 409 && /En ruta a destino o Descargando/.test(r.body.error), 'solo se comparte en En ruta a destino o Descargando');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, imei: '' } }); ok(r.status === 400 && /GPS vinculado/.test(r.body.error), 'unidad sin GPS: no se crea enlace');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, origin: 'Manzanillo\u0000<b>x</b>' + 'y'.repeat(300) } });
+  const L1 = r.body.link;
+  ok(r.status === 201 && /^[A-Za-z0-9_-]{32}$/.test(L1.id) && L1.path === '/r/' + L1.id && L1.state === 'active' && L1.expiresAt - L1.createdAt === 72 * 3600 * 1000, 'crea enlace: código al azar de 32 caracteres, activo, vigencia 72 h');
+  const rec1 = JSON.parse(kvT.m.get('lnk:' + L1.id).v);
+  ok(rec1.origin.length === 120 && !rec1.origin.includes('\u0000'), 'los textos se limpian y se acotan');
+  ok(kvT.m.get('lnk:' + L1.id).ttl > 72 * 3600 && kvT.m.get('lnk:' + L1.id).meta.opId === 'lg_op1', 'KV: el registro caduca solo y lleva metadatos para listar');
+  ok(new Set(Array.from({ length: 200 }, newToken)).size === 200, 'códigos únicos');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: op1 });
+  ok(r.status === 200 && r.body.reused && r.body.link.id === L1.id, 'compartir otra vez la misma operación reutiliza el enlace');
+  /* Vista pública: sin clave ni origen */
+  r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+  const pubTxt = JSON.stringify(r.body);
+  ok(r.status === 200 && r.body.state === 'active' && r.body.trip.origin === 'Manzanillo' && r.body.trip.destination === 'Guadalajara' && r.body.trip.statusText === 'En camino al destino' && r.body.position && r.body.position.lat === 19.01007, 'portal: origen, destino, estado y ubicación de la unidad');
+  ok(!/speed|imei|865190071363660|U12|opId|operador|operator|placas/i.test(pubTxt), 'portal: sin velocidad, operador, IMEI, número económico ni datos internos');
+  ok(r.body.position.live === false && r.body.destination && r.body.destination.lat === 20.6597, 'portal: posición antigua marcada como no actual; destino en el mapa');
+  ok(!('865190071300000' in r.body) && !pubTxt.includes('20.66'), 'portal: solo la unidad del enlace (no otras unidades)');
+  r = await call('/v1/publico/' + L1.id, { e: envT, origin: WORKER_ORIGIN, key: null }); ok(r.status === 200, 'portal: el propio Worker es un origen permitido');
+  r = await call('/v1/publico/' + L1.id, { e: envT, origin: 'https://otro-sitio.com', key: null }); ok(r.status === 403, 'portal: otros sitios no pueden leer los datos');
+  /* Cambios de estado */
+  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'unloading' } });
+  r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+  ok(r.body.trip.statusText === 'En el lugar de entrega', 'estado Descargando → «En el lugar de entrega»');
+  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'empty_transit' } });
+  ok(r.body.link.state === 'finished', 'al pasar a En ruta vacío el enlace se finaliza');
+  r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+  ok(r.status === 200 && r.body.state === 'finished' && r.body.trip.statusText === 'Entrega finalizada' && !r.body.position && !r.body.destination, 'entrega finalizada: el enlace deja de dar la ubicación');
+  r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'to_destination' } });
+  ok(r.body.link.state === 'finished', 'un enlace finalizado no se reactiva');
+  /* Otra operación de la misma unidad finaliza el enlace anterior */
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, opId: 'lg_op2' } }); const L2 = r.body.link;
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, opId: 'lg_op3' } }); const L3 = r.body.link;
+  r = await call('/v1/publico/' + L2.id, { e: envT, origin: null, key: null });
+  ok(L2.id !== L3.id && r.body.state === 'finished' && !r.body.position, 'nuevo viaje de la misma unidad: el enlace del viaje anterior deja de dar la ubicación');
+  /* Revocación manual */
+  r = await call('/v1/enlaces/' + L3.id + '/revocar', { e: envT, method: 'POST', body: {} });
+  ok(r.status === 200 && r.body.link.state === 'revoked', 'revocar enlace');
+  r = await call('/v1/publico/' + L3.id, { e: envT, origin: null, key: null });
+  ok(r.body.state === 'revoked' && !r.body.trip && !r.body.position, 'enlace revocado: sin datos del viaje ni ubicación');
+  /* Finalizar explícito y vencimiento */
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, opId: 'lg_op4' } }); const L4 = r.body.link;
+  r = await call('/v1/enlaces/' + L4.id + '/finalizar', { e: envT, method: 'POST', body: { reason: 'closed' } }); ok(r.body.link.state === 'finished', 'finalizar (operación cerrada)');
+  r = await call('/v1/enlaces', { e: envT, method: 'POST', body: { ...op1, opId: 'lg_op5' } }); const L5 = r.body.link;
+  { const realNow2 = Date.now; Date.now = () => realNow2() + 73 * 3600 * 1000; try { r = await call('/v1/publico/' + L5.id, { e: envT, origin: null, key: null }); } finally { Date.now = realNow2; } }
+  ok(r.body.state === 'expired' && !r.body.position && !r.body.trip, 'después de 72 h el enlace vence solo');
+  r = await call('/v1/enlaces', { e: { ...envT, TRACK_MAX_HOURS: '12' }, method: 'POST', body: { ...op1, opId: 'lg_op6' } });
+  ok(r.body.link.expiresAt - r.body.link.createdAt === 12 * 3600 * 1000, 'TRACK_MAX_HOURS ajusta la vigencia');
+  /* Listado interno */
+  r = await call('/v1/enlaces', { e: envT });
+  const states = Object.fromEntries(r.body.links.map((l) => [l.opId, l.state]));
+  ok(r.status === 200 && states.lg_op1 === 'finished' && states.lg_op3 === 'revoked' && states.lg_op6 === 'active' && r.body.maxHours === 72, 'listado interno de enlaces con su estado: ' + JSON.stringify(states));
+  r = await call('/v1/enlaces', { e: envT, key: null }); ok(r.status === 401, 'listado sin clave → 401');
+  /* Códigos inexistentes: 404 y bloqueo tras 20 intentos */
+  __reset();
+  r = await call('/v1/publico/' + 'A'.repeat(32), { e: envT, origin: null, key: null, ip: '203.0.113.99' }); ok(r.status === 404 && r.body.state === 'unknown', 'código inexistente → 404');
+  r = await call('/v1/publico/corto', { e: envT, origin: null, key: null, ip: '203.0.113.99' }); ok(r.status === 404, 'código con formato inválido → 404');
+  const codesT = []; for (let i = 0; i < 17; i++) codesT.push((await call('/v1/publico/' + newToken(), { e: envT, origin: null, key: null, ip: '203.0.113.99' })).status);
+  r = await call('/v1/publico/' + newToken(), { e: envT, origin: null, key: null, ip: '203.0.113.99' });
+  ok(codesT.every((c) => c === 404) && r.status === 429, '20 códigos inexistentes desde una IP → bloqueo (429)');
+  r = await call('/v1/publico/' + L5.id, { e: envT, origin: null, key: null, ip: '203.0.113.100' }); ok(r.status === 200, 'otras IP siguen viendo su enlace');
+  /* Página del portal */
+  r = await call('/r/' + L1.id, { e: envT, origin: null, key: null });
+  const html = await (await worker.fetch(new Request(WORKER_ORIGIN + '/r/' + L1.id), envT)).text();
+  const csp = r.headers.get('Content-Security-Policy') || '';
+  ok(r.status === 200 && /text\/html/.test(r.headers.get('Content-Type')) && html.includes(`data-api="/v1/publico/${L1.id}"`) && html.includes('https://oscarnschez.github.io/PERCONSUR/src/portal/main.js') && html.includes('PERCONSUR'), 'portal: página con identidad PERCONSUR que carga el mapa desde la app');
+  ok(/script-src https:\/\/oscarnschez\.github\.io\/PERCONSUR\/;/.test(csp) && /frame-ancestors 'none'/.test(csp) && /connect-src 'self' https:\/\/tiles\.openfreemap\.org/.test(csp) && r.headers.get('Referrer-Policy') === 'no-referrer' && /noindex/.test(r.headers.get('X-Robots-Tag')), 'portal: CSP estricta, sin referer y sin indexar');
+  r = await call('/r/<script>', { e: envT, origin: null, key: null }); ok(r.status === 404, 'portal con código inválido → 404');
+  ok(appUrl({ APP_URL: 'https://x.test/a"><script>' }) === '' && appUrl({ APP_URL: 'http://x.test/' }) === '' && appUrl({ APP_URL: 'https://app.test' }) === 'https://app.test/' && appUrl({ ALLOWED_ORIGIN: ORIGIN }) === ORIGIN + '/PERCONSUR/', 'APP_URL: solo https y sin caracteres peligrosos');
+  r = await call('/salud', { e: envT, origin: null, key: null }); ok(r.body.rastreoClientes && r.body.rastreoClientes.kv === true && r.body.rastreoClientes.portal === true, '/salud indica si el rastreo para clientes está listo');
 } finally { srv.close(); }
+
+/* KV en memoria (get/put/list con metadatos) */
+function memKV() {
+  const m = new Map();
+  return { m,
+    async get(k, t) { const v = m.get(k); return v == null ? null : t === 'json' ? JSON.parse(v.v) : v.v; },
+    async put(k, v, o = {}) { m.set(k, { v, meta: o.metadata, ttl: o.expirationTtl }); },
+    async delete(k) { m.delete(k); },
+    async list({ prefix = '' } = {}) { return { keys: [...m].filter(([k]) => k.startsWith(prefix)).map(([name, x]) => ({ name, metadata: x.meta })), list_complete: true }; } };
+}
 
 /* Hace que la caché parezca vencida sin borrar su contenido */
 function cacheExpire() { const realNow = Date.now; Date.now = () => realNow() + 31 * 1000; setTimeout(() => { Date.now = realNow; }, 0); }
