@@ -39,11 +39,14 @@ export const KINDS = {
     fields: [['name', 'Nombre', {}], ['address', 'Dirección', { textarea: true }], ['maps', 'Link de Google Maps', { url: true }]],
     label: (x) => x.name, sub: (x) => x.address || '' },
   terminals: { store: db.S.terminals, title: 'Terminales portuarias', one: 'terminal', perCompany: false,
-    fields: [['name', 'Nombre', {}]], label: (x) => x.name, sub: () => '' },
+    fields: [['name', 'Nombre', {}], ['address', 'Dirección', { textarea: true }], ['maps', 'Link de Google Maps (opcional)', { url: true }]],
+    label: (x) => x.name, sub: (x) => x.address || '' },
   yards: { store: db.S.yards, title: 'Patios de vacíos', one: 'patio', perCompany: false,
     fields: [['name', 'Nombre', { upper: true }], ['address', 'Dirección (opcional)', { textarea: true }], ['notes', 'Observaciones (opcional)', { textarea: true }], ['active', 'Estado', { select: [['', 'Activo'], ['no', 'Inactivo']] }]],
     label: (x) => x.name, sub: (x) => [x.active === 'no' ? 'Inactivo' : '', x.address].filter(Boolean).join(' | ') },
 };
+/* Catálogos con lugar físico: se pueden ubicar en el mapa (pin {lat,lng}) para marcarlos como destino */
+export const GEO_KINDS = ['places', 'plants', 'terminals', 'yards'];
 /* Patios disponibles para seleccionar (los inactivos se conservan para el historial pero no se ofrecen) */
 export const activeYards = () => list('yards').filter((y) => y.active !== 'no');
 

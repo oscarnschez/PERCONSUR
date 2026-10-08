@@ -279,7 +279,7 @@
 .gps-acts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .gps-acts:empty{display:none}
 .gps-acts>*{min-height:46px;font-size:15px;padding:0 8px}
-.gps-acts>:only-child{grid-column:1/-1}
+.gps-acts>:last-child:nth-child(odd){grid-column:1/-1}
 .gps-mini{display:flex;flex-direction:column;gap:10px;padding:12px 14px;background:var(--surface);border:1px dashed var(--line-2);border-radius:var(--r);color:var(--ink-2);font-size:14.5px}
 .gps-mini p{display:flex;gap:8px;margin:0}
 .gps-mini p .ic{flex:none;width:18px;height:18px;color:var(--muted)}
@@ -291,6 +291,53 @@
 .gps-pin.stale{filter:grayscale(1);opacity:.75}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .gps-map .leaflet-tile-pane{filter:brightness(.82) contrast(1.08)}}
 :root[data-theme="dark"] .gps-map .leaflet-tile-pane{filter:brightness(.82) contrast(1.08)}
+/* Destino en el mapa (lugar de entrega, terminal, planta o patio) */
+.gps-tgt{position:absolute;left:0;top:0;transform:translate(-50%,calc(-100% - 8px));display:inline-flex;align-items:center;gap:5px;padding:4px 9px 4px 6px;border-radius:999px;background:#1E2638;color:#fff;font:700 12px/1 var(--font);white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.3);border:2px solid #fff}
+.gps-tgt::after{content:"";position:absolute;left:50%;bottom:-8px;margin-left:-6px;border:6px solid transparent;border-bottom:0;border-top-color:#1E2638}
+.gps-tgt .ic{width:14px;height:14px;stroke-width:2.1}
+.gps-tgt.approx{background:#5A6275;border-style:dashed}
+.gps-tgt.approx::after{border-top-color:#5A6275}
+.gps-line{stroke:#1E2638;stroke-opacity:.75}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .gps-line{stroke:#E8ECF5}}
+:root[data-theme="dark"] .gps-line{stroke:#E8ECF5}
+.gps-dest{display:flex;align-items:flex-start;gap:10px;margin:0 0 10px;padding:10px 12px;border-radius:12px;background:var(--fill)}
+.gps-dest[hidden]{display:none}
+.gps-dest-ic{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#1E2638;color:#fff}
+.gps-dest-ic .ic{width:19px;height:19px}
+.gps-dest-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+.gps-dest-tx small{font-size:12.5px;color:var(--muted)}
+.gps-dest-tx b{font-size:15.5px;color:var(--ink)}
+.gps-dest-tx span{font-size:13.5px;color:var(--ink-2);line-height:1.35}
+.gps-dest-tx em{font-style:normal;font-size:13px;font-weight:600;color:var(--ok);margin-top:3px}
+.gps-dest.approx .gps-dest-tx em,.gps-dest.none .gps-dest-tx em{color:var(--warn)}
+.gps-dest.none .gps-dest-ic{background:var(--line-2);color:var(--ink-2)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .gps-dest-ic{background:#E8ECF5;color:#1E2638}}
+:root[data-theme="dark"] .gps-dest-ic{background:#E8ECF5;color:#1E2638}
+/* Inicio: distancia al destino */
+.lgh-dest{display:flex;align-items:flex-start;gap:6px;min-width:0;margin-top:-4px;font-size:13.5px;color:var(--ink-2)}
+.lgh-dest>.ic{flex:none;width:16px;height:16px;margin-top:1px;color:var(--ink-2)}
+.lgh-dest>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lgh-dest b{color:var(--ink);font-weight:700}
+.lgh-dest.none{color:var(--muted)}
+/* Selector de ubicación */
+.pp{display:flex;flex-direction:column;gap:10px;min-height:100%}
+.pp-what{display:flex;flex-direction:column;gap:2px;margin:0;font-size:14px;color:var(--ink-2)}
+.pp-what b{font-size:15.5px;color:var(--ink)}
+.pp-find .search{margin:0}
+.pp-mapwrap{position:relative;flex:1 1 auto;min-height:280px}
+.pp-map{position:absolute;inset:0;z-index:0;isolation:isolate;border-radius:14px;overflow:hidden;background:var(--fill)}
+.pp-map.empty{display:grid;place-items:center;padding:20px;text-align:center;color:var(--muted)}
+.pp-cross{position:absolute;z-index:1;left:50%;top:50%;width:40px;height:40px;margin:-38px 0 0 -20px;color:#E5482F;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.pp-cross .ic{width:40px;height:40px;stroke-width:2;fill:#fff}
+.pp-hint{margin:0;font-size:13px;color:var(--muted);text-align:center}
+.pp .sheet-acts{margin-top:0}
+.pp-sheet .bsheet-body{display:flex;flex-direction:column}
+.pp-sheet .pp{flex:1 1 auto}
+/* Catálogos: ubicación en el mapa */
+.geo-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.geo-st{font-size:14px;font-weight:600;color:var(--ink-2)}
+.geo-st.ok{color:var(--ok)}
+.geo-st.warn{color:var(--warn)}
 /* Ajustes → GPS */
 .gps-st{display:flex;align-items:flex-start;gap:8px;margin:0 0 4px;font-size:14px;color:var(--ink-2)}
 .gps-st:empty{display:none}

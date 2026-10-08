@@ -14,10 +14,11 @@
  *   logisticsOperations   logística: asignación y estado operativo de cada unidad, con historial (v6)
  *   tripAttachments   documentos adicionales de cada viaje (metadatos; el archivo vive en attachments) (v7)
  *   yards, emptyContainers, emptyContainerEvents   control de vacíos: patios, contenedores por devolver y su historial (v8)
+ *   geocodes   ubicación en el mapa de cada dirección (destinos de notas, patios, terminales) (v9)
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 8;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos */
+const DB_VERSION = 9;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -27,6 +28,7 @@ export const S = {
   operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords', tripBilling: 'tripBilling',
   logisticsOperations: 'logisticsOperations', tripAttachments: 'tripAttachments',
   yards: 'yards', emptyContainers: 'emptyContainers', emptyContainerEvents: 'emptyContainerEvents',
+  geocodes: 'geocodes',
 };
 
 let dbp = null;
@@ -73,6 +75,8 @@ export function openDB() {
       mk(S.yards, { keyPath: 'id' });
       mk(S.emptyContainers, { keyPath: 'id' }, [['containerNumber', 'containerNumber'], ['tripId', 'tripId'], ['vehicleId', 'vehicleId'], ['logisticsOperationId', 'logisticsOperationId']]);
       mk(S.emptyContainerEvents, { keyPath: 'id' }, [['emptyContainerId', 'emptyContainerId'], ['createdAt', 'createdAt']]);
+      /* v9 — Ubicación (lat/lng) de cada dirección ya buscada o fijada en el mapa; clave = dirección normalizada */
+      mk(S.geocodes, { keyPath: 'key' });
     };
     req.onsuccess = () => {
       const db = req.result;

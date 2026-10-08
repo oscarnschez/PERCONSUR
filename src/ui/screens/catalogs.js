@@ -15,6 +15,9 @@ import { vehicleHasFuel } from '../../services/fuel.js';
 import { inOpenOperation } from '../../services/logistics.js';
 import { yardInUse } from '../../services/empties.js';
 import { trailerIcon } from '../components/icons.js';
+import { pickPoint } from '../components/pinPicker.js';
+import { placeLoc, cached as geoCached } from '../../services/geocode.js';
+import { coordsIn, precisionLabel, isApprox } from '../../domain/gps/geo.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const ORDER = ['operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'yards'];
@@ -73,16 +76,39 @@ export async function catalogListScreen({ kind }) {
   function edit(item) {
     const isNew = !item;
     const v = item || {};
+    const geo = cat.GEO_KINDS.includes(kind);
+    let pin = v.pin && Number.isFinite(v.pin.lat) ? v.pin : null;
     const body = `<form class="cat-form" novalidate>${def.fields.map(([f, l, o]) => {
       const val = esc(v[f] || '');
       const attrs = `name="${f}" class="in" autocomplete="off" ${o.upper || o.rfc ? 'autocapitalize="characters" spellcheck="false"' : o.autocapitalize ? `autocapitalize="${o.autocapitalize}"` : ''} ${o.inputmode ? `inputmode="${o.inputmode}"` : ''} ${o.url ? 'type="url" inputmode="url" autocapitalize="none" spellcheck="false"' : ''} ${o.rfc ? 'maxlength="13"' : ''}`;
       if (o.select) return `<label class="fld"><span class="fl">${esc(l)}</span><span class="sel-w"><select class="in" name="${f}">${o.select.map(([k, t]) => `<option value="${k}"${(v[f] || '') === k ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select><span class="sel-ic">${icon.down}</span></span></label>`;
       return `<label class="fld"><span class="fl">${esc(l)}</span>${o.textarea ? `<textarea rows="3" ${attrs}>${val}</textarea>` : `<input ${attrs} value="${val}" enterkeyhint="next">`}</label>`;
     }).join('')}
+      ${geo ? `<div class="fld geo-fld"><span class="fl">Ubicación en el mapa</span><div class="geo-row"><span class="geo-st" data-geo-st></span><button type="button" class="btn-secondary sm" data-geo-pick>${icon.crosshair}<span>Ubicar en el mapa</span></button></div>
+        <span class="fhint">Se usa para marcar el destino en el mapa de Logística. Si no se fija, se busca con la dirección.</span></div>` : ''}
       <button type="submit" class="btn-primary block">${isNew ? 'Agregar' : 'Guardar cambios'}</button>
       ${isNew ? '' : `<button type="button" class="btn-danger block" data-del>${icon.trash}<span>Eliminar ${esc(def.one)}</span></button>`}</form>`;
     const sh = openSheet({ title: isNew ? `Agregar ${def.one}` : `Editar ${def.one}`, body });
     const form = sh.body.querySelector('form');
+    /* Ubicación: punto fijado > link largo de Google Maps > dirección ya ubicada > se buscará con la dirección */
+    function drawGeo() {
+      const el = form.querySelector('[data-geo-st]'); if (!el) return;
+      const addr = form.elements.address ? form.elements.address.value.trim() : '', link = form.elements.maps ? coordsIn(form.elements.maps.value) : null, g = addr ? geoCached(addr) : null;
+      const [txt, cls] = pin ? [`Fijada en el mapa (${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)})`, 'ok'] : link ? ['Tomada del link de Google Maps', 'ok']
+        : g ? [precisionLabel(g.precision), isApprox(g.precision) ? 'warn' : 'ok'] : addr ? ['Se buscará con la dirección', ''] : ['Sin ubicación', 'warn'];
+      el.className = 'geo-st ' + cls; el.textContent = txt;
+    }
+    drawGeo();
+    form.addEventListener('change', drawGeo);
+    const gp = form.querySelector('[data-geo-pick]');
+    if (gp) gp.addEventListener('click', async () => {
+      const addr = form.elements.address ? form.elements.address.value.trim() : '';
+      const nm = form.elements.name ? form.elements.name.value.trim() : '';
+      const start = pin || placeLoc({ maps: form.elements.maps ? form.elements.maps.value : '', address: addr });
+      const r = await pickPoint({ title: `Ubicar ${def.one}`, name: nm, address: addr, start, zoom: start && !isApprox(start.precision) ? 17 : 14, canClear: !!pin });
+      if (r === 'clear') pin = null; else if (r) pin = r;
+      drawGeo();
+    });
     form.addEventListener('input', (e) => { const t = e.target, o = (def.fields.find(([f]) => f === t.name) || [])[2] || {}; if (o.upper) t.value = t.value.toUpperCase(); if (o.rfc) t.value = rfcClean(t.value); if (o.digits) t.value = t.value.replace(/\D/g, ''); });
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -99,7 +125,8 @@ export async function catalogListScreen({ kind }) {
         data.gpsProvider = data.gpsDeviceId ? 'iopgps' : '';
       }
       if (kind === 'operators') data.name = nameCase(data.name);
-      if (kind === 'plants' && data.maps && !mapsURL(data.maps)) { toast('El link de Google Maps no es válido', { type: 'warn' }); return; }
+      if ((kind === 'plants' || kind === 'terminals') && data.maps && !mapsURL(data.maps)) { toast('El link de Google Maps no es válido', { type: 'warn' }); return; }
+      if (geo) data.pin = pin;
       const dup = cat.list(kind, company).find((x) => x.id !== v.id && fold(def.label(x)) === fold(def.label({ ...data })));
       if (dup) { toast(`Ya existe «${def.label(dup)}» en el catálogo`, { type: 'warn' }); return; }
       await cat.save(kind, { ...v, ...data, ...(def.perCompany ? { company } : {}), source: v.source === 'auto' ? 'usuario' : v.source || 'usuario' });

@@ -3,7 +3,7 @@
  *   #/operacion/logistica            tablero de la flota: buscador, filtros y tarjetas agrupadas por estado
  *   #/operacion/logistica/u/:id      detalle de la unidad: operación activa, cambio rápido de estado e historial
  * Inicio → «Unidades en operación» (mountHomeOps) muestra las unidades con estado ≠ Inactiva y ≠ Vacío en fichas deslizables,
- *   cada una con su mapa GPS (solo vista) cuando la unidad tiene GPS vinculado.
+ *   cada una con su mapa GPS (solo vista) y su destino (services/destinations.js) cuando la unidad tiene GPS vinculado.
  * Unidades, operadores y remolques salen de los catálogos (por ID); aquí no se capturan como texto libre.
  * Toda pantalla se suscribe a onLogisticsChange: un cambio se refleja al momento sin recargar.
  */
@@ -32,6 +32,8 @@ import * as gps from '../../services/gps.js';
 import { freshness, ageText, hasFix } from '../../domain/gps/gps.js';
 import { createGpsPanel } from './gpsPanel.js';
 import { mountMap } from '../components/gpsMap.js';
+import { targetOf, onTargetsChange } from '../../services/destinations.js';
+import { distanceKm, distanceText, isApprox } from '../../domain/gps/geo.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -162,7 +164,8 @@ export async function logisticsUnitScreen({ id }) {
   if (!lg.unitById(id)) { toast('Esa unidad ya no está en el catálogo.', { type: 'info' }); go('/operacion/logistica', { replace: true }); return null; }
   const s = screen('<div class="page lg-page lg-detail"></div>');
   const root = s.el;
-  const gpsPanel = createGpsPanel({ vehicleId: id, label: (lg.unitById(id) || {}).label || '', status: () => { const op = lg.openOf(id), st2 = statusOf(op ? op.status : 'inactive'); return { key: st2.key, tone: st2.tone, chip: statusChip(st2.key, 'lg-big') }; } });
+  const gpsPanel = createGpsPanel({ vehicleId: id, label: (lg.unitById(id) || {}).label || '', status: () => { const op = lg.openOf(id), st2 = statusOf(op ? op.status : 'inactive'); return { key: st2.key, tone: st2.tone, chip: statusChip(st2.key, 'lg-big') }; },
+    target: () => targetOf(lg.openOf(id)) });
   function draw() {
     const u = lg.unitById(id);
     if (!u) { go('/operacion/logistica', { replace: true }); return; }
@@ -520,6 +523,14 @@ function homePos(vehicleId) {
   const p = imei ? gps.bestOf(imei) : null;
   return hasFix(p) ? p : null;
 }
+/* Destino de la ficha: «a 23 km de CEDIS Guadalajara» (solo con posición GPS y destino ubicado) */
+function destLine(e) {
+  const t = targetOf(e.op), p = homePos(e.unit.id);
+  if (!t || !p) return '';
+  if (!t.loc) return t.state === 'searching' || t.state === 'missing' ? '' : `<span class="lgh-dest none">${icon.flag}<span>${esc(t.title)}: ${esc(t.name)} · sin ubicar en el mapa</span></span>`;
+  const km = distanceKm(p, t.loc);
+  return `<span class="lgh-dest${isApprox(t.loc.precision) ? ' approx' : ''}">${icon.flag}<span><b>${esc(distanceText(km))}</b> ${km != null && km < 0.2 ? '' : 'de '}${esc(t.name)}${isApprox(t.loc.precision) ? ' (aprox.)' : ''}</span></span>`;
+}
 const mapSlot = (vehicleId) => (homePos(vehicleId) ? `<span class="lgh-map-slot" data-lgmap="${esc(vehicleId)}"></span>` : '');
 function homeCard(e) {
   const v = lg.entryView(e), o = e.op, s = statusOf(e.status);
@@ -530,7 +541,7 @@ function homeCard(e) {
       <span class="lgh-rail" aria-hidden="true"><i class="a"></i><i class="ln"></i><i class="b"></i><i class="mk"></i></span>
       <span class="lgh-pts"><span><small>Origen</small><b>${esc(o.origin || '—')}</b></span><span><small>Destino</small><b>${esc(o.destination || '—')}</b></span></span>
     </span>` : `<span class="lgh-route none">${icon.pin}<span>Ruta sin registrar</span></span>`}
-    ${mapSlot(e.unit.id)}${gpsLine(e.unit.id)}
+    ${mapSlot(e.unit.id)}${gpsLine(e.unit.id)}${destLine(e)}
     <span class="lgh-foot">${v.trailer ? trailerType(v.trailerType) : '<span class="lg-tt none">Sin remolque</span>'}${o.division ? `<span class="lgh-div">${esc(divisionLabel(o.division, true))}</span>` : ''}${o.reference ? `<span class="lgh-ref">Ref. ${esc(o.reference)}</span>` : ''}</span>
   </button>`;
 }
@@ -548,14 +559,16 @@ export function mountHomeOps(sec) {
   /* Mapas por unidad: se conservan entre redibujos (no recargan el mapa base) y se crean al asomar la ficha */
   const maps = new Map();   /* vehicleId → { el, map, mounting } */
   let io = null, dead = false;
-  const pinOpts = (id) => { const e = homeEntries(lg.fleetBoard()).find((x) => x.unit.id === id), st = statusOf(e ? e.status : 'inactive'), p = homePos(id);
+  const entryOf = (id) => homeEntries(lg.fleetBoard()).find((x) => x.unit.id === id);
+  const pinOpts = (id) => { const e = entryOf(id), st = statusOf(e ? e.status : 'inactive'), p = homePos(id);
     return { label: e ? lg.entryView(e).label : '', tone: st.tone, stale: freshness(p).state === 'stale' }; };
+  const tgtOf = (id) => { const e = entryOf(id), t = e ? targetOf(e.op) : null; return t && t.loc ? { lat: t.loc.lat, lng: t.loc.lng, label: t.title, kind: t.kind, approx: isApprox(t.loc.precision) } : null; };
   function mountOne(id) {
     const m = maps.get(id); if (!m || m.map || m.mounting) return;
     const p = homePos(id); if (!p) return;
     m.mounting = true;
     mountMap(m.el, { lat: p.lat, lng: p.lng, zoom: 12, interactive: false, ...pinOpts(id) })
-      .then((mm) => { if (dead || maps.get(id) !== m) { mm.destroy(); return; } m.map = mm; setTimeout(() => mm.resize(), 60); })
+      .then((mm) => { if (dead || maps.get(id) !== m) { mm.destroy(); return; } m.map = mm; mm.setTarget(tgtOf(id)); setTimeout(() => mm.resize(), 60); })
       .catch(() => { m.el.classList.add('fail'); })
       .finally(() => { m.mounting = false; });
   }
@@ -567,7 +580,7 @@ export function mountHomeOps(sec) {
       let m = maps.get(id);
       if (!m) { const el = document.createElement('span'); el.className = 'lgh-map'; el.setAttribute('aria-hidden', 'true'); m = { el, map: null, mounting: false }; maps.set(id, m); }
       slot.replaceWith(m.el);
-      if (m.map) { const p = homePos(id); m.map.resize(); m.map.update(p.lat, p.lng, pinOpts(id)); }
+      if (m.map) { const p = homePos(id); m.map.resize(); m.map.update(p.lat, p.lng, pinOpts(id)); m.map.setTarget(tgtOf(id)); }
     });
     for (const [id, m] of maps) if (!seen.has(id)) { if (m.map) m.map.destroy(); maps.delete(id); }
     const pending = [...maps].filter(([, m]) => !m.map);
@@ -601,7 +614,7 @@ export function mountHomeOps(sec) {
   draw();
   /* GPS: posiciones cada 60 s con Inicio visible; dirección por unidad activa como máximo cada 3 min */
   const wantDetails = () => { if (!gps.configured()) return; homeEntries(lg.fleetBoard()).forEach((e) => { const imei = gps.imeiOf(e.unit.id); if (imei) gps.detail(imei); }); };
-  const u1 = lg.onLogisticsChange(draw), u2 = gps.watch(() => { draw(); wantDetails(); }, 60000), u3 = gps.tickAges(sec);
+  const u1 = lg.onLogisticsChange(draw), u2 = gps.watch(() => { draw(); wantDetails(); }, 60000), u3 = gps.tickAges(sec), u4 = onTargetsChange(draw), u5 = ec.onEmptiesChange(draw);
   wantDetails();
-  return () => { dead = true; u1(); u2(); u3(); if (io) io.disconnect(); for (const m of maps.values()) if (m.map) m.map.destroy(); maps.clear(); };
+  return () => { dead = true; u1(); u2(); u3(); u4(); u5(); if (io) io.disconnect(); for (const m of maps.values()) if (m.map) m.map.destroy(); maps.clear(); };
 }
