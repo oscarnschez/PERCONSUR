@@ -1,10 +1,12 @@
 /*
  * Rastreo para clientes — enlaces públicos guardados en el Worker gps-proxy (espacio KV «TRACKING»).
  * El permiso vive en el backend: el Worker solo entrega a un enlace la ubicación de SU unidad mientras está activo,
- * sin velocidad ni operador. Aquí la app crea, revoca y finaliza enlaces y mantiene la caducidad automática:
+ * con el operador solo por nombre y apellido y sin velocidad. Aquí la app crea, revoca y finaliza enlaces y mantiene la
+ * caducidad automática:
  *   - Al cambiar Logística (en esta pestaña o en otra), si una operación con enlace activo pasa a En ruta vacío, Vacío
  *     o Inactiva, o se cierra, el enlace se finaliza (la entrega terminó). Un cambio de estado con rastreo se envía al
- *     enlace para que el cliente vea el estado al día; el destino se agrega en cuanto queda ubicado en el mapa.
+ *     enlace para que el cliente vea el estado al día; el destino se agrega en cuanto queda ubicado en el mapa y un
+ *     cambio de operador también se refleja.
  *   - Sin conexión, el aviso queda pendiente en este dispositivo (ajuste trackQueue, fuera de los respaldos) y se
  *     envía al recuperar la conexión o en la siguiente consulta.
  *   - Red de seguridad en el Worker: un enlace vence solo a las 72 h y un viaje nuevo de la misma unidad finaliza el
@@ -100,7 +102,7 @@ export async function syncAll({ force = false } = {}) {
   await load({ force });
   const ops = new Map(lg.allRecords().map((o) => [o.id, o]));
   const opOf = (id) => (ops.has(id) ? ops.get(id) : undefined);
-  await apply(reconcile(links(), opOf, (op) => destPoint(targetOf(op))));
+  await apply(reconcile(links(), opOf, (op) => destPoint(targetOf(op)), (op) => lg.view(op).operator));
 }
 
 /* ¿Algún cambio de Logística toca el rastreo? (estado, cierre o borrado de una operación) */

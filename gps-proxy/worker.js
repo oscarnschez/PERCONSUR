@@ -31,7 +31,8 @@
  *   Públicos (sin clave; solo con el enlace):
  *   GET /r/:token              página del portal de rastreo (identidad PERCONSUR; el mapa y el diseño vienen de APP_URL)
  *   GET /v1/publico/:token     datos del portal: origen, destino, estado y ubicación actual de ESA unidad mientras el
- *                              enlace está activo. Nunca velocidad, operador, IMEI, placas ni otras unidades.
+ *                              enlace está activo, y el operador solo por nombre y apellido. Nunca velocidad, IMEI,
+ *                              placas ni otras unidades.
  *
  * API de IOPGPS utilizada (documentación pública de terceros; confirmar con el proveedor):
  *   POST /api/auth  { appid, time, signature = md5(md5(secreto) + time) } → { accessToken, expiresIn }
@@ -189,12 +190,28 @@ function limited(req, env, seconds, error) {
   return r;
 }
 
-/* Tiempo → milisegundos (acepta segundos, milisegundos o texto «2026-10-08 03:13:00») */
+/* Tiempo → milisegundos (acepta segundos, milisegundos o texto «2026-10-08 03:13:00» / «2026/10/08 03:13:00») */
 export function toMs(v) {
   if (v == null || v === '') return null;
   if (typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v))) { const n = Number(v); return n < 1e12 ? Math.round(n * 1000) : Math.round(n); }
-  const t = Date.parse(String(v).replace(' ', 'T'));
-  return Number.isFinite(t) ? t : null;
+  const s = String(v).trim();
+  for (const x of [s.replace(' ', 'T'), s.replace(/\//g, '-').replace(' ', 'T'), s]) { const t = Date.parse(x); if (Number.isFinite(t)) return t; }
+  return null;
+}
+/*
+ * Horas del proveedor: la consulta de la flota y la de cada unidad no siempre usan los mismos nombres de campo. Se
+ * prueban los conocidos y, si no aparecen, cualquier campo de hora («…Time», «…Date») con un valor creíble (desde 2015
+ * y no más de un día en el futuro): de posición si el nombre habla de gps/loc/pos; de señal si habla de heart/hb/
+ * signal/online/update/last.
+ */
+const GPS_TIME_KEYS = ['gpsTime', 'gpsTimeStamp', 'positionTime', 'gpsDateTime', 'locTime', 'locationTime', 'gpsTimeStr', 'gpsDate', 'time'];
+const SIGNAL_TIME_KEYS = ['signalTime', 'heartTime', 'hbTime', 'heartbeatTime', 'lastSignalTime', 'lastHeartTime', 'lastHbTime', 'onlineTime', 'updateTime', 'lastUpdateTime', 'lastTime'];
+const credible = (ms) => (ms && ms > 1420070400000 && ms < Date.now() + 86400000 ? ms : null);
+function timeOf(d, keys, hint, not) {
+  if (!d || typeof d !== 'object') return null;
+  for (const k of keys) { const t = credible(toMs(d[k])); if (t) return t; }
+  for (const [k, v] of Object.entries(d)) if (/time|date/i.test(k) && hint.test(k) && !not.test(k)) { const t = credible(toMs(v)); if (t) return t; }
+  return null;
 }
 const num = (v) => { if (v == null || v === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };   /* sin dato → null (nunca 0 inventado) */
 const pick = (o, ...ks) => { for (const k of ks) if (o && o[k] != null && o[k] !== '') return o[k]; return null; };
@@ -210,8 +227,8 @@ export function normalize(d) {
     name: pick(d, 'deviceName', 'name') || '',
     lat: lat != null && Math.abs(lat) <= 90 ? lat : null,
     lng: lng != null && Math.abs(lng) <= 180 ? lng : null,
-    gpsTime: toMs(pick(d, 'gpsTime', 'gpsTimeStamp', 'positionTime')),
-    signalTime: toMs(pick(d, 'signalTime', 'heartTime', 'lastSignalTime')),
+    gpsTime: timeOf(d, GPS_TIME_KEYS, /gps|loc|pos/i, /heart|hb|signal|online/i),
+    signalTime: timeOf(d, SIGNAL_TIME_KEYS, /heart|hb|signal|online|update|last/i, /gps|loc|pos/i),
     speed: num(pick(d, 'speed')),
     course: num(pick(d, 'course', 'direction')),
     acc: acc == null ? null : String(acc) === '1' || acc === true || String(acc).toLowerCase() === 'on',
@@ -319,9 +336,9 @@ const point = (p) => (p && Number.isFinite(+p.lat) && Number.isFinite(+p.lng) &&
   ? { lat: Math.round(+p.lat * 1e6) / 1e6, lng: Math.round(+p.lng * 1e6) / 1e6, approx: !!p.approx } : null);
 /* active | finished | revoked | expired (vencido por tiempo) */
 const stateOf = (rec, now = Date.now()) => (rec.state === 'active' && now > rec.expiresAt ? 'expired' : rec.state);
-const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
+const metaOf = (rec) => ({ opId: rec.opId, imei: rec.imei, unit: rec.unit, operator: rec.operator || '', state: rec.state, status: rec.status, hasDest: !!rec.dest, createdAt: rec.createdAt, expiresAt: rec.expiresAt, closedAt: rec.closedAt || null });
 /* Vista interna (solo con PCS_KEY) */
-const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
+const internal = (id, m, now = Date.now()) => ({ id, opId: m.opId, imei: m.imei, unit: m.unit || '', operator: m.operator || '', state: stateOf(m, now), status: m.status, hasDest: m.hasDest !== undefined ? !!m.hasDest : !!m.dest, createdAt: m.createdAt, expiresAt: m.expiresAt, closedAt: m.closedAt || null, closeReason: m.closeReason || null, path: '/r/' + id });
 
 class TrackError extends Error { constructor(message, status = 400) { super(message); this.status = status; } }
 function needKv(env) {
@@ -370,6 +387,7 @@ function applyFields(rec, b) {
   if (b.origin !== undefined) rec.origin = txt(b.origin);
   if (b.destination !== undefined) rec.destination = txt(b.destination);
   if (b.place !== undefined) rec.place = txt(b.place);
+  if (b.operator !== undefined) rec.operator = txt(b.operator, 60);
   if (b.dest !== undefined) rec.dest = point(b.dest);
   return rec;
 }
@@ -395,7 +413,7 @@ async function createLink(env, b) {
     const rec = await getLink(env, l.id, true);
     if (rec && rec.state === 'active') await putLink(env, close(rec, 'finished', 'replaced', now));
   }
-  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', trailerType: '', origin: '', destination: '', place: '', dest: null,
+  const rec = applyFields({ v: 1, id: newToken(), opId, imei: '', unit: '', operator: '', trailerType: '', origin: '', destination: '', place: '', dest: null,
     status: b.status, state: 'active', createdAt: now, updatedAt: now, expiresAt: now + maxHours(env) * 3600 * 1000, closedAt: null, closeReason: null }, b);
   await putLink(env, rec);
   return { rec, reused: false };
@@ -421,20 +439,43 @@ async function publicView(env, rec) {
   const now = Date.now(), st = stateOf(rec, now);
   const out = { ok: true, state: st, refreshIn: 30 };
   if (st === 'revoked' || st === 'expired') return out;
-  out.trip = { origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '',
+  out.trip = { origin: rec.origin || '', destination: rec.destination || '', place: rec.place || '', trailerType: rec.trailerType || '', operator: rec.operator || '',
     status: st === 'finished' ? 'delivered' : rec.status, statusText: st === 'finished' ? TRACK_DONE_TEXT : TRACK_STATUS_TEXT[rec.status] || TRACK_STATUS_TEXT.to_destination };
   if (st === 'finished') { out.closedAt = rec.closedAt; return out; }
   out.destination = rec.dest || null;
   out.expiresAt = rec.expiresAt;
   out.position = null;
   try {
-    const f = await fleet(env), d = f.value.find((x) => x.imei === rec.imei);
+    const f = await fleet(env);
+    let d = f.value.find((x) => x.imei === rec.imei) || null;
     out.fetchedAt = f.at;
+    /* La consulta de la flota puede llegar sin la hora de la posición o sin la última señal del equipo: se completan
+       con la consulta por unidad (ubicación + estado, guardada 2 min), la misma que usa el Centro de Monitoreo */
+    if (!d || d.lat == null || d.lng == null || !d.gpsTime || !d.signalTime) {
+      try { d = mergeBest(d, (await detail(env, rec.imei)).value); } catch (e) { /* se usa lo de la flota */ }
+    }
     if (d && d.lat != null && d.lng != null) {
-      const sig = Math.max(d.signalTime || 0, d.gpsTime || 0);
-      out.position = { lat: d.lat, lng: d.lng, at: d.gpsTime || d.signalTime || null, live: !!sig && now - sig < POS_STALE_MS, heading: d.course };
+      const sig = Math.max(d.signalTime || 0, d.gpsTime || 0), live = !!sig && now - sig < POS_STALE_MS;
+      /* «Ubicación actualizada hace…»: si el equipo reporta, la posición está confirmada a la hora de su última señal */
+      out.position = { lat: d.lat, lng: d.lng, at: (live ? sig : d.gpsTime || d.signalTime) || null, live, heading: d.course };
     }
   } catch (e) { out.warning = 'La ubicación no está disponible en este momento.'; }
+  return out;
+}
+/* Mejor dato: posición de la flota (más reciente) completada con la consulta por unidad */
+export function mergeBest(p, x) {
+  if (!x) return p;
+  if (!p) return x;
+  const out = { ...p };
+  for (const [k, v] of Object.entries(x)) if (out[k] == null && v != null) out[k] = v;
+  if (x.signalTime && (!out.signalTime || x.signalTime > out.signalTime)) out.signalTime = x.signalTime;
+  if (x.lat != null && x.lng != null) {
+    /* Sin coordenadas en la flota, o la consulta por unidad trae una posición más nueva: se usa la suya (con su hora) */
+    if (p.lat == null || p.lng == null || (x.gpsTime && p.gpsTime && x.gpsTime > p.gpsTime)) { out.lat = x.lat; out.lng = x.lng; out.gpsTime = x.gpsTime || out.gpsTime; }
+    /* La flota no trae la hora: se toma la de la consulta por unidad solo si es el mismo lugar (≈ 50 m) */
+    else if (!p.gpsTime && x.gpsTime && Math.abs(x.lat - p.lat) < 0.0005 && Math.abs(x.lng - p.lng) < 0.0005) out.gpsTime = x.gpsTime;
+    else if (!p.gpsTime) out.gpsTime = null;
+  }
   return out;
 }
 

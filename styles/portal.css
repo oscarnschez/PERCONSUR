@@ -52,8 +52,13 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 .pt-rt-dot{flex:none;width:14px;height:14px;margin-top:4px;border-radius:50%;border:3px solid var(--blue);background:var(--surface)}
 .pt-rt-dot.b{border-color:var(--orange);background:var(--orange)}
 .pt-rt:first-child::after{content:"";position:absolute;left:6px;top:20px;bottom:-14px;width:2px;background:var(--line-2)}
-.pt-tt{display:flex;align-items:center;gap:8px;margin:0;padding-top:10px;border-top:1px solid var(--line);font-size:14px;color:var(--ink-2)}
-.pt-tt .ic{width:22px;height:22px}
+.pt-meta{display:flex;flex-wrap:wrap;gap:10px 22px;padding-top:12px;border-top:1px solid var(--line)}
+.pt-op,.pt-tt{display:flex;align-items:center;gap:9px;margin:0;color:var(--ink-2)}
+.pt-op>span,.pt-tt>span{display:flex;flex-direction:column;min-width:0}
+.pt-op small,.pt-tt small{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pt-op b,.pt-tt b{font-size:15px;font-weight:600;color:var(--ink)}
+.pt-op .ic{flex:none;width:34px;height:34px;padding:7px;border-radius:50%;background:var(--blue-t);color:var(--tint)}
+.pt-tt .ic{flex:none;width:34px;height:34px;padding:6px;border-radius:10px;background:var(--fill)}
 
 .pt-foot{display:flex;flex-direction:column;gap:6px;padding:4px 4px 0;font-size:13px;color:var(--muted)}
 .pt-foot p{display:flex;gap:6px;margin:0}
@@ -62,10 +67,13 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 @media (prefers-color-scheme:dark){.pt-word{color:#E8EBF2}}
 
 /* Computadora: mapa amplio a la izquierda, estado y ruta a la derecha */
+/* Computadora: el mapa ocupa casi toda la pantalla (ancho y alto); estado, ruta y operador a la derecha */
 @media (min-width:860px){
-  .pt{grid-template-columns:minmax(0,1fr) 330px;grid-template-rows:auto auto auto auto 1fr;grid-template-areas:"head head" "band band" "map card" "map route" "map foot";align-items:start;gap:16px}
+  .pt{max-width:1720px;padding-left:calc(var(--sal) + 24px);padding-right:calc(var(--sar) + 24px);
+    grid-template-columns:minmax(0,1fr) 360px;grid-template-rows:auto auto auto auto 1fr;grid-template-areas:"head head" "band band" "map card" "map route" "map foot";align-items:start;gap:16px}
   .pt-head{grid-area:head}.pt-band{grid-area:band}.pt-card{grid-area:card}.pt-route{grid-area:route}.pt-mapwrap{grid-area:map}.pt-foot{grid-area:foot}
-  .pt-map{height:min(72vh,640px)}
+  .pt-map{height:calc(100vh - 118px);height:calc(100dvh - 118px - var(--sat) - var(--sab));min-height:540px}
   .pt.nomap{grid-template-columns:minmax(0,640px);grid-template-rows:none;justify-content:center;grid-template-areas:"head" "band" "card" "route" "foot"}
 }
+@media (min-width:1500px){.pt{grid-template-columns:minmax(0,1fr) 400px}}
 @media (prefers-reduced-motion:reduce){.pt-age.live i{animation:none}}

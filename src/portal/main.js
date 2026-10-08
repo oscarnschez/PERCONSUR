@@ -2,7 +2,8 @@
  * Portal público de rastreo para clientes.
  * El Worker gps-proxy sirve la página en /r/:token (otro sitio, separado de la app y de sus datos) y este código, el
  * mapa (MapLibre) y el diseño se cargan desde la app. Los datos llegan de /v1/publico/:token: el backend decide qué
- * ve el cliente (ubicación de SU unidad, origen, destino y estado; nunca velocidad, operador ni otras unidades).
+ * ve el cliente (ubicación de SU unidad, origen, destino, estado y el operador solo por nombre y apellido; nunca velocidad
+ * ni otras unidades).
  * Se actualiza solo cada 30 s con la página visible; al terminar la entrega, al revocar o al vencer el enlace deja de
  * mostrar la ubicación. Una posición sin señal reciente se indica como «última ubicación reportada», no como actual.
  */
@@ -31,12 +32,14 @@ function frame() {
 function routeHTML(t) {
   return `<div class="pt-rt"><span class="pt-rt-dot a" aria-hidden="true"></span><div><small>Origen</small><b>${esc(t.origin || '—')}</b></div></div>
     <div class="pt-rt"><span class="pt-rt-dot b" aria-hidden="true"></span><div><small>Destino</small><b>${esc(t.destination || '—')}</b>${t.place && t.place !== t.destination ? `<span>${esc(t.place)}</span>` : ''}</div></div>
-    ${t.trailerType ? `<p class="pt-tt">${trailerIcon(t.trailerType)}<span>${esc(TRAILER[t.trailerType] || '')}</span></p>` : ''}`;
+    ${t.operator || t.trailerType ? `<div class="pt-meta">
+      ${t.operator ? `<p class="pt-op">${icon.person}<span><small>Operador</small><b>${esc(t.operator)}</b></span></p>` : ''}
+      ${t.trailerType ? `<p class="pt-tt">${trailerIcon(t.trailerType)}<span><small>Remolque</small><b>${esc(TRAILER[t.trailerType] || '')}</b></span></p>` : ''}</div>` : ''}`;
 }
 function ageLine(p) {
   if (!p) return '';
   if (p.live) return `<span class="pt-age live"><i aria-hidden="true"></i><span data-pt-ts="${Number(p.at) || 0}">Ubicación actualizada ${esc(ageText(p.at))}</span></span>`;
-  return `<span class="pt-age stale">${icon.alert}<span>Sin señal reciente del GPS. Última ubicación reportada: ${p.at ? esc(fmtDate(p.at)) : 'sin hora'}</span></span>`;
+  return `<span class="pt-age stale">${icon.alert}<span>Sin señal reciente del GPS. ${p.at ? `Última ubicación reportada: ${esc(fmtDate(p.at))}` : 'El mapa muestra la última ubicación reportada.'}</span></span>`;
 }
 
 function render(b) {

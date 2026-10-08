@@ -15,11 +15,14 @@ ok(toMs(1759900380) === 1759900380000 && toMs(1759900380000) === 1759900380000 &
 ok(normalize({ imei: 865190071363660, latitude: '19.010070', longitude: '-103.832489', accStatus: 1 }).lat === 19.01007, 'normaliza latitude/longitude y acc');
 ok(normalize({ lat: 200, lng: 10 }).lat === null, 'descarta coordenadas fuera de rango');
 ok(normalize({ imei: '1', lat: 1, lng: 1 }).course === null && normalize({ imei: '1' }).speed === null, 'campos que el proveedor no entrega quedan en null (no se inventa 0)');
+{ const n = normalize({ imei: '1', lat: 1, lng: 1, locTime: '2026/10/08 10:00:00', hbTime: 1759900380 }), m = normalize({ imei: '1', lastGpsDateTime: '2026-10-08 09:00:00', heartbeatDate: 1759900400000 });
+  ok(n.gpsTime === Date.parse('2026-10-08T10:00:00') && n.signalTime === 1759900380000 && m.gpsTime === Date.parse('2026-10-08T09:00:00') && m.signalTime === 1759900400000, 'horas con otros nombres de campo (locTime, hbTime, …) y fechas con «/»'); }
+ok(normalize({ imei: '1', updateTime: 'abc', gpsTime: 5 }).gpsTime === null && normalize({ imei: '1', gpsTime: 99999999999999 }).gpsTime === null, 'horas no creíbles (1970, futuro lejano o texto) se descartan');
 
 /* ===== IOPGPS simulado ===== */
 const APPID = 'APP_PRUEBA', SECRET = 'secreto-de-prueba-0123456789abcdef';
 const stats = { auth: 0, fleet: 0, location: 0, status: 0, all: 0 };
-let tokens = new Set(), failNextWithToken = false, down = false;
+let tokens = new Set(), failNextWithToken = false, down = false, fleetNoTimes = false;
 const srv = http.createServer((req, res) => {
   const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   const u = new URL(req.url, 'http://x');
@@ -41,13 +44,16 @@ const srv = http.createServer((req, res) => {
   if (failNextWithToken) { failNextWithToken = false; tokens.delete(t); return send(200, { code: 401, msg: 'accessToken expired' }); }
   if (u.pathname === '/api/device/locations/search-by-organization') {
     stats.fleet++;
-    return send(200, { code: 0, data: [
+    const list = [
       { imei: '865190071363660', deviceName: 'U12 60-BN-4J', lat: '19.010070', lng: '-103.832489', speed: 0, gpsTime: 1759900380, accStatus: 1 },
       { imei: '865190071300000', deviceName: 'U21', lat: 20.66, lng: -103.35, speed: 82.5, gpsTime: 1759900500, accStatus: 0 },
-    ] });
+    ];
+    /* Proveedor cuya consulta de flota no trae horas (la consulta por unidad sí) */
+    if (fleetNoTimes) list.forEach((d) => { delete d.gpsTime; });
+    return send(200, { code: 0, data: list });
   }
   if (u.pathname === '/api/device/location') { stats.location++; return send(200, { code: 0, data: { lat: 19.01007, lng: -103.832489, address: 'Autopista Colima - Manzanillo, Tecolapa, Tecomán, Colima, México', gpsTime: 1759900380 } }); }
-  if (u.pathname === '/api/device/status') { stats.status++; return send(200, { code: 0, data: [{ imei: u.searchParams.get('imei'), signalTime: 1759900560, gpsTime: 1759900380, accStatus: 1, speed: 0 }] }); }
+  if (u.pathname === '/api/device/status') { stats.status++; return send(200, { code: 0, data: [{ imei: u.searchParams.get('imei'), signalTime: fleetNoTimes ? Math.floor(Date.now() / 1000) - 40 : 1759900560, gpsTime: 1759900380, accStatus: 1, speed: 0 }] }); }
   send(404, { code: 404, msg: 'not found' });
 });
 await new Promise((r) => srv.listen(0, '127.0.0.1', r));
@@ -171,7 +177,7 @@ try {
   /* ===== Rastreo para clientes ===== */
   const kvT = memKV(), envT = { ...env, TRACKING: kvT };
   const WORKER_ORIGIN = 'https://perconsur-gps.ejemplo.workers.dev';
-  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', trailerType: 'chasis', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
+  const op1 = { opId: 'lg_op1', imei: '865190071363660', unit: 'U12', operator: 'Daniel Rivera', trailerType: 'chasis', status: 'to_destination', origin: 'Manzanillo', destination: 'Guadalajara', place: 'CEDIS Guadalajara', dest: { lat: 20.6597, lng: -103.3496, approx: false } };
   __reset();
   r = await call('/v1/enlaces', { method: 'POST', body: op1 });
   ok(r.status === 503 && /KV «TRACKING»/.test(r.body.error), 'enlaces sin espacio KV: aviso claro (503)');
@@ -196,11 +202,18 @@ try {
   r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
   const pubTxt = JSON.stringify(r.body);
   ok(r.status === 200 && r.body.state === 'active' && r.body.trip.origin === 'Manzanillo' && r.body.trip.destination === 'Guadalajara' && r.body.trip.statusText === 'En camino al destino' && r.body.position && r.body.position.lat === 19.01007, 'portal: origen, destino, estado y ubicación de la unidad');
-  ok(!/speed|imei|865190071363660|U12|opId|operador|operator|placas/i.test(pubTxt), 'portal: sin velocidad, operador, IMEI, número económico ni datos internos');
+  ok(r.body.trip.operator === 'Daniel Rivera', 'portal: nombre y apellido del operador');
+  ok(!/speed|imei|865190071363660|U12|opId|placas|Antonio|Bautista/i.test(pubTxt), 'portal: sin velocidad, IMEI, número económico ni datos internos');
   ok(r.body.position.live === false && r.body.destination && r.body.destination.lat === 20.6597, 'portal: posición antigua marcada como no actual; destino en el mapa');
   ok(!('865190071300000' in r.body) && !pubTxt.includes('20.66'), 'portal: solo la unidad del enlace (no otras unidades)');
   r = await call('/v1/publico/' + L1.id, { e: envT, origin: WORKER_ORIGIN, key: null }); ok(r.status === 200, 'portal: el propio Worker es un origen permitido');
   r = await call('/v1/publico/' + L1.id, { e: envT, origin: 'https://otro-sitio.com', key: null }); ok(r.status === 403, 'portal: otros sitios no pueden leer los datos');
+  /* Proveedor sin horas en la consulta de la flota: el portal las completa con la consulta por unidad (como el monitor) */
+  fleetNoTimes = true; __reset();
+  r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
+  fleetNoTimes = false;
+  ok(r.body.position && r.body.position.live === true && Math.abs(Date.now() - r.body.position.at) < 120000 && r.body.position.lat === 19.01007, 'flota sin horas: el portal usa la señal del equipo (consulta por unidad) y no marca «sin señal»: ' + JSON.stringify(r.body.position));
+  __reset();
   /* Cambios de estado */
   r = await call('/v1/enlaces/' + L1.id, { e: envT, method: 'POST', body: { status: 'unloading' } });
   r = await call('/v1/publico/' + L1.id, { e: envT, origin: null, key: null });
