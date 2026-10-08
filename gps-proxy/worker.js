@@ -33,6 +33,8 @@
  *     Mientras dura el bloqueo no se revisa ninguna clave, ni la correcta: responde 429 con Retry-After.
  *   - General: con más de 30 claves incorrectas en 15 min (de cualquier IP), basta 1 fallo para bloquear una IP.
  *   - Peticiones por IP: máximo 120 por minuto en cualquier ruta (protege también /salud, que consulta a IOPGPS).
+ *   - Si IOPGPS falla, no se le vuelve a llamar durante 30 s (FAIL_BACKOFF): visitas anónimas a /salud no multiplican
+ *     llamadas firmadas con las credenciales mientras el proveedor está caído.
  * El estado vive en la memoria de la instancia; con el espacio KV opcional LIMITS los bloqueos se comparten entre
  * instancias y sobreviven a reinicios. Las IP se guardan como huella (no en texto).
  */
@@ -40,9 +42,11 @@
 const FLEET_TTL = 30 * 1000;      /* posiciones de la flota: una llamada al proveedor cada 30 s como máximo */
 const DETAIL_TTL = 120 * 1000;    /* dirección/estado por unidad: cada 2 min como máximo */
 const TOKEN_MARGIN = 5 * 60 * 1000;
+const FAIL_BACKOFF = 30 * 1000;   /* si IOPGPS falla, no se le vuelve a llamar durante 30 s (aunque lleguen muchas peticiones) */
 
 /* ===== Estado por instancia (Cloudflare reutiliza la instancia entre peticiones) ===== */
-let token = null, tokenExp = 0, tokenPending = null;
+let token = null, tokenExp = 0, tokenPending = null, authFail = null;
+const failures = new Map();   /* clave de caché → { at, err } del último fallo del proveedor */
 const cache = new Map();   /* clave → { at, value } */
 const inflight = new Map();
 
@@ -216,7 +220,11 @@ async function auth(env) {
 }
 async function ensureToken(env) {
   if (token && Date.now() < tokenExp - TOKEN_MARGIN) return token;
-  if (!tokenPending) tokenPending = auth(env).finally(() => { tokenPending = null; });
+  if (!tokenPending) {
+    if (authFail && Date.now() - authFail.at < FAIL_BACKOFF) throw authFail.err;
+    tokenPending = auth(env).then((t) => { authFail = null; return t; }, (e) => { authFail = { at: Date.now(), err: e }; throw e; })
+      .finally(() => { tokenPending = null; });
+  }
   return tokenPending;
 }
 async function iop(env, path, retried = false) {
@@ -234,7 +242,11 @@ async function cached(key, ttl, fn) {
   const c = cache.get(key);
   if (c && Date.now() - c.at < ttl) return { value: c.value, at: c.at, cached: true };
   if (inflight.has(key)) return inflight.get(key);
-  const p = (async () => { const value = await fn(); const at = Date.now(); cache.set(key, { at, value }); return { value, at, cached: false }; })()
+  /* Fallo reciente del proveedor: no se repite la llamada hasta que pase FAIL_BACKOFF */
+  const f = failures.get(key);
+  if (f && Date.now() - f.at < FAIL_BACKOFF) { if (c) return { value: c.value, at: c.at, cached: true, stale: true, error: f.err.message }; throw f.err; }
+  const p = (async () => { const value = await fn(); const at = Date.now(); cache.set(key, { at, value }); failures.delete(key); return { value, at, cached: false }; })()
+    .catch((e) => { failures.set(key, { at: Date.now(), err: e }); throw e; })
     .catch((e) => { if (c) return { value: c.value, at: c.at, cached: true, stale: true, error: e.message }; throw e; })   /* si falla, entrega lo último conocido marcado como antiguo */
     .finally(() => inflight.delete(key));
   inflight.set(key, p);
@@ -310,4 +322,4 @@ export default {
 };
 
 /* Solo para pruebas locales: reinicia el estado en memoria */
-export function __reset() { token = null; tokenExp = 0; tokenPending = null; cache.clear(); inflight.clear(); fails.clear(); reqs.clear(); globalFails = []; }
+export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; }

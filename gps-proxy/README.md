@@ -58,6 +58,7 @@ Tiempos en milisegundos (epoch). Los campos que IOPGPS no entregue llegan como `
 | Mientras dura el bloqueo | no se revisa ninguna clave, **ni la correcta**: responde `429` con `Retry-After` |
 | Más de 30 claves incorrectas en 15 min (de cualquier IP) | ataque repartido: basta **1** fallo para bloquear una IP |
 | Más de 120 consultas por minuto desde una IP | `429` por un momento (protege también `/salud`) |
+| IOPGPS falla (autenticación o posiciones) | no se le vuelve a llamar durante **30 s**, aunque lleguen muchas consultas; mientras tanto se responde con la última posición conocida o con el error |
 
 Una clave correcta reinicia la cuenta de fallos de esa IP. La app muestra el mensaje del Worker («Demasiados intentos con una clave incorrecta. Intenta de nuevo en 15 min.») en Ajustes → GPS.
 

@@ -122,7 +122,7 @@ export function fiscalSummary(s, { title = 'Resumen fiscal de los viajes', commi
 function tripCard(t, cutoff) {
   const bill = billingOf(t.id), paid = !!(bill && bill.paid);
   return `<button type="button" class="trip-card" data-trip="${esc(t.id)}">
-    <span class="tc-top"><span class="div-tag ${t.division}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span>${t.reference ? `<span class="ref-tag">${esc(t.reference)}</span>` : ''}${attachCount(t.id)}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
+    <span class="tc-top"><span class="div-tag ${esc(t.division)}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span>${t.reference ? `<span class="ref-tag">${esc(t.reference)}</span>` : ''}${attachCount(t.id)}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
     <b class="tc-route">${esc(t.origin)} → ${esc(t.destination)}</b>
     <span class="tc-nums"><span><small>Tarifa base</small><b>${money(t.fare)}</b></span><span><small>Total</small><b>${money(tripTaxes(t).totalAfterTaxes)}</b></span><span><small>Comisión</small><b class="pos">${money(t.finalCommission)}</b></span></span>
   </button>`;
@@ -314,7 +314,7 @@ export async function operatorScreen({ id }, q) {
   function statementsTab() {
     const list = ops.statementsOf(id);
     return `<button type="button" class="add-btn" data-stmt>${icon.file}<span>Generar PDF del estado de cuenta</span></button>
-      ${list.length ? `<div class="list">${list.slice(0, 30).map((s1) => `<a class="row" href="#/operadores/${esc(id)}/estado"><span class="row-tx"><span class="row-l1"><b class="mono">${esc(s1.folio)}</b></span><span class="row-l3">Corte ${esc(fmtDate(s1.cutoff))} | emitido ${esc(fmtDate(s1.issued))} | ${s1.pages} pág.</span></span><span class="chev">${icon.chev}</span></a>`).join('')}</div>
+      ${list.length ? `<div class="list">${list.slice(0, 30).map((s1) => `<a class="row" href="#/operadores/${esc(id)}/estado"><span class="row-tx"><span class="row-l1"><b class="mono">${esc(s1.folio)}</b></span><span class="row-l3">Corte ${esc(fmtDate(s1.cutoff))} | emitido ${esc(fmtDate(s1.issued))} | ${esc(s1.pages)} pág.</span></span><span class="chev">${icon.chev}</span></a>`).join('')}</div>
         <p class="grp-note">Para abrir o compartir un estado emitido, entra a la pantalla del estado de cuenta.</p>` : '<div class="empty"><p>Aún no se han emitido estados de cuenta.</p></div>'}`;
   }
 
@@ -366,7 +366,13 @@ function exportTripsXlsx(items, scope, periodLabel, slug) {
     generated: `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}` });
   deliver(new File([wb.bytes()], `PERCONSUR-viajes-${slug}-${todayStr()}.xlsx`, { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
 }
-const csvCell = (v) => { const t = String(v ?? ''); return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+/* Celda CSV. Un texto que empieza con = + - @ (o tabulador/retorno) se antepone con ' para que Excel no lo ejecute como
+   fórmula; los números negativos se dejan como número. */
+const csvCell = (v) => {
+  let t = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(t) && !/^-?\d[\d,]*(\.\d+)?$/.test(t)) t = "'" + t;
+  return /[",\n;]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+};
 const num = (c) => (Math.round(c) / 100).toFixed(2);
 function csvFile(rows, name) { return new File(['\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n')], name, { type: 'text/csv' }); }
 async function deliver(file) {

@@ -1,6 +1,8 @@
-/* Empresas: valores base de config/companies.js + textos editados por el usuario (store "companies"). */
+/* Empresas: valores base de config/companies.js + textos editados por el usuario (store "companies").
+ * Solo los campos de EDITABLE_FIELDS pueden cambiarse: logotipo, colores, serie de folio y demás valores fijos nunca se
+ * toman del store (un respaldo importado no puede reemplazarlos). */
 import * as db from './db.js';
-import { COMPANY_DEFAULTS } from '../config/companies.js';
+import { COMPANY_DEFAULTS, EDITABLE_FIELDS } from '../config/companies.js';
 
 const overrides = {};
 export async function loadCompanies() {
@@ -11,7 +13,7 @@ export function getCompany(key) {
   const base = COMPANY_DEFAULTS[key] || COMPANY_DEFAULTS.perconsur;
   const o = overrides[key] || {};
   const merged = { ...base };
-  for (const [k, v] of Object.entries(o)) if (typeof v === 'string') merged[k] = v;
+  for (const [k] of EDITABLE_FIELDS) if (typeof o[k] === 'string') merged[k] = o[k];
   return merged;
 }
 export const getOverrides = (key) => ({ ...(overrides[key] || {}) });

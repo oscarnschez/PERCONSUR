@@ -71,7 +71,7 @@ export function campoSheetHTML(cp, co, ctx, id = 'hsheet') {
     <img class="h-wm" src="${CORN_WM}" alt="" aria-hidden="true">
     ${cp.units.length && !pl ? plantStaticSVG(cp.units.length) : ''}
     <div class="h-head">
-      <div class="h-id"><img src="${co.logo}" alt="${esc(co.short)}"><div><div class="s-logo">${esc(co.short)}</div><div class="h-co"><strong>${esc(co.legal)}</strong><br><span style="white-space:nowrap">${esc(co.addr1)}</span><br>${esc(co.addr2)}<br>${esc(co.email)}${co.web ? ` &nbsp;|&nbsp; ${esc(co.web)}` : ''}</div></div></div>
+      <div class="h-id"><img src="${esc(co.logo)}" alt="${esc(co.short)}"><div><div class="s-logo">${esc(co.short)}</div><div class="h-co"><strong>${esc(co.legal)}</strong><br><span style="white-space:nowrap">${esc(co.addr1)}</span><br>${esc(co.addr2)}<br>${esc(co.email)}${co.web ? ` &nbsp;|&nbsp; ${esc(co.web)}` : ''}</div></div></div>
       <div class="h-box"><h1>ASIGNACIÓN DE UNIDADES</h1><dl>
         <dt>Fecha de carga</dt><dd>${cp.fecha ? esc(fmtFecha(cp.fecha)) : '&nbsp;'}</dd>
         <dt>Planta destino</dt><dd>${esc((cp.planta || '').replace(/^Planta /, '')) || '&nbsp;'}</dd>

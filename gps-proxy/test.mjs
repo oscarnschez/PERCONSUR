@@ -18,11 +18,12 @@ ok(normalize({ imei: '1', lat: 1, lng: 1 }).course === null && normalize({ imei:
 
 /* ===== IOPGPS simulado ===== */
 const APPID = 'APP_PRUEBA', SECRET = 'secreto-de-prueba-0123456789abcdef';
-const stats = { auth: 0, fleet: 0, location: 0, status: 0 };
+const stats = { auth: 0, fleet: 0, location: 0, status: 0, all: 0 };
 let tokens = new Set(), failNextWithToken = false, down = false;
 const srv = http.createServer((req, res) => {
   const send = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   const u = new URL(req.url, 'http://x');
+  stats.all++;
   if (down) return send(503, { code: 503, msg: 'mantenimiento' });
   if (req.method === 'POST' && u.pathname === '/api/auth') {
     let b = ''; req.on('data', (c) => { b += c; }); req.on('end', () => {
@@ -104,6 +105,14 @@ try {
   __reset(); down = true; r = await call('/v1/posiciones'); down = false;
   ok(r.status === 502 && r.body.ok === false, 'proveedor caído sin datos previos: error claro (502)');
   r = await call('/nada'); ok(r.status === 404, 'ruta desconocida → 404');
+
+  /* IOPGPS caído: /salud (sin clave) no repite llamadas al proveedor durante 30 s, aunque lleguen muchas peticiones */
+  __reset(); stats.all = 0; down = true;
+  for (let i = 0; i < 6; i++) await call('/salud', { origin: null, key: null, ip: `203.0.113.${50 + i}` });
+  ok(stats.all === 1, `proveedor caído: 6 consultas anónimas a /salud → ${stats.all} llamada a IOPGPS (espera de 30 s)`);
+  r = await call('/v1/posiciones'); ok(r.status === 502 && stats.all === 1, 'durante la espera la app recibe el error sin nuevas llamadas al proveedor');
+  { const realNow = Date.now; Date.now = () => realNow() + 31 * 1000; down = false; r = await call('/v1/posiciones'); Date.now = realNow; ok(r.status === 200 && stats.all >= 2, 'pasados 30 s se vuelve a consultar y se recupera'); }
+  down = false;
 
   /* ===== Límite de intentos (rate limit) ===== */
   __reset(); await call('/v1/posiciones');   /* caché llena: las pruebas siguientes no dependen del proveedor */

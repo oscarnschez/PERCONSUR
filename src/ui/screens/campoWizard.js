@@ -32,7 +32,7 @@ export async function campoWizard({ step }, q) {
 
   const shell = wizardShell({
     kind: 'Asignación de unidades', steps: CAMPO_STEPS, i,
-    chip: `<span class="co-chip campo"><img src="${co.logo}" alt="" class="mark"><b>Campo</b></span>`,
+    chip: `<span class="co-chip campo"><img src="${esc(co.logo)}" alt="" class="mark"><b>Campo</b></span>`,
     nextLabel: i === N - 1 ? 'Generar PDF' : i === N - 2 ? 'Revisar' : 'Continuar', backLabel: i === 0 ? 'Salir' : 'Atrás',
   });
   const body = shell.body;

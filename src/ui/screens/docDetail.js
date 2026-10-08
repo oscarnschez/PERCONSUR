@@ -54,9 +54,9 @@ export async function docDetailScreen({ id }, q) {
   const s = screen(`<div class="page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Documentos</span></button></header>
     <div class="doc-hero">
-      <span class="row-ic big ${doc.type}">${isP ? icon.container : icon.truck}</span>
+      <span class="row-ic big ${esc(doc.type)}">${isP ? icon.container : icon.truck}</span>
       <div><small>${isP ? 'Nota de entrega – recepción' : 'Asignación de unidades'}</small><h1 class="mono">${esc(doc.folio)}</h1>
-      <p>${esc(relDay(doc.createdAt))} | ${doc.pages} página${doc.pages === 1 ? '' : 's'} | ${fmtSize(doc.size || 0)} | <span class="st st-${doc.status}">${doc.status === 'compartido' ? 'Compartido' : 'Generado'}</span></p></div>
+      <p>${esc(relDay(doc.createdAt))} | ${esc(doc.pages)} página${doc.pages === 1 ? '' : 's'} | ${esc(fmtSize(doc.size || 0))} | <span class="st st-${esc(doc.status)}">${doc.status === 'compartido' ? 'Compartido' : 'Generado'}</span></p></div>
     </div>
     <div class="act-grid">
       <button type="button" class="act" data-a="share">${icon.share}<span>Compartir</span></button>

@@ -18,7 +18,7 @@ export async function doneScreen({ id }) {
       <span class="done-check">${icon.check}</span>
       <h1>Documento generado</h1>
       <p class="mono">${esc(doc.filename)}</p>
-      <p class="done-meta">${isP ? esc(getCompany(doc.company).short) + ' | ' : ''}${doc.pages} página${doc.pages === 1 ? '' : 's'} | ${fmtSize(doc.size || 0)}</p>
+      <p class="done-meta">${isP ? esc(getCompany(doc.company).short) + ' | ' : ''}${esc(doc.pages)} página${doc.pages === 1 ? '' : 's'} | ${esc(fmtSize(doc.size || 0))}</p>
       <div class="band slim" aria-hidden="true"></div>
     </div>
     <button type="button" class="btn-primary block lg" data-a="share">${icon.share}<span>Compartir</span></button>
