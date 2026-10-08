@@ -14,6 +14,7 @@ import { adminScreen, operationScreen } from './ui/screens/hubs.js';
 import { fuelScreen, fuelUnitScreen } from './ui/screens/fuel.js';
 import { logisticsScreen, logisticsUnitScreen, logisticsHistoryScreen } from './ui/screens/logistics.js';
 import { loadLogistics } from './services/logistics.js';
+import { loadTripAttachments } from './services/tripAttachments.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -126,7 +127,7 @@ async function boot() {
     await openDB();
     await loadSettings();
     applyTheme();
-    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics()]);
+    await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments()]);
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');

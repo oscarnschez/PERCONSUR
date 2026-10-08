@@ -27,6 +27,7 @@ import { getCompany } from '../../services/companies.js';
 import { tripTaxes, sumTaxes } from '../../domain/operators/taxes.js';
 import { buildTripsWorkbook } from '../../domain/operators/tripsExport.js';
 import { openTripForm, openTripDetail, openLoanForm, openAdjustmentForm, openSettingsForm } from './operatorForms.js';
+import { attachCount } from './tripDocs.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -121,7 +122,7 @@ export function fiscalSummary(s, { title = 'Resumen fiscal de los viajes', commi
 function tripCard(t, cutoff) {
   const bill = billingOf(t.id), paid = !!(bill && bill.paid);
   return `<button type="button" class="trip-card" data-trip="${esc(t.id)}">
-    <span class="tc-top"><span class="div-tag ${t.division}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span>${t.reference ? `<span class="ref-tag">${esc(t.reference)}</span>` : ''}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
+    <span class="tc-top"><span class="div-tag ${t.division}">${t.division === 'campo' ? 'Campo' : 'Puerto'}</span>${t.isExpanded ? '<span class="exp-tag">Comisión ampliada</span>' : ''}${t.date > cutoff ? '<span class="after-tag">Después del corte</span>' : ''}<span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span>${t.reference ? `<span class="ref-tag">${esc(t.reference)}</span>` : ''}${attachCount(t.id)}<span class="tc-date">${esc(fmtDateShort(t.date))}</span></span>
     <b class="tc-route">${esc(t.origin)} → ${esc(t.destination)}</b>
     <span class="tc-nums"><span><small>Tarifa base</small><b>${money(t.fare)}</b></span><span><small>Total</small><b>${money(tripTaxes(t).totalAfterTaxes)}</b></span><span><small>Comisión</small><b class="pos">${money(t.finalCommission)}</b></span></span>
   </button>`;

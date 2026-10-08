@@ -1,6 +1,8 @@
 /*
  * Respaldo local en JSON. Formato:
  *   { app:'perconsur', format:1, version, exportedAt, includeMedia, data:{ <store>: [...] } }
+ * Documentos adicionales de viajes: los metadatos (tripAttachments, con su tripId) siempre; sus archivos (owner trip:)
+ * viajan con los PDF en el respaldo completo. Sin archivo, el adjunto se muestra como no procesable (reintentar o eliminar).
  * Los archivos (fotos, PDF, adjuntos) viajan en base64 dentro de data.attachments.
  * Los borradores siempre incluyen sus fotos; las de documentos generados solo si includeMedia.
  * La importación valida el archivo y COMBINA (no borra nada existente).
@@ -15,11 +17,12 @@ import { loadCompanies } from './companies.js';
 import { loadOperatorData } from './operators.js';
 import { resetBillingCache } from './billing.js';
 import { loadLogistics } from './logistics.js';
+import { loadTripAttachments } from './tripAttachments.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
-DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations');
+DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments');
 const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated']);
 
 const b64 = {
@@ -60,6 +63,7 @@ export async function inspectBackup(file) {
         `Control de operadores: ${n('operatorTrips')} viajes, ${n('operatorLoans')} préstamos, ${n('operatorAdjustments')} ajustes, ${n('operatorSettings')} configuraciones`,
         `Cobranza: ${n('tripBilling')} viajes con registro de cobro`,
         `Logística: ${n('logisticsOperations')} operaciones (activas e historial)`,
+        `Documentos adicionales de viajes: ${n('tripAttachments')}`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -125,6 +129,7 @@ export async function importBackup(info) {
     /* Cobranza: un registro por viaje; se conserva el más reciente */
     if (s === 'tripBilling') { for (const r of rows) { const cur = await db.get(s, r.tripId); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     /* Logística: se conserva la versión más reciente de cada operación */
+    if (s === 'tripAttachments') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'logisticsOperations') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (rows.length) await db.putMany(s, rows);
@@ -136,4 +141,4 @@ export async function importBackup(info) {
   await reload();
   return { documents: (data.documents || []).length };
 }
-async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); }
+async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); }

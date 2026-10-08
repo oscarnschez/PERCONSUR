@@ -14,6 +14,7 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `node fuel_unit.mjs` — cálculos de combustible (sin navegador).
 - `python3 logistics.py` — Logística: asignación con unidad/operador/remolque del catálogo, avisos de doble asignación, filtros y buscador, Inicio → Unidades en operación en vivo, historial, protección del catálogo y respaldo.
 - `node logistics_unit.mjs` — reglas de Logística: estados, regla de Inicio, filtros, buscador y conflictos (sin navegador).
+- `python3 trip_docs.py` — documentos adicionales de viajes y expediente consolidado: varios archivos a la vez, orden, renombrar, eliminar, archivo dañado, vista previa, PDF consolidado (páginas copiadas e imágenes centradas), documento original intacto, persistencia y respaldo.
 - `python3 activity.py` — Actividad cuenta todos los viajes registrados y avisa los que quedan después del corte.
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).
 - `python3 upgrade.py` — actualización de la base de datos v1 → v2 sin pérdida de datos.

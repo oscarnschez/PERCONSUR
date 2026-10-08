@@ -12,10 +12,11 @@
  *   operatorSettings, operatorTrips, operatorLoans, operatorAdjustments   control de operadores (v2)
  *   tripBilling   cobranza: cobro de cada viaje y demoras en planta (v5)
  *   logisticsOperations   logística: asignación y estado operativo de cada unidad, con historial (v6)
+ *   tripAttachments   documentos adicionales de cada viaje (metadatos; el archivo vive en attachments) (v7)
  * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 6;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística */
+const DB_VERSION = 7;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -23,7 +24,7 @@ export const S = {
   attachments: 'attachments', counters: 'counters',
   operatorSettings: 'operatorSettings', operatorTrips: 'operatorTrips', operatorLoans: 'operatorLoans', operatorAdjustments: 'operatorAdjustments',
   operatorStatements: 'operatorStatements', fuelRecords: 'fuelRecords', tripBilling: 'tripBilling',
-  logisticsOperations: 'logisticsOperations',
+  logisticsOperations: 'logisticsOperations', tripAttachments: 'tripAttachments',
 };
 
 let dbp = null;
@@ -64,6 +65,8 @@ export function openDB() {
       mk(S.tripBilling, { keyPath: 'tripId' });
       /* v6 — Logística: operaciones por unidad (vehicleId, operatorId, trailerId del catálogo); las cerradas son el historial */
       mk(S.logisticsOperations, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['operatorId', 'operatorId'], ['trailerId', 'trailerId']]);
+      /* v7 — Documentos adicionales de viajes, relacionados por tripId; el binario se guarda en attachments (storageKey) */
+      mk(S.tripAttachments, { keyPath: 'id' }, [['tripId', 'tripId']]);
     };
     req.onsuccess = () => {
       const db = req.result;
@@ -85,6 +88,8 @@ export async function byIndex(store, index, value) { const db = await openDB(); 
 export async function put(store, value) { const db = await openDB(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(value); await done(tx); return value; }
 export async function putMany(store, values) { const db = await openDB(); const tx = db.transaction(store, 'readwrite'); const st = tx.objectStore(store); values.forEach((v) => st.put(v)); await done(tx); }
 export async function del(store, key) { const db = await openDB(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).delete(key); await done(tx); }
+/* ¿Existe la clave? (sin leer el valor: útil para archivos grandes) */
+export async function has(store, key) { if (key == null) return false; const db = await openDB(); return (await wrap(db.transaction(store).objectStore(store).count(key))) > 0; }
 export async function count(store) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).count()); }
 
 /* Transacción de lectura-escritura sobre varios stores; fn recibe { store(name) } */

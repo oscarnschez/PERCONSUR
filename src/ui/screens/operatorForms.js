@@ -15,6 +15,7 @@ import { enterAdvances } from '../components/fields.js';
 import { loadBilling, billingOf } from '../../services/billing.js';
 import { computeTaxes, tripTaxes, taxFields, defaultTaxFlags } from '../../domain/operators/taxes.js';
 import { openBillingDetail } from './billing.js';
+import { mountTripDocs } from './tripDocs.js';
 
 const initials = (n) => String(n || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 const who = (op) => `<div class="op-who"><span class="av sm">${esc(initials(op.name))}</span><div><small>Operador</small><b>${esc(op.name)}</b></div></div>`;
@@ -210,11 +211,14 @@ export function openTripDetail(op, trip, onChange) {
     ${trip.isExpanded ? '<span class="exp-tag lg">Comisión ampliada</span>' : ''}
     <dl class="sumlist detail">${rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${k === 'Comisión final' || k === 'Total después de impuestos' ? v : esc(v)}</dd></div>`).join('')}</dl>
     ${trip.notes ? `<p class="detail-notes">${esc(trip.notes)}</p>` : ''}
+    <section class="td" data-tripdocs aria-label="Expediente del viaje"></section>
     <h3 class="pk-h">Cobranza</h3>
     <div class="cob-state ${paid ? 'paid' : 'due'}"><span><span class="pay-tag ${paid ? 'paid' : 'due'}">${paid ? 'Pagado' : 'Por cobrar'}</span><small>${paid ? `${fmtDate(bill.paidDate) ? 'Pago del ' + esc(fmtDate(bill.paidDate)) : 'Sin fecha de pago registrada'}${bill.reference ? ' | Ref. de pago ' + esc(bill.reference) : ''}` : tx.any ? 'Total después de impuestos' : 'Tarifa del viaje'}${delays.length ? ` | ${delays.length} demora${delays.length === 1 ? '' : 's'}` : ''}</small></span><b>${money(tx.totalAfterTaxes)}</b></div>
     <button type="button" class="${paid ? 'btn-secondary' : 'btn-primary'} block" data-cob>${icon.cash}<span>${paid ? 'Ver cobranza del viaje' : 'Registrar pago del viaje'}</span></button>
     <p class="grp-note">${meta.map(esc).join('<br>')}</p>
     <div class="sheet-acts"><button type="button" class="btn-secondary" data-edit>${icon.edit}<span>Editar</span></button><button type="button" class="btn-danger" data-del>${icon.trash}<span>Eliminar</span></button></div>` });
+  /* Documento relacionado + documentos adicionales + expediente consolidado */
+  mountTripDocs(sh.body.querySelector('[data-tripdocs]'), { trip, onChange });
   sh.body.querySelector('[data-edit]').addEventListener('click', () => { sh.close(); openTripForm(op, trip, onChange); });
   sh.body.querySelector('[data-cob]').addEventListener('click', async () => { await loadBilling(); sh.close(); openBillingDetail(trip.id, onChange, { pay: true }); });
   sh.body.querySelector('[data-del]').addEventListener('click', async () => {
