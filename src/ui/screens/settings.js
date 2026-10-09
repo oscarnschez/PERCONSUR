@@ -16,11 +16,14 @@ import { openSheet, actionSheet, busy } from '../components/sheet.js';
 import { toast } from '../components/toast.js';
 import { currentSession, logout } from '../../auth/gate.js';
 import { configured as gpsConfigured } from '../../services/gps.js';
+import { role as syncRole } from '../../services/sync.js';
+import { roleText } from '../../domain/sync/sync.js';
 
 export async function settingsScreen() {
   const th = themePref();
   const ses = currentSession();
   const mig = getSetting('legacyMigrated');
+  const sr = syncRole();
   const s = screen(`<div class="page">
     <header class="page-top"><h1 class="title">Ajustes</h1></header>
     <section class="grp"><div class="grp-h"><h3>Apariencia</h3></div><div class="grp-b">
@@ -31,13 +34,14 @@ export async function settingsScreen() {
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Integraciones</h3></div><div class="grp-b list-actions">
       <a class="row-btn" href="#/ajustes/gps">${icon.pin}<span>Rastreo GPS (IOPGPS)</span><small>${gpsConfigured() ? 'Configurado' : 'Sin configurar'}</small>${icon.chev}</a>
+      <a class="row-btn" href="#/ajustes/compartir">${icon.people}<span>Información compartida</span><small>${esc(roleText(sr))}</small>${icon.chev}</a>
     </div></section>
     <section class="grp"><div class="grp-h"><h3>Datos</h3></div><div class="grp-b list-actions">
       <button type="button" class="row-btn" data-a="export">${icon.download}<span>Exportar respaldo</span>${icon.chev}</button>
-      <label class="row-btn">${icon.upload}<span>Importar respaldo</span>${icon.chev}<input type="file" accept="application/json,.json" hidden data-import></label>
+      ${sr === 'read' ? '' : `<label class="row-btn">${icon.upload}<span>Importar respaldo</span>${icon.chev}<input type="file" accept="application/json,.json" hidden data-import></label>`}
       <div class="row-info" data-storage>${icon.info}<span>Calculando almacenamiento…</span></div>
     </div>
-    <p class="grp-note">Los documentos, fotos y catálogos se guardan solo en este dispositivo. Exporta un respaldo con regularidad.${mig && mig.found ? ' Los datos del sistema anterior se migraron automáticamente.' : ''}</p></section>
+    <p class="grp-note">${sr === 'read' ? 'Este dispositivo es de consulta: muestra la información que publica el capturista.' : sr === 'write' ? 'Los documentos, fotos y catálogos se guardan en este dispositivo y se publican para los dispositivos de consulta. Exporta un respaldo con regularidad.' : 'Los documentos, fotos y catálogos se guardan solo en este dispositivo. Exporta un respaldo con regularidad.'}${mig && mig.found ? ' Los datos del sistema anterior se migraron automáticamente.' : ''}</p></section>
     <section class="grp"><div class="grp-h"><h3>Aplicación</h3></div><div class="grp-b list-actions">
       <div class="row-info" data-offline>${icon.cloudOff}<span>Revisando uso sin conexión…</span></div>
       ${isStandalone() ? '' : `<button type="button" class="row-btn" data-a="install">${icon.phone}<span>Instalar en la pantalla de inicio</span>${icon.chev}</button>`}
@@ -83,7 +87,8 @@ export async function settingsScreen() {
       else toast('Ya tienes la versión más reciente');
     }
   });
-  root.querySelector('[data-import]').addEventListener('change', async (e) => {
+  const imp = root.querySelector('[data-import]');
+  if (imp) imp.addEventListener('change', async (e) => {
     const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
     let info;
     try { info = await inspectBackup(f); } catch (err) { toast(err.message, { type: 'warn', ms: 5000 }); return; }

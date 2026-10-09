@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'b3fcf3d609';
+const VERSION = '89f12345c0';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -40,9 +40,11 @@ const PRECACHE = [
   "./src/domain/puerto/model.js",
   "./src/domain/puerto/sheet.js",
   "./src/domain/shared/format.js",
+  "./src/domain/sync/sync.js",
   "./src/domain/tracking/tracking.js",
   "./src/main.js",
   "./src/portal/main.js",
+  "./src/services/access.js",
   "./src/services/backup.js",
   "./src/services/billing.js",
   "./src/services/billingPdf.js",
@@ -70,6 +72,7 @@ const PRECACHE = [
   "./src/services/settings.js",
   "./src/services/share.js",
   "./src/services/statementPdf.js",
+  "./src/services/sync.js",
   "./src/services/theme.js",
   "./src/services/tracking.js",
   "./src/services/tripAttachments.js",
@@ -114,6 +117,7 @@ const PRECACHE = [
   "./src/ui/screens/puertoWizard.js",
   "./src/ui/screens/settings.js",
   "./src/ui/screens/statement.js",
+  "./src/ui/screens/syncSettings.js",
   "./src/ui/screens/tripDocs.js",
   "./src/ui/screens/tripImport.js",
   "./src/ui/screens/viewer.js",

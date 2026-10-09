@@ -228,3 +228,22 @@ html.kb-open .actionbar{display:none}
 .login-foot{margin:28px 0 0;text-align:center;color:var(--muted);font-size:13px}
 .shake{animation:shake .38s ease}
 @keyframes shake{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+
+/* ===== Información compartida (Ajustes → Información compartida) ===== */
+.sync-role{display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.sync-ro{font-size:12px;font-weight:600;color:var(--ink-2)}
+.sync-set .gps-st.busy{color:var(--tint)}
+.sync-set .grp-b>.gps-st{margin:0 0 6px}
+.sync-dec-acts{display:grid;gap:8px;margin:10px 0 4px}
+.sync-dec-acts .btn-primary,.sync-dec-acts .btn-secondary{white-space:normal;text-align:center;min-height:48px}
+/* Aviso en Inicio: modo consulta o publicación del capturista */
+.sync-pill{display:inline-flex;align-items:center;gap:6px;margin:10px 0 0;padding:5px 11px;border-radius:999px;background:var(--fill);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none;max-width:100%}
+.sync-pill .ic{width:16px;height:16px;flex:none}
+.sync-pill.warn{background:var(--orange-t);color:var(--orange-d)}
+.sync-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sync-pill:empty{display:none}
+/* Modo solo consulta: sin botones de captura (la base local además rechaza cualquier escritura) */
+html.ro .tab-new,html.ro [data-new],html.ro [data-add],html.ro [data-newdelay],html.ro [data-newop],html.ro button[data-status],html.ro .pk-new,html.ro .dc-acts,html.ro [data-g-adjust],html.ro .gps-sug{display:none!important}
+html.ro .tabbar{grid-template-columns:repeat(4,1fr)}
+/* Al recibir información nueva la pantalla se redibuja sin animación de entrada */
+html.sync-refresh #view>*{animation:none!important}

@@ -11,11 +11,13 @@
  *     envía al recuperar la conexión o en la siguiente consulta.
  *   - Red de seguridad en el Worker: un enlace vence solo a las 72 h y un viaje nuevo de la misma unidad finaliza el
  *     enlace del viaje anterior.
+ *   - Un dispositivo de consulta (Información compartida) no envía avisos: los envía el capturista.
  */
 import * as gps from './gps.js';
 import * as lg from './logistics.js';
 import { getSetting, setSetting } from './settings.js';
 import { targetOf } from './destinations.js';
+import { isReadOnly } from './access.js';
 import { reconcile, linkPayload, shareBlock, destPoint } from '../domain/tracking/tracking.js';
 
 const state = { links: new Map(), at: 0, error: '', loading: null, maxHours: 72 };
@@ -84,7 +86,8 @@ export async function flushQueue() {
   await setSetting('trackQueue', left.slice(-50));
 }
 async function apply(actions) {
-  if (!actions.length) return;
+  /* Un dispositivo de consulta solo ve los enlaces: la caducidad la avisa el capturista (su Logística es la vigente) */
+  if (!actions.length || isReadOnly()) return;
   const left = [];
   for (const a of actions) {
     const item = { id: a.link.id, action: a.action, body: a.body, at: Date.now() };

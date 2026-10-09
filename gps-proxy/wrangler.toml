@@ -1,5 +1,5 @@
 # Configuración para desplegar con la terminal (opcional): npx wrangler deploy
-# Los secretos NO van aquí: npx wrangler secret put IOP_APPID | IOP_SECRET | PCS_KEY
+# Los secretos NO van aquí: npx wrangler secret put IOP_APPID | IOP_SECRET | PCS_KEY | DATA_WRITE_KEY | DATA_READ_KEY
 name = "perconsur-gps"
 main = "worker.js"
 compatibility_date = "2025-09-01"
@@ -16,3 +16,8 @@ ALLOWED_ORIGIN = "https://oscarnschez.github.io"
 # [[kv_namespaces]]
 # binding = "TRACKING"
 # id = "<id del espacio KV perconsur-rastreo>"
+
+# Información compartida entre dispositivos: espacio KV de la información publicada (ver README → Información compartida)
+# [[kv_namespaces]]
+# binding = "DATA"
+# id = "<id del espacio KV perconsur-datos>"
