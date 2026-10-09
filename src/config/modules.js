@@ -1,10 +1,11 @@
 /*
  * Módulos de las secciones principales. Para agregar un módulo operativo nuevo (p. ej. mantenimiento, llantas)
- * basta con añadirlo aquí y registrar su ruta en main.js: la navegación no cambia.
+ * basta con añadirlo aquí y registrar su ruta en main.js: la navegación no cambia. «nav» es el nombre corto para el
+ * menú lateral de computadora (si falta, se usa «title»).
  */
 export const OPERATION_MODULES = [
   { key: 'logistica', title: 'Logística', desc: 'Estado y asignación actual de las unidades.', route: '/operacion/logistica', icon: 'truck' },
-  { key: 'combustible', title: 'Combustible y rendimiento', desc: 'Recargas por unidad, rendimiento km/L, gráficas y reporte en Excel.', route: '/operacion/combustible', icon: 'fuel' },
+  { key: 'combustible', title: 'Combustible y rendimiento', nav: 'Combustible', desc: 'Recargas por unidad, rendimiento km/L, gráficas y reporte en Excel.', route: '/operacion/combustible', icon: 'fuel' },
   { key: 'taller', title: 'Taller', desc: 'Control de mantenimiento y reparaciones de unidades y remolques.', route: '/operacion/taller', icon: 'wrench' },
 ];
 export const ADMIN_MODULES = [
@@ -13,4 +14,5 @@ export const ADMIN_MODULES = [
   { key: 'documentos', title: 'Documentos', desc: 'Historial de documentos generados.', route: '/documentos', icon: 'docs' },
   { key: 'catalogos', title: 'Catálogos', desc: 'Unidades, remolques, operadores, destinos y demás registros.', route: '/catalogos', icon: 'catalog' },
 ];
-export const DIVISION_IMG = { puerto: './assets/divisions/puerto.png', campo: './assets/divisions/campo.png' };
+/* Ícono de cada división (mismo estilo de línea que el resto de la app) */
+export const DIVISION_ICON = { puerto: 'containers', campo: 'sprout' };

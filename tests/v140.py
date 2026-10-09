@@ -26,8 +26,8 @@ try:
     tabs=[x.inner_text().strip() for x in pg.locator('.tabbar a, .tabbar button').all()]
     # En un celular de 390 px «Administración» se muestra abreviada («Admin.»); su nombre accesible es el completo
     ok(tabs==['Inicio','Operación','Nuevo','Admin.','Ajustes'] and pg.locator('.tabbar [data-tab="admin"]').get_attribute('aria-label')=='Administración','barra principal: '+' | '.join(tabs))
-    imgs=pg.locator('.div-ic.img img').evaluate_all('l=>l.map(i=>i.getAttribute("src")+":"+(i.naturalWidth>0))')
-    ok(imgs==['./assets/divisions/puerto.png:true','./assets/divisions/campo.png:true'],'Inicio usa las imágenes adjuntas de Puerto y Campo')
+    ics=pg.locator('.div-ic svg.ic').count()
+    ok(ics==2 and pg.locator('.div-ic img').count()==0,'Inicio usa íconos de línea para Puerto y Campo (sin ilustraciones rasterizadas)')
     shot(pg,'n01_inicio')
     pg.locator('.tabbar [data-tab="admin"]').click(); pg.wait_for_timeout(600)
     cards=[x.inner_text().split('\n')[0] for x in pg.locator('.mod-card').all()]; ok(cards==['Operadores','Documentos','Catálogos'],'Administración: '+', '.join(cards)); shot(pg,'n02_admin')

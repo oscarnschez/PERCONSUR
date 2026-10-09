@@ -11,6 +11,7 @@ import { loadOperatorData } from './services/operators.js';
 import { operatorsScreen, operatorScreen, summaryScreen } from './ui/screens/operators.js';
 import { statementScreen } from './ui/screens/statement.js';
 import { adminScreen, operationScreen } from './ui/screens/hubs.js';
+import { OPERATION_MODULES, ADMIN_MODULES } from './config/modules.js';
 import { fuelScreen, fuelUnitScreen } from './ui/screens/fuel.js';
 import { logisticsScreen, logisticsUnitScreen, logisticsHistoryScreen } from './ui/screens/logistics.js';
 import { loadLogistics } from './services/logistics.js';
@@ -56,16 +57,24 @@ function mountTabbar() {
   const nav = document.createElement('nav');
   nav.className = 'tabbar';
   nav.setAttribute('aria-label', 'Navegación principal');
+  /* Celular: barra inferior de 5 secciones. Computadora (≥1024 px): la misma navegación como menú lateral, con el
+     logotipo, «Nuevo» arriba y los módulos de cada sección (tb-brand y tb-sub solo se muestran ahí). */
+  const sub = (key, mods) => `<div class="tb-sub" data-sub="${key}">${mods.map((m) => `<a href="#${m.route}">${m.nav || m.title}</a>`).join('')}</div>`;
   nav.innerHTML = `
+    <div class="tb-brand" aria-hidden="true"><img src="./assets/brand/perconsur-mark.png" alt=""><span class="wordmark">PERCONSUR</span></div>
     <a href="#/" data-tab="home">${icon.home}<span>Inicio</span></a>
     <a href="#/operacion" data-tab="op">${icon.gauge}<span>Operación</span></a>
+    ${sub('op', OPERATION_MODULES)}
     <button type="button" class="tab-new" data-tab="new" aria-label="Nuevo documento"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
     <a href="#/administracion" data-tab="admin" aria-label="Administración">${icon.briefcase}<span class="tl-l">Administración</span><span class="tl-s" aria-hidden="true">Admin.</span></a>
+    ${sub('admin', ADMIN_MODULES)}
     <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>`;
   document.body.appendChild(nav);
   nav.querySelector('.tab-new').addEventListener('click', openNewSheet);
   window.addEventListener('routechange', (e) => {
     nav.querySelectorAll('[data-tab]').forEach((a) => { const on = a.dataset.tab === e.detail.tab; a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    const h = location.hash.split('?')[0];
+    nav.querySelectorAll('.tb-sub a').forEach((a) => { const r = a.getAttribute('href'), on = h === r || h.startsWith(r + '/'); a.classList.toggle('on', on); if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
   });
 }
 

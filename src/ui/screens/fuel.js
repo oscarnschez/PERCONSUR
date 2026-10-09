@@ -34,7 +34,7 @@ const STATUS = {
 export async function fuelScreen() {
   await fuel.loadFuel();
   let per = 'mes', custom = { from: '', to: '' }, sort = 'best';
-  const s = screen('<div class="page"></div>');
+  const s = screen('<div class="page wide"></div>');
   const root = s.el;
   function render() {
     const units = fuel.unitsAnalyzed(), rg = fuelRange(per, custom), fl = fleetSummary(units, rg), cmp = compareUnits(fl.units, sort);

@@ -28,6 +28,8 @@ body:not(.has-tabbar) .tabbar,html.kb-open .tabbar{display:none}
 .tabbar a.on>.ic{background:var(--blue-t)}
 /* «Administración» no cabe a 12 px en un celular angosto: ahí se muestra «Admin.» (el nombre accesible es completo) */
 .tl-s{display:none}
+/* Logotipo y módulos de cada sección: solo en el menú lateral de computadora (desktop.css) */
+.tb-brand,.tb-sub{display:none}
 @media (max-width:439px){.tabbar .tl-l{display:none}.tabbar .tl-s{display:inline}}
 .tabbar a:active,.tabbar button:active{opacity:.6}
 .tab-plus{width:46px;height:32px;border-radius:10px;background:var(--cta);color:#fff;display:grid;place-items:center;margin-bottom:1px;transition:transform .14s}
@@ -60,6 +62,7 @@ body:not(.has-tabbar) .tabbar,html.kb-open .tabbar{display:none}
 .dc-main b{display:block;font-size:var(--fs-body);font-weight:600}
 .dc-main small{display:block;font-size:var(--fs-subhead);color:var(--ink-2);font-variant-numeric:tabular-nums}
 .dc-ic{width:36px;height:36px;border-radius:10px;background:var(--orange-t);color:var(--cta-ink);display:grid;place-items:center;flex:none}
+.dc-ic.puerto{background:var(--blue-t);color:var(--tint)}
 .dc-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
 
 /* ===== Asistente ===== */

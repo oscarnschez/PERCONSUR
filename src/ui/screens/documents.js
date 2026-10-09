@@ -5,7 +5,7 @@ import { listDocuments } from '../../services/documents.js';
 import { getCompany } from '../../services/companies.js';
 import { esc, relDay, fmtFecha, agoText } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
-import { DIVISION_IMG } from '../../config/modules.js';
+import { DIVISION_ICON } from '../../config/modules.js';
 import { pendingDrafts } from './home.js';
 import { draftRoute } from '../flows.js';
 
@@ -16,7 +16,7 @@ export function docRow(d) {
   const S = d.summary || {}, isP = d.type === 'puerto';
   const who = isP ? [S.operador, S.unidad].filter(Boolean).join(' | ') : [S.unidad, S.planta].filter(Boolean).join(' | ');
   return `<a class="row" href="#/doc/${esc(d.id)}">
-    <span class="row-ic img ${esc(d.type)}"><img src="${esc(DIVISION_IMG[d.type] || '')}" alt="${isP ? 'Puerto' : 'Campo'}" loading="lazy"></span>
+    <span class="row-ic ${esc(d.type)}" role="img" aria-label="${isP ? 'Puerto' : 'Campo'}">${icon[DIVISION_ICON[d.type]] || icon.file}</span>
     <span class="row-tx"><span class="row-l1"><b class="mono">${esc(d.folio)}</b><span class="st st-${esc(d.status)}">${esc(STATUS[d.status] || '')}</span></span>
       <span class="row-l2">${esc(isP ? S.empresa || '' : 'PERCONSUR Campo')}${who ? ' | ' + esc(who) : ''}</span>
       <span class="row-l3">${isP ? 'Nota de entrega' : 'Asignación de unidades'} | ${esc(relDay(d.createdAt))}</span></span>
@@ -25,7 +25,7 @@ export function docRow(d) {
 function draftRow(d) {
   const isP = d.type === 'puerto', s = d.data;
   return `<a class="row" href="#${esc(draftRoute(d))}">
-    <span class="row-ic img ${esc(d.type)} draft"><img src="${esc(DIVISION_IMG[d.type] || '')}" alt="${isP ? 'Puerto' : 'Campo'}" loading="lazy"></span>
+    <span class="row-ic ${esc(d.type)} draft" role="img" aria-label="${isP ? 'Puerto' : 'Campo'}">${icon[DIVISION_ICON[d.type]] || icon.file}</span>
     <span class="row-tx"><span class="row-l1"><b class="mono">${esc(s.folio)}</b><span class="st st-borrador">Borrador</span></span>
       <span class="row-l2">${isP ? esc(getCompany(d.company).short) + (s.operador ? ' | ' + esc(s.operador) : '') : 'PERCONSUR Campo'}</span>
       <span class="row-l3">Sin terminar | ${esc(agoText(d.updatedAt))}</span></span>

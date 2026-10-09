@@ -24,7 +24,7 @@ export async function adminScreen() {
   const cob = summarize(billing.items()), nDue = cob.trips.due.n + cob.delays.due.n;
   const meta = { operadores: `${ops.length} operador${ops.length === 1 ? '' : 'es'}`, cobranza: nDue ? `Por cobrar: ${money(cob.due)} | ${nDue} pendiente${nDue === 1 ? '' : 's'}` : 'Sin pendientes por cobrar', documentos: `${docs.length} documento${docs.length === 1 ? '' : 's'}`,
     catalogos: `${listAll('vehicles').length} unidades | ${listAll('trailers').length} remolques` };
-  return screen(`<div class="page"><header class="page-top"><h1 class="title">Administración</h1></header>
+  return screen(`<div class="page wide hub"><header class="page-top"><h1 class="title">Administración</h1></header>
     <div class="mod-list">${ADMIN_MODULES.map((m) => card(m, meta[m.key])).join('')}</div></div>`);
 }
 
@@ -36,7 +36,7 @@ export async function operationScreen() {
   const fb = fleetBoard(), lc = countByStatus(fb), working = homeEntries(fb).length;
   const nv = openEmpties().length;
   const meta = { logistica: (lc.all ? `${working} en operación | ${lc.empty || 0} vacía${lc.empty === 1 ? '' : 's'} | ${lc.inactive || 0} inactiva${lc.inactive === 1 ? '' : 's'}` : 'Sin unidades en el catálogo') + (nv ? ` | Vacíos pendientes: ${nv}` : ''), taller: md.open.length || md.openIssues.length || md.oilAlerts.length ? [`En taller: ${md.inShopVehicles.length + md.inShopTrailers.length}`, `Pendientes: ${md.open.length}`, md.openIssues.length ? `Fallas: ${md.openIssues.length}` : '', md.oilAlerts.length ? `Aceite: ${md.oilAlerts.length} alerta${md.oilAlerts.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(' | ') : 'Sin equipos en el taller', combustible: fl.count ? `Este mes: ${fl.count} recargas | ${Math.round(fl.liters).toLocaleString('en-US')} L | ${money(fl.amount)}${fl.perf ? ` | ${fl.perf.kmL.toFixed(2)} km/L` : ''}` : 'Sin recargas este mes' };
-  return screen(`<div class="page"><header class="page-top"><h1 class="title">Operación</h1></header>
+  return screen(`<div class="page wide hub"><header class="page-top"><h1 class="title">Operación</h1></header>
     <p class="page-lead">Seguimiento operativo de las unidades.</p>
     <div class="mod-list">${OPERATION_MODULES.map((m) => card(m, meta[m.key])).join('')}</div></div>`);
 }

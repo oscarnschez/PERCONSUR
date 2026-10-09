@@ -75,14 +75,14 @@ export async function logisticsScreen() {
   await mt.loadMaintenance();
   const f = { status: 'all', division: 'all', type: 'all', text: '' };
   let showIdle = 12;
-  const s = screen(`<div class="page lg-page">
+  const s = screen(`<div class="page wide lg-page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Operación</span></button>
       <a class="btn-ghost sm" href="#/operacion/logistica/historial">${icon.clock}<span>Historial</span></a></header>
     <h1 class="title">Logística</h1>
     <p class="page-lead">Estado y asignación actual de las unidades.</p>
     <button type="button" class="btn-primary block lg lg-new" data-new>${icon.plus}<span>Nueva asignación</span></button>
-    <a class="mon-entry" href="#/operacion/logistica/monitoreo"><span class="mod-ic">${icon.map}</span><span class="mon-entry-tx"><b>Monitoreo GPS</b><small>Mapa de la flota en tiempo real y rastreo para clientes</small><span class="mon-entry-n" data-monn></span></span><span class="chev">${icon.chev}</span></a>
-    <a class="ec-entry" href="#/operacion/logistica/vacios"><span class="mod-ic">${icon.yard}</span><span class="ec-entry-tx"><b>Control de vacíos</b><small>Seguimiento y entrega de contenedores vacíos</small><span class="ec-entry-n" data-ecn></span></span><span class="chev">${icon.chev}</span></a>
+    <div class="lg-entries"><a class="mon-entry" href="#/operacion/logistica/monitoreo"><span class="mod-ic">${icon.map}</span><span class="mon-entry-tx"><b>Monitoreo GPS</b><small>Mapa de la flota en tiempo real y rastreo para clientes</small><span class="mon-entry-n" data-monn></span></span><span class="chev">${icon.chev}</span></a>
+    <a class="ec-entry" href="#/operacion/logistica/vacios"><span class="mod-ic">${icon.yard}</span><span class="ec-entry-tx"><b>Control de vacíos</b><small>Seguimiento y entrega de contenedores vacíos</small><span class="ec-entry-n" data-ecn></span></span><span class="chev">${icon.chev}</span></a></div>
     <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" placeholder="Unidad, placas, operador, referencia, lugar…" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Buscar en Logística"></label>
     <div class="chips filters lg-stf" data-stf role="group" aria-label="Filtrar por estado"></div>
     <div class="chips filters lg-f2" role="group" aria-label="Filtrar por división y tipo de remolque">
