@@ -51,7 +51,7 @@ try:
     path=d.value.path(); name=d.value.suggested_filename; txt=pdftext(path)
     ok(name=='Estado-de-cuenta-Jose-Castaneda-Villalobos-2026-09-30.pdf','nombre de archivo saneado: '+name)
     ok(folio in txt and 'Balance al 30 de septiembre de 2026' in txt and '02/10/2026' not in txt and 'Página 1 de' in txt,'el PDF descargado contiene folio, corte, pie con página y no incluye viajes posteriores')
-    ok('Sábados contabilizados' in txt and 'Préstamo personal' in txt and 'Comisión ampliada' in txt,'secciones de sábados, préstamos y nota de comisión ampliada')
+    ok('SÁBADOS CONTABILIZADOS' in txt and 'Préstamo personal' in txt and 'Comisión ampliada' in txt,'secciones de sábados, préstamos y nota de comisión ampliada')
     # muchos viajes → varias páginas
     pg.evaluate('''async()=>{const o=await import('/src/services/operators.js'); const id=location.hash.split('/')[2];
       for(let i=0;i<45;i++){const fare=1500000+i*10000; await o.saveTrip({operatorId:id,division:i%3?'puerto':'campo',date:'2026-09-'+String(1+(i%28)).padStart(2,'0'),origin:'Manzanillo',destination:'Guadalajara',fare,travelExpenses:100000,commissionRate:15,minEnabled:false,minAmount:250000,baseCommission:Math.round(fare*0.15),expandedCommission:0,finalCommission:Math.round(fare*0.15),isExpanded:false,notes:''});}}''')
@@ -61,7 +61,7 @@ try:
     folio2=re.search(r'EO-\d{8}-\d{3}',pg.locator('.stmt-ok').inner_text()).group(0)
     with pg.expect_download() as d2: pg.locator('[data-act="save"]').click()
     p2=d2.value.path(); t2=pdftext(p2); np=pages(p2)
-    heads=len(re.findall(r'Fecha\s+División\s+Origen\s+Destino',t2))
+    heads=len(re.findall(r'FECHA\s+DIVISIÓN\s+RUTA',t2))
     ok(folio2.endswith('-002') and np==n,f'segundo estado: folio {folio2}, PDF de {np} páginas igual que la vista previa ({n})')
     ok(heads>=2 and f'Página {np} de {np}' in t2,f'encabezado de la tabla repetido en {heads} páginas y pie "Página {np} de {np}"')
     ok(os.path.getsize(p2)<200*1024,f'archivo ligero: {os.path.getsize(p2)//1024} KB')

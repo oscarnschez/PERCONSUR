@@ -24,7 +24,6 @@ export const COMPANY_DEFAULTS = {
     mark: true,
     // lists=true: usa los catálogos semilla originales (operadores, unidades, remolques)
     lists: true,
-    track: BRAND + 'track-perconsur.png',
     folioSerie: '50',
     colors: { c1: '#354FA3', c1d: '#233878', c1m: '#4A63B5', c1l: '#EEF1F8', c2: '#F26F22', c2d: '#D65B15', c2m: '#F58A4A', c2l: '#FEF3EC' },
   },
@@ -41,7 +40,6 @@ export const COMPANY_DEFAULTS = {
     logo: BRAND + 'oasc-logo.png',
     mark: false,
     lists: false,
-    track: BRAND + 'track-oasc.png',
     folioSerie: '70',
     colors: { c1: '#545454', c1d: '#333333', c1m: '#6E6E6E', c1l: '#F0F0F0', c2: '#CF0909', c2d: '#A30707', c2m: '#E04444', c2l: '#FCEDED' },
   },
@@ -58,7 +56,6 @@ export const COMPANY_DEFAULTS = {
     logo: BRAND + 'osc-logo.png',
     mark: false,
     lists: false,
-    track: BRAND + 'track-osc.png',
     folioSerie: '90',
     colors: { c1: '#545454', c1d: '#333333', c1m: '#6E6E6E', c1l: '#F0F0F0', c2: '#004AAD', c2d: '#003680', c2m: '#3B78C9', c2l: '#E8F0FB' },
   },

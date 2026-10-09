@@ -1,10 +1,12 @@
 /*
  * Taller — reporte en PDF (individual por orden y consolidado por equipo y periodo).
  * Arma el modelo de páginas (carta, puntos, origen arriba) que dibujan pageToSVG (vista previa) y modelToPdf (archivo)
- * de domain/operators/statement.js: la vista previa es el mismo documento. El diagrama se dibuja con las mismas rutas
- * vectoriales de la app (diagrams.js → pdfItems), con los colores por estado, números y leyenda.
+ * de domain/operators/statement.js: la vista previa es el mismo documento. Diseño de DOCGEN 3.1 (domain/shared/pageDoc.js).
+ * El diagrama se dibuja con las mismas rutas vectoriales de la app (diagrams.js → pdfItems), con colores por estado,
+ * números y leyenda.
  */
-import { PAGE, COLOR, pdfSafe, longDate } from '../operators/statement.js';
+import { PAGE, COLOR } from '../operators/statement.js';
+import { DOC, TR, createDoc } from '../shared/pageDoc.js';
 import { kindLabel, orderStatusOf, ORDER_TYPES, severityLabel, actionLabel, workTypeLabel, workStatusLabel, tireReasonLabel, componentOf, SYSTEMS, CUSTOM_SYSTEM } from './catalog.js';
 import { STATE_COLORS, STATE_LABELS, componentStates, numbering, fmtDT, fmtD, durationText, orderDuration, kmText, nf, positionLabel, positionsOf, pendingPositions, splitTs } from './maintenance.js';
 import { viewsOf, pdfItems, componentViews, tirePdfItems } from './diagrams.js';
@@ -27,137 +29,89 @@ export function buildMaintenanceReport(args) {
   const kind = eq.kind;
   const single = mode === 'orden';
   const folio = single ? entries[0].order.folio : args.reference;
-  const pages = [];
-  let page = null, y = 0;
-  const W = (t, s, b) => measure(pdfSafe(t), s, b);
   const compName = (id) => (componentOf(kind, id, parts) || { name: 'Componente' }).name;
-
-  /* ===== Primitivas ===== */
-  const text = (x, yy, str, o = {}) => page.items.push({ t: 'text', x, y: yy, text: pdfSafe(str), s: o.s || 7.6, b: !!o.b, c: o.c || COLOR.ink, a: o.a || 'start' });
-  const rect = (x, yy, w, h, o = {}) => page.items.push({ t: 'rect', x, y: yy, w, h, fill: o.fill || null, stroke: o.stroke || null, sw: o.sw || 0.6 });
-  const line = (x1, y1, x2, y2, o = {}) => page.items.push({ t: 'line', x1, y1, x2, y2, c: o.c || COLOR.line, w: o.w || 0.6 });
-  const image = (key, x, yy, w, h) => page.items.push({ t: 'image', key, x, y: yy, w, h });
-  function fit(str, s, b, maxW) {
-    let t = pdfSafe(str);
-    if (W(t, s, b) <= maxW) return t;
-    while (t.length > 1 && W(t + '…', s, b) > maxW) t = t.slice(0, -1);
-    return t.trimEnd() + '…';
-  }
-  function wrap(str, s, b, maxW, maxLines = 3) {
-    const words = pdfSafe(str).split(' ').filter(Boolean);
-    if (!words.length) return [''];
-    const lines = []; let cur = '';
-    words.forEach((w) => { const t = cur ? cur + ' ' + w : w; if (cur && W(t, s, b) > maxW) { lines.push(cur); cur = w; } else cur = t; });
-    lines.push(cur);
-    if (lines.length > maxLines) { const rest = lines.slice(maxLines - 1).join(' '); lines.length = maxLines - 1; lines.push(rest + '…'); }
-    return lines.map((l) => fit(l, s, b, maxW));
-  }
-  const band = (yy, h) => { rect(PAGE.ml, yy, CW * 0.78, h, { fill: COLOR.blue }); rect(PAGE.ml + CW * 0.78, yy, CW * 0.22, h, { fill: COLOR.orange }); };
-  const wordmark = (x, yy, h) => {
-    if (imgs.word) { const w = h * imgs.word.w / imgs.word.h; image('word', x, yy, w, h); return w; }
-    text(x, yy + h * 0.82, 'PERCONSUR', { s: h * 0.95, b: true, c: COLOR.blue }); return W('PERCONSUR', h * 0.95, true);
-  };
-  const title = single ? 'REPORTE DE MANTENIMIENTO Y REPARACIÓN' : 'REPORTE DE SERVICIOS DE MANTENIMIENTO';
   const issued = splitTs(issuedAt);
+  const o0 = single ? entries[0].order : null;
+  const dateRange = (p) => `${p.from ? fmtD(new Date(p.from + 'T00:00:00').getTime()) : 'Inicio'} – ${p.to ? fmtD(new Date(p.to + 'T00:00:00').getTime()) : 'Hoy'}`;
+  const eqText = `${eq.label}${eq.placas && eq.placas !== eq.label ? ' · ' + eq.placas : ''}`;
+  const D = createDoc({
+    measure, imgs, company,
+    head: {
+      kicker: 'Operación · Taller', title: single ? 'Reporte de mantenimiento y reparación' : 'Reporte de servicios de mantenimiento',
+      sub: single ? 'Orden de servicio de taller' : 'Historial de servicios del equipo', folio,
+      meta: single
+        ? [{ label: 'Folio', value: folio, folio: true, w: 1.7 }, { label: 'Generado', value: `${fmtD(issuedAt)} ${issued.time}`, w: 1.15 }, { label: 'Equipo', value: eqText, w: 1.1 }, { label: 'Tipo', value: typeLabel(o0.type), w: 1 }, { label: 'Estado', value: orderStatusOf(o0.status).label, w: 0.9 }]
+        : [{ label: 'Referencia', value: folio, folio: true, w: 1.6 }, { label: 'Generado', value: `${fmtD(issuedAt)} ${issued.time}`, w: 1.15 }, { label: 'Equipo', value: eqText, w: 1.1 }, { label: 'Periodo', value: dateRange(args.period || {}), w: 1.45 }, { label: 'Servicios', value: String(entries.length), w: 0.7 }],
+    },
+    cont: { title: single ? 'Reporte de mantenimiento' : 'Reporte de servicios', sub: [[eqText, false]], asideLabel: single ? 'Folio' : 'Referencia', asideValue: folio },
+    foot: { left: 'PERCONSUR | Operación · Taller', center: folio },
+  });
+  const { text, rect, line, image, fit, wrap } = D;
+  const W = D.W;
+  let y = 0;
 
-  /* ===== Encabezados ===== */
-  function firstHeader() {
-    const mh = 42, mw = mh * imgs.mark.w / imgs.mark.h;
-    image('mark', PAGE.ml, 38, mw, mh);
-    const x = PAGE.ml + mw + 10;
-    wordmark(x, 40, 19);
-    text(x, 72, company.legal, { s: 7.4, b: true });
-    text(x, 81.5, company.addr1 || '', { s: 6.8, c: COLOR.muted });
-    text(x, 90.5, company.addr2 || '', { s: 6.8, c: COLOR.muted });
-    text(x, 99.5, [company.email, company.web].filter(Boolean).join('  |  '), { s: 6.8, c: COLOR.muted });
-    text(RX, 52, title, { s: single ? 11.5 : 11, b: true, c: COLOR.blue, a: 'end' });
-    const kv = [[single ? 'Folio' : 'Referencia', folio], ['Fecha de generación', `${longDate(issued.date)} · ${issued.time}`], ['Equipo', `${eq.label}${eq.placas && eq.placas !== eq.label ? ' · ' + eq.placas : ''}`]];
-    kv.forEach(([k, v], i) => {
-      const yy = 70 + i * 11.5;
-      text(RX, yy, v, { s: 8, b: true, a: 'end', c: i === 0 ? COLOR.orange : COLOR.ink });
-      text(RX - W(v, 8, true) - 8, yy, k, { s: 7.2, c: COLOR.muted, a: 'end' });
-    });
-    band(112, 3.2);
-    return 130;
-  }
-  function contHeader() {
-    const mh = 22, mw = mh * imgs.mark.w / imgs.mark.h;
-    image('mark', PAGE.ml, 32, mw, mh);
-    wordmark(PAGE.ml + mw + 7, 37, 11);
-    text(RX, 41, single ? 'Reporte de mantenimiento y reparación' : 'Reporte de servicios de mantenimiento', { s: 8, b: true, c: COLOR.blue, a: 'end' });
-    text(RX, 51, fit(`${eq.label}  |  ${folio}`, 7, false, 300), { s: 7, c: COLOR.muted, a: 'end' });
-    band(62, 1.6);
-    return 78;
-  }
-  function newPage() { page = { w: PAGE.w, h: PAGE.h, items: [] }; pages.push(page); y = pages.length === 1 ? firstHeader() : contHeader(); }
+  function newPage() { y = D.newPage(); }
   const ensure = (h) => { if (y + h > PAGE.bottom) { newPage(); return true; } return false; };
 
   /* ===== Bloques ===== */
-  function section(t, minAfter = 30) {
-    ensure(26 + minAfter);
-    text(PAGE.ml, y + 11, t.toUpperCase(), { s: 9, b: true, c: COLOR.blue });
-    line(PAGE.ml, y + 16, RX, y + 16, { c: COLOR.blue, w: 0.8 });
-    y += 24;
-  }
+  function section(t, minAfter = 30) { ensure(22 + minAfter); y = D.sectionHead(y, t).y; }
   function subTitle(t) { ensure(30); text(PAGE.ml, y + 9, t, { s: 8.2, b: true, c: COLOR.blueD }); y += 15; }
-  /* Pares dato/valor en dos columnas */
+  /* Celdas en dos columnas (.s-cells): etiqueta en mayúsculas arriba y dato abajo (hasta dos líneas) */
   function kvGrid(rows) {
-    const colW = CW / 2, lw = 104;
+    const colW = CW / 2;
     for (let i = 0; i < rows.length; i += 2) {
-      const pair = rows.slice(i, i + 2), hs = pair.map(([, v]) => wrap(v || '—', 7.8, true, colW - lw - 8, 2).length);
-      const h = Math.max(...hs) * 10 + 6;
+      const pair = rows.slice(i, i + 2), ls = pair.map(([, v]) => wrap(v || '—', 8.6, true, colW - 15, 2));
+      const h = Math.max(31, 20 + Math.max(...ls.map((l) => l.length)) * 10.5);
       ensure(h);
-      pair.forEach(([k, v], j) => {
+      rect(PAGE.ml, y, CW, h, { stroke: DOC.line, sw: 0.75 });
+      pair.forEach(([k], j) => {
         const x = PAGE.ml + j * colW;
-        text(x, y + 9, k, { s: 7, c: COLOR.muted });
-        wrap(v || '—', 7.8, true, colW - lw - 8, 2).forEach((l, li) => text(x + lw, y + 9 + li * 10, l, { s: 7.8, b: true }));
+        if (j) line(x, y, x, y + h, { c: DOC.line2, w: 0.75 });
+        text(x + 7.5, y + 11, k, { s: 6, b: true, up: true, tr: TR, c: DOC.mute });
+        ls[j].forEach((l, li) => text(x + 7.5, y + 23 + li * 10.5, l, { s: 8.6, b: true }));
       });
-      line(PAGE.ml, y + h, RX, y + h, { c: '#E8EBF1', w: 0.5 });
-      y += h + 2;
+      y += h;
     }
-    y += 6;
-  }
-  function paragraph(label, value, { maxLines = 8 } = {}) {
-    const lines = wrap(value || '—', 7.8, false, CW - 4, maxLines);
-    ensure(14 + lines.length * 10);
-    text(PAGE.ml, y + 8, label, { s: 7, c: COLOR.muted, b: true });
     y += 12;
-    lines.forEach((l) => { text(PAGE.ml, y + 8, l, { s: 7.8 }); y += 10; });
-    y += 6;
+  }
+  /* Texto con título (.s-ob): franja azul clara con la etiqueta y el texto debajo */
+  function paragraph(label, value, { maxLines = 8 } = {}) {
+    const lines = wrap(value || '—', 7.8, false, CW - 18, maxLines), h = 14 + lines.length * 10 + 6;
+    ensure(h);
+    rect(PAGE.ml, y, CW, 14, { fill: DOC.c1l });
+    rect(PAGE.ml, y, CW, h, { stroke: DOC.line, sw: 0.75 });
+    line(PAGE.ml, y + 14, PAGE.ml + CW, y + 14, { c: DOC.line2 });
+    text(PAGE.ml + 9, y + 9.6, label, { s: 6, b: true, up: true, tr: TR, c: DOC.c1 });
+    lines.forEach((l, i) => text(PAGE.ml + 9, y + 25 + i * 10, l, { s: 7.8 }));
+    y += h + 8;
   }
   const swatch = (x, yy, state) => rect(x, yy - 6.4, 7, 7, { fill: STATE_COLORS[state], stroke: '#2D3442', sw: 0.4 });
-  /* Tabla con encabezado repetido en cada página; cols: [{ h, w, get(row) → texto | { text, state } }] */
+  /* Tabla con encabezado repetido en cada página (.s-t); cols: [{ h, w, get(row) → texto | { text, state } }] */
   function table(cols, rows, { maxLines = 3, empty = 'Sin registros.' } = {}) {
-    const head = () => {
-      ensure(18 + 14);
-      rect(PAGE.ml, y, CW, 15, { fill: COLOR.blueL });
-      let x = PAGE.ml;
-      cols.forEach((c) => { text(x + 4, y + 10, c.h, { s: 6.8, b: true, c: COLOR.blueD }); x += c.w; });
-      y += 15;
-    };
+    const xs = []; let acc = PAGE.ml; cols.forEach((c) => { xs.push(acc); acc += c.w; });
+    const hc = cols.map((c) => ({ label: c.h, w: c.w }));
+    const head = () => { ensure(16 + 16); y = D.tableHead(y, hc, xs, 15); };
     head();
-    if (!rows.length) { text(PAGE.ml + 4, y + 11, empty, { s: 7.4, c: COLOR.muted }); y += 18; return; }
+    if (!rows.length) { D.rowFrame(y, 20, 0); text(PAGE.ml + 6, y + 13, empty, { s: 7.4, c: COLOR.muted }); y += 20; D.tableEnd(y); y += 12; return; }
     rows.forEach((r, ri) => {
-      const cells = cols.map((c) => { const v = c.get(r); const o = typeof v === 'object' && v ? v : { text: v }; return { ...o, lines: wrap(o.text || '—', 7.2, !!c.b, c.w - 8 - (o.state ? 10 : 0), maxLines) }; });
+      const cells = cols.map((c) => { const v = c.get(r); const o = typeof v === 'object' && v ? v : { text: v }; return { ...o, lines: wrap(o.text || '—', 7.2, !!c.b, c.w - 10 - (o.state ? 10 : 0), maxLines) }; });
       const h = Math.max(...cells.map((c) => c.lines.length)) * 9.4 + 7;
-      if (y + h > PAGE.bottom) { newPage(); head(); }
-      if (ri % 2 === 1) rect(PAGE.ml, y, CW, h, { fill: COLOR.faint });
-      let x = PAGE.ml;
+      if (y + h > PAGE.bottom) { D.tableEnd(y); newPage(); head(); }
+      D.rowFrame(y, h, ri);
       cells.forEach((c, ci) => {
-        const ox = c.state ? 10 : 0;
-        if (c.state) swatch(x + 4, y + 10.5, c.state);
-        c.lines.forEach((l, li) => text(x + 4 + ox, y + 10.5 + li * 9.4, l, { s: 7.2, b: !!cols[ci].b }));
-        x += cols[ci].w;
+        const x = xs[ci], ox = c.state ? 10 : 0;
+        if (c.state) swatch(x + 6, y + 10.5, c.state);
+        c.lines.forEach((l, li) => text(x + 6 + ox, y + 10.5 + li * 9.4, l, { s: 7.2, b: !!cols[ci].b }));
       });
-      line(PAGE.ml, y + h, RX, y + h, { w: 0.4 });
       y += h;
     });
-    y += 10;
+    D.tableEnd(y);
+    y += 12;
   }
   function legend() {
     ensure(22);
     let x = PAGE.ml;
-    text(x, y + 9, 'Leyenda:', { s: 7, b: true, c: COLOR.muted }); x += W('Leyenda:', 7, true) + 8;
+    text(x, y + 9, 'Leyenda', { s: 6.4, b: true, up: true, tr: TR, c: DOC.mute }); x += D.textW('Leyenda', { s: 6.4, b: true, up: true, tr: TR }) + 8;
     for (const k of ['none', 'leve', 'moderado', 'total', 'reemplazado']) {
       swatch(x, y + 9.4, k); x += 10;
       text(x, y + 9, STATE_LABELS[k], { s: 7 }); x += W(STATE_LABELS[k], 7, false) + 12;
@@ -165,7 +119,8 @@ export function buildMaintenanceReport(args) {
     y += 18;
   }
   /* Diagrama: vistas donde aparecen los componentes intervenidos (o la principal si no hay ninguno) */
-  function diagram(records, { note = '' } = {}) {
+  /* El título de la sección se dibuja aquí: así reserva el alto de la primera vista y nunca queda solo al pie */
+  function diagram(records, { title, note = '' } = {}) {
     const states = componentStates(records), nums = numbering(states, kind, parts), cv = componentViews(kind), views = viewsOf(kind);
     let show = views.filter((v) => [...states.keys()].some((c) => (cv.get(c) || []).includes(v.id)));
     /* Lateral izquierda y derecha: si una no muestra ningún componente intervenido que no esté ya en la otra, basta con
@@ -179,11 +134,13 @@ export function buildMaintenanceReport(args) {
     }
     if (!show.length) show = views.slice(0, 1);
     const wide = show.filter((v) => v.w > 700), narrow = show.filter((v) => v.w <= 700);
+    const firstH = wide.length ? CW * wide[0].h / wide[0].w : Math.max(...narrow.slice(0, 2).map((v) => ((CW - 14) / 2) * v.h / v.w));
+    section(title, firstH + 26);
     const drawView = (v, box) => {
-      text(box.x, y + 9, v.name.toUpperCase(), { s: 6.8, b: true, c: COLOR.muted });
+      text(box.x, y + 9, v.name, { s: 6.4, b: true, up: true, tr: TR, c: DOC.mute });
       const r = pdfItems(kind, v.id, { states, numbers: nums }, { x: box.x, y: y + 14, w: box.w, h: box.h });
-      rect(box.x, y + 12, box.w, r.h + 6, { stroke: COLOR.line, sw: 0.5 });
-      r.items.forEach((it) => page.items.push(it));
+      D.rrect(box.x, y + 12, box.w, r.h + 6, 3, { stroke: DOC.line, sw: 0.75 });
+      r.items.forEach((it) => D.page.items.push(it));
       return r.h + 22;
     };
     for (const v of wide) { const h = CW * v.h / v.w; ensure(h + 26); y += drawView(v, { x: PAGE.ml, w: CW, h }); }
@@ -205,10 +162,10 @@ export function buildMaintenanceReport(args) {
       ensure(bh + 26);
       list.slice(i, i + 2).forEach((p, j) => {
         const x = PAGE.ml + j * (bw + 14);
-        rect(x, y, bw, bh, { fill: COLOR.faint, stroke: COLOR.line, sw: 0.5 });
+        D.rrect(x, y, bw, bh, 3, { fill: DOC.photo, stroke: DOC.line, sw: 0.75 });
         const k = Math.min((bw - 8) / p.w, (bh - 8) / p.h), w = p.w * k, h = p.h * k;
         image(p.key, x + (bw - w) / 2, y + (bh - h) / 2, w, h);
-        text(x, y + bh + 10, fit(p.caption || 'Evidencia', 7, false, bw), { s: 7, c: COLOR.muted });
+        text(x + 1.5, y + bh + 10, fit(p.caption || 'Evidencia', 7.4, true, bw - 3), { s: 7.4, b: true, c: DOC.c1 });
       });
       y += bh + 18;
     }
@@ -246,9 +203,9 @@ export function buildMaintenanceReport(args) {
       const replaced = new Set(withPos.filter((t) => t.layout === layout).flatMap((t) => t.positions));
       const r0 = tirePdfItems(layout, replaced, { x: 0, y: 0, w: 150, h: 260 });
       ensure(r0.h + 24);
-      text(PAGE.ml, y + 9, 'POSICIONES CON LLANTA NUEVA', { s: 6.8, b: true, c: COLOR.muted });
+      text(PAGE.ml, y + 9, 'Posiciones con llanta nueva', { s: 6.4, b: true, up: true, tr: TR, c: DOC.mute });
       const r = tirePdfItems(layout, replaced, { x: PAGE.ml, y: y + 14, w: 150, h: 260 });
-      r.items.forEach((it) => page.items.push(it));
+      r.items.forEach((it) => D.page.items.push(it));
       const lx = PAGE.ml + 170;
       swatch(lx, y + 30, 'reemplazado'); text(lx + 10, y + 30, 'Llanta reemplazada', { s: 7 });
       swatch(lx, y + 44, 'none'); text(lx + 10, y + 44, 'Sin reemplazo registrado', { s: 7 });
@@ -313,8 +270,7 @@ export function buildMaintenanceReport(args) {
     replacements(e.components);
     if (e.tires.length) { section('Llantas'); tires(e.tires); }
     if (e.oil.length) { section('Cambio de aceite'); oilBlock(e.oil); }
-    section('Diagrama de daños', 200);
-    const dg = diagram(e.components, { note: 'Azul: componente reemplazado (la gravedad original se conserva en la tabla). Si un componente tiene varias incidencias se muestra la más alta.' });
+    const dg = diagram(e.components, { title: 'Diagrama de daños', note: 'Azul: componente reemplazado (la gravedad original se conserva en la tabla). Si un componente tiene varias incidencias se muestra la más alta.' });
     componentTable(dg.list, dg.nums);
     const ph = e.photos;
     if (ph.length) { section('Evidencias', 180); photos(ph); }
@@ -360,18 +316,14 @@ export function buildMaintenanceReport(args) {
         { h: 'Filtros', w: CW - 360, get: (x) => [x.oilFilter ? 'Filtro de aceite' : '', x.otherFilters].filter(Boolean).join(', ') || '—' },
       ], oilAll);
     }
-    section('Diagrama consolidado', 200);
     const folios = new Map(all.map((o) => [o.id, o.folio]));
-    const dg = diagram(comps, { note: 'Diagrama consolidado del periodo: la tabla conserva cada intervención con su fecha y folio.' });
+    const dg = diagram(comps, { title: 'Diagrama consolidado', note: 'Diagrama consolidado del periodo: la tabla conserva cada intervención con su fecha y folio.' });
     componentTable(dg.list, dg.nums, true, folios);
     const ph = entries.flatMap((e) => e.photos);
     if (ph.length) { section('Evidencias', 180); photos(ph); }
   }
 
-  /* Pie de página con numeración */
-  pages.forEach((pg, i) => {
-    pg.items.push({ t: 'line', x1: PAGE.ml, y1: 750, x2: RX, y2: 750, c: COLOR.line, w: 0.5 });
-    pg.items.push({ t: 'text', x: PAGE.w / 2, y: 763, text: pdfSafe(`PERCONSUR · ${single ? 'Reporte de mantenimiento' : 'Reporte de servicios'} · ${folio} · Página ${i + 1} de ${pages.length}`), s: 6.8, b: false, c: COLOR.muted, a: 'middle' });
-  });
+  /* Pie de página con folio y numeración */
+  const pages = D.finish();
   return { pages, folio };
 }

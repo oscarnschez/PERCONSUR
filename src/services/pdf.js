@@ -1,8 +1,8 @@
 /*
- * Generación de PDF — misma técnica que el original para conservar el formato exacto:
+ * Generación de PDF — misma técnica que DOCGEN para conservar el formato exacto:
  *   1. Se monta la(s) hoja(s) HTML a 816 px de ancho (carta / media carta), sin depender del tamaño de la pantalla.
- *   2. Se sustituyen los elementos que html2canvas no dibuja bien (banda corrugada, textos con
- *      Archivo condensado, renglones de observaciones, planta SVG) por imágenes — igual que prepClone().
+ *   2. Se sustituyen los elementos que html2canvas no dibuja bien (textos con Archivo condensado, renglones de
+ *      observaciones, íconos y código de barras en SVG) por imágenes — igual que prepClone() de DOCGEN.
  *   3. html2canvas (escala 2.5) → JPEG → jsPDF, con enlaces clicables sobre QR y rastreo GPS.
  *   4. pdf-lib agrega los archivos combinados (PDF / JPG / PNG) en el orden elegido.
  * Mejoras para Safari iOS:
@@ -18,21 +18,11 @@ export const FORMATS = {
 };
 const SCALES = [2.5, 2, 1.6];
 
-/* Banda corrugada tipo puerta de contenedor (.s-band) dibujada en canvas */
-function drawBand(w, h, K) {
-  const k = 3, c = document.createElement('canvas'); c.width = w * k; c.height = h * k;
-  const x = c.getContext('2d'); x.scale(k, k);
-  const split = w * 0.78, pat = [[9, K.c1, K.c2], [3, K.c1d, K.c2d], [2, K.c1m, K.c2m]];
-  for (let px = 0; px < w;) { for (const [wd, b, o] of pat) { x.fillStyle = px >= split ? o : b; x.fillRect(px, 0, wd, h); px += wd; if (px >= w) break; } }
-  const i = new Image(); i.src = c.toDataURL('image/png'); c.width = c.height = 0;
-  i.style.cssText = `display:block;width:${w}px;height:${h}px;margin:18px 0 16px;border-radius:2px`;
-  return i;
-}
-
 /* Texto con fuente condensada → imagen (html2canvas ignora font-stretch) */
 function drawText(el) {
   const r = document.createRange(); r.selectNodeContents(el); const b = r.getBoundingClientRect();
-  const cs = getComputedStyle(el), w = Math.ceil(b.width) + 1, h = Math.ceil(b.height), txt = el.textContent.trim();
+  const cs = getComputedStyle(el), w = Math.ceil(b.width) + 1, h = Math.ceil(b.height), raw = el.textContent.trim();
+  const txt = cs.textTransform === 'uppercase' ? raw.toUpperCase() : raw;
   if (!w || !h || !txt) return;
   const k = 3, c = document.createElement('canvas'); c.width = w * k; c.height = h * k; const x = c.getContext('2d');
   const st = parseFloat(cs.fontStretch) || 100;
@@ -45,7 +35,7 @@ function drawText(el) {
   el.textContent = ''; el.appendChild(i);
 }
 
-/* SVG (planta de maíz) → imagen */
+/* SVG en línea (íconos, código de barras) → imagen PNG: html2canvas no siempre dibuja bien los SVG */
 function svgToImg(svgEl, scale) {
   return new Promise((res) => {
     const r = svgEl.getBoundingClientRect(), w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
@@ -54,7 +44,7 @@ function svgToImg(svgEl, scale) {
     im.onload = () => {
       const c = document.createElement('canvas'); c.width = w * scale; c.height = h * scale; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
       const out = new Image(); out.src = c.toDataURL('image/png'); c.width = c.height = 0;
-      out.className = svgEl.getAttribute('class') || ''; out.style.cssText = `width:${w}px;height:${h}px`;
+      out.className = svgEl.getAttribute('class') || ''; out.style.cssText = `width:${w}px;height:${h}px;flex:none;display:block`;
       out.onload = () => res(out); out.onerror = () => res(null);
     };
     im.onerror = () => res(null);
@@ -79,15 +69,14 @@ async function prepare(spec) {
   await waitImages(host);
   const sheets = [...host.querySelectorAll(spec.sheetSel)];
   sheets.forEach((x) => { x.style.boxShadow = 'none'; x.style.marginBottom = '0'; });
-  host.querySelectorAll('.s-band').forEach((band) => band.replaceWith(drawBand(band.offsetWidth, 14, spec.colors)));
   host.querySelectorAll(spec.textSel).forEach(drawText);
   if (spec.obsLines && sheets[0]) {
-    sheets[0].querySelectorAll('.s-obs:not(.s-rec)').forEach((obs) => {
+    sheets[0].querySelectorAll('.s-obs').forEach((obs) => {
       obs.style.background = '#fff'; obs.style.position = 'relative';
-      for (let y = 27; y < obs.offsetHeight - 2; y += 22) { const l = document.createElement('div'); l.style.cssText = `position:absolute;left:0;right:0;top:${y}px;height:1px;background:#E3E7EF`; obs.appendChild(l); }
+      for (let y = 25; y < obs.offsetHeight - 2; y += 22) { const l = document.createElement('div'); l.style.cssText = `position:absolute;left:0;right:0;top:${y}px;height:1px;background:#E7EAF0`; obs.appendChild(l); }
     });
   }
-  for (const sv of [...host.querySelectorAll('svg.h-plant')]) { const im = await svgToImg(sv, 4); if (im) sv.replaceWith(im); }
+  for (const sv of [...host.querySelectorAll('svg')]) { const im = await svgToImg(sv, 4); if (im) sv.replaceWith(im); }
   await waitImages(host);
   return { host: stage, sheets };
 }
@@ -165,7 +154,9 @@ export async function generatePdf(spec, onStep) {
   onStep && onStep('Preparando');
   await loadLibs(['html2canvas', 'jspdf'].concat(spec.attachments.length ? ['pdflib'] : []));
   if (document.fonts && document.fonts.ready) {
-    try { await Promise.race([document.fonts.load('800 44px "Archivo"'), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* sin fuente: Arial */ }
+    /* Las letras del documento (Archivo, Inter y JetBrains Mono) se cargan antes de dibujar la hoja */
+    const faces = ['800 44px "Archivo"', '400 12px "Inter"', '600 12px "Inter"', '800 12px "Inter"', '700 15px "JetBrains Mono"', '600 12px "JetBrains Mono"'];
+    try { await Promise.race([Promise.all(faces.map((f) => document.fonts.load(f))), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* sin fuente: respaldo del sistema */ }
     await document.fonts.ready;
   }
   const sy = window.scrollY; window.scrollTo(0, 0);

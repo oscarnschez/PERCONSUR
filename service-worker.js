@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = 'e81439f95a';
+const VERSION = 'f2eaf2da8f';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -44,7 +44,10 @@ const PRECACHE = [
   "./src/domain/operators/tripsExport.js",
   "./src/domain/puerto/model.js",
   "./src/domain/puerto/sheet.js",
+  "./src/domain/shared/barcode.js",
+  "./src/domain/shared/docIcons.js",
   "./src/domain/shared/format.js",
+  "./src/domain/shared/pageDoc.js",
   "./src/domain/sync/sync.js",
   "./src/domain/tracking/tracking.js",
   "./src/main.js",
@@ -151,13 +154,9 @@ const PRECACHE = [
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png",
   "./assets/icons/icon-maskable-512.png",
-  "./assets/brand/corn-watermark.png",
   "./assets/brand/oasc-logo.png",
   "./assets/brand/osc-logo.png",
   "./assets/brand/perconsur-mark.png",
-  "./assets/brand/track-oasc.png",
-  "./assets/brand/track-osc.png",
-  "./assets/brand/track-perconsur.png",
   "./vendor/bwip-js-min.js",
   "./vendor/fonts/archivo-latin-ext.woff2",
   "./vendor/fonts/archivo-latin.woff2",
@@ -166,6 +165,9 @@ const PRECACHE = [
   "./vendor/fonts/inter-latin-ext.woff2",
   "./vendor/fonts/inter-latin.woff2",
   "./vendor/fonts/inter.css",
+  "./vendor/fonts/jetbrains-mono.css",
+  "./vendor/fonts/jetbrainsmono-latin-ext.woff2",
+  "./vendor/fonts/jetbrainsmono-latin.woff2",
   "./vendor/html2canvas.min.js",
   "./vendor/jspdf.umd.min.js",
   "./vendor/leaflet/LICENSE.txt",

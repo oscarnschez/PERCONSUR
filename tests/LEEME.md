@@ -12,6 +12,7 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 operators.py` — módulo Operadores: fórmula del balance con los ejemplos oficiales, comisión ampliada, validaciones, resumen, CSV, respaldo.
 - `python3 v140.py` — versión 1.4: navegación, perfil, remolques por división, combustible, Excel y respaldo.
 - `node fuel_unit.mjs` — cálculos de combustible (sin navegador).
+- `node docs_unit.mjs` — diseño de documentos de DOCGEN 3.1 (sin navegador): código de barras Code 128-B del folio, íconos, estructura de la nota de entrega, el anexo y la asignación, y el modelo de páginas de los reportes (título condensado, etiquetas espaciadas, secciones numeradas, banda y pie).
 - `python3 logistics.py` — Logística: asignación con unidad/operador/remolque del catálogo, avisos de doble asignación, filtros y buscador, Inicio → Unidades en operación en vivo, historial, protección del catálogo y respaldo.
 - `node logistics_unit.mjs` — reglas de Logística: estados, regla de Inicio, filtros, buscador y conflictos (sin navegador).
 - `python3 trip_docs.py` — documentos adicionales de viajes y expediente consolidado: varios archivos a la vez, orden, renombrar, eliminar, archivo dañado, vista previa, PDF consolidado (páginas copiadas e imágenes centradas), documento original intacto, persistencia y respaldo.
@@ -34,6 +35,6 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 statement.py` — estado de cuenta en PDF (requiere `pdftotext` y `pdfinfo` de poppler-utils).
 - `python3 upgrade.py` — actualización de la base de datos v1 → v2 sin pérdida de datos.
 - `python3 offline.py` — sin conexión con el service worker activo.
-- `python3 fidelity.py` — compara la hoja generada por el HTML original con la de la app (copia el HTML original como `__orig.html` en la raíz de la app antes de correrlo).
+- `python3 fidelity.py` — compara la hoja generada por DOCGEN con la de la app (copia el `index.html` de DOCGEN 3.1 como `__orig.html` en la raíz de la app antes de correrlo).
 
 `shims.js` sustituye a las librerías del CDN **solo en pruebas** (el entorno de pruebas no tenía internet). No se carga en la app.
