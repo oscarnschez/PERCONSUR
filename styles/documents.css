@@ -5,7 +5,7 @@
  * Los colores de empresa llegan como variables --c1… en el atributo style de cada hoja.
  */
 .doc-root{--c1:#354FA3;--c1d:#233878;--c1m:#4A63B5;--c1l:#EEF1F8;--c2:#F26F22;--c2d:#D65B15;--c2m:#F58A4A;--c2l:#FEF3EC}
-.doc-root,.pdf-host{font-family:Arial,"Helvetica Neue",Helvetica,"Liberation Sans",sans-serif;line-height:1.45;color:#1A2233;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+.doc-root,.pdf-host{font-size:16px;font-family:Arial,"Helvetica Neue",Helvetica,"Liberation Sans",sans-serif;line-height:1.45;color:#1A2233;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 .doc-root *,.doc-root *::before,.doc-root *::after{box-sizing:border-box}
 .doc-root img{max-width:none}
 .doc-root a{-webkit-tap-highlight-color:transparent}

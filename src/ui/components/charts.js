@@ -2,7 +2,7 @@
  * Gráficas SVG ligeras (sin librerías, funcionan sin conexión). Cada una responde una pregunta concreta.
  * Colores por variables CSS: se adaptan a modo claro y oscuro.
  */
-const W = 340, PAD = { l: 44, r: 12, t: 14, b: 26 };
+const W = 340, PAD = { l: 54, r: 12, t: 16, b: 28 };
 const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 function niceRange(min, max) {
   if (min === max) { const d = Math.abs(min) * 0.1 || 1; min -= d; max += d; }
