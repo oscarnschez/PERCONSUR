@@ -151,6 +151,7 @@ try:
     ok('km/h' not in t and 'U12' not in t and '60-BN' not in t and 'MSCU' not in t,'portal: sin velocidad, número económico, placas ni referencia')
     ok(cp.locator('.pt-map canvas.maplibregl-canvas').count()==1 and cp.locator('.pt-map .vm').count()==1 and cp.locator('.pt-map .vm-dest').count()==1,'portal: mapa MapLibre con el marcador del envío y el destino')
     ok('Ubicación actualizada' in t,'portal: hora de la última posición')
+    ok('© ' in t and 'PERCONSUR DE NAYARIT GROUP' in t and 'Todos los derechos reservados' in t,'portal: aviso de derechos de autor al pie')
     raw=cp.evaluate("async()=>{const r=await fetch(document.getElementById('portal').dataset.api); return await r.text()}")
     ok('speed' not in raw and 'imei' not in raw.lower() and '865190071363660' not in raw and ids['oper'] not in raw and '20.64' not in raw,'datos del portal: el backend no entrega velocidad, IMEI, nombre completo del operador ni otras unidades')
     mw=cp.evaluate("()=>{const m=document.querySelector('.pt-map').getBoundingClientRect(); return {w:m.width,h:m.height,vw:innerWidth,vh:innerHeight}}")

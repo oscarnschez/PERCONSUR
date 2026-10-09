@@ -66,6 +66,7 @@ body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);
 .pt-foot p{display:flex;gap:6px;margin:0}
 .pt-foot .ic{width:16px;height:16px;margin-top:1px}
 .pt-copy{font-weight:600}
+.pt-legal{font-size:var(--fs-caption)}
 @media (prefers-color-scheme:dark){.pt-word{color:#E8EBF2}}
 
 /* Computadora: mapa amplio a la izquierda, estado y ruta a la derecha */
