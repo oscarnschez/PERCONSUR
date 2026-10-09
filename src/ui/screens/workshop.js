@@ -70,7 +70,7 @@ export async function workshopScreen() {
         <div class="mt-tile${d.oilAlerts.length ? ' warn' : ''}"><small>Alertas de aceite</small><b>${d.oilAlerts.length}</b></div>
       </div>
       <div class="mt-cols"><section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">En taller ahora</h2><span class="count">${d.open.length}</span></div>
-        ${d.open.length ? `<div class="mt-cards">${d.open.map((o) => orderCard(o, d.now)).join('')}</div>` : '<div class="empty"><p>Ningún equipo en el taller.</p></div>'}</section>
+        ${d.open.length ? `<div class="mt-cards">${d.open.map((o) => orderCard(o, d.now)).join('')}</div>` : `<div class="empty"><p><b class="empty-t">Ningún equipo en el taller</b>Cuando ingrese una unidad o un remolque aparecerá aquí con su tiempo en taller.</p><button type="button" class="btn-primary sm" data-new="order" data-w>${icon.plus}<span>Registrar mantenimiento</span></button></div>`}</section>
       <section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Próximos cambios de aceite</h2><span class="count">${d.oilAlerts.length}</span></div>
         ${d.oilAlerts.length ? d.oilAlerts.map(oilAlert).join('') : '<p class="grp-note">Sin alertas. Se basan en el último cambio registrado y en el intervalo configurado de cada unidad.</p>'}</section>
       <section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Fallas reportadas</h2><span class="count">${d.openIssues.length}</span></div>
@@ -135,7 +135,7 @@ export async function workshopEquipmentScreen({ type, id }) {
       <div class="mt-tiles">
         <div class="mt-tile"><small>Servicios</small><b>${sum.count}</b></div>
         <div class="mt-tile"><small>Último mantenimiento</small><b style="font-size:15px">${sum.last ? esc(fmtD(sum.last.inAt)) : '—'}</b></div>
-        <div class="mt-tile"><small>Días en taller</small><b>${nf(sum.daysInShop, 1)}</b></div>
+        <div class="mt-tile"><small>Tiempo en taller</small><b>${sum.daysInShop < 1 ? `${nf(Math.round(sum.daysInShop * 24))} h` : `${nf(sum.daysInShop, 1)} ${sum.daysInShop < 1.05 ? 'día' : 'días'}`}</b></div>
         <div class="mt-tile${sum.openIssues.length ? ' warn' : ''}"><small>Fallas reportadas</small><b>${sum.issues.length}</b>${sum.openIssues.length ? `<small>${sum.openIssues.length} sin atender</small>` : ''}</div>
         <div class="mt-tile"><small>Reparaciones</small><b>${sum.repairs}</b></div>
         <div class="mt-tile"><small>Reemplazos</small><b>${sum.replacements}</b></div>

@@ -26,6 +26,7 @@ export const icon = {
   close: I('<path d="m6 6 12 12M18 6 6 18"/>', ' stroke-width="2"'),
   check: I('<path d="m5 12.5 4.5 4.5L19 7.5"/>', ' stroke-width="2.4"'),
   alert: I('<path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.3"/>'),
+  filter: I('<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
   search: I('<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>'),
   pin: I('<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 1 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>'),
   flag: I('<path d="M5.5 21V3.8"/><path d="M5.5 4.5h12l-2.6 4 2.6 4h-12"/>'),

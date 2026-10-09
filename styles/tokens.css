@@ -17,9 +17,17 @@
   --ink:#1A2233; --ink-2:#4A5468; --muted:#5F6879; --line:#E3E6ED; --line-2:#D3D8E2;
   --ok:#1E7A4C; --ok-t:#E6F3EB; --warn:#B4441A; --warn-t:#FDF1E9; --danger:#C62828; --danger-t:#FCECEC;
   --wa:#1FAF55;
+  /* Constantes en ambos temas: texto sobre color sólido y colores de la banda corrugada de la marca */
+  --on-color:#FFFFFF; --brand-orange:#F26F22; --brand-orange-d:#D65B15; --brand-orange-m:#F58A4A;
+  /* Elevación: 1 tarjeta · 2 flotante (controles, pines del mapa, hojas de papel) · 3 superpuesto (hojas, diálogos,
+     ventanas del mapa, avisos) · up hoja inferior que sube desde el borde */
   --shadow-1:0 1px 2px rgba(20,30,55,.06);
-  --shadow-2:0 8px 28px rgba(20,30,55,.14);
-  --r-xs:8px; --r-sm:10px; --r:14px; --r-lg:18px;
+  --shadow-2:0 2px 8px rgba(15,25,45,.22);
+  --shadow-3:0 10px 30px rgba(15,25,45,.24);
+  --shadow-up:0 -6px 26px rgba(15,25,45,.2);
+  /* Esquinas: 2xs detalles (barras, muestras) · xs insignias y etiquetas · sm controles (botones, campos, íconos)
+     · r tarjetas y hojas · pill chips y píldoras. Los círculos usan 50 %. */
+  --r-2xs:4px; --r-xs:8px; --r-sm:12px; --r:16px; --r-pill:999px;
   --font:"Inter",-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --fs-caption:12px; --fs-footnote:13px; --fs-subhead:15px; --fs-body:17px; --fs-title3:20px; --fs-title2:24px; --fs-title1:30px;
   --font-brand:"Archivo","Arial Narrow",Arial,sans-serif;
@@ -27,6 +35,8 @@
   --sat:env(safe-area-inset-top,0px); --sab:env(safe-area-inset-bottom,0px);
   --sal:env(safe-area-inset-left,0px); --sar:env(safe-area-inset-right,0px);
   --tab-h:56px; --bar-h:68px;
+  /* Capas de la interfaz (de abajo hacia arriba). Los valores 0–5 dentro de un componente son locales. */
+  --z-sticky:100; --z-nav:200; --z-sheet:300; --z-busy:1000; --z-toast:1500; --z-login:1800; --z-splash:2000;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
@@ -35,7 +45,7 @@
     --canvas:#0E1219; --surface:#161B25; --surface-2:#1C2230; --fill:#242B3A;
     --ink:#E8EBF2; --ink-2:#B6BDCC; --muted:#8A93A6; --line:#252C3A; --line-2:#323B4D;
     --ok:#5BC98E; --ok-t:#13281D; --warn:#FF9A62; --warn-t:#2B1A10; --danger:#FF6B6B; --danger-t:#2C1515;
-    --shadow-1:none; --shadow-2:0 10px 32px rgba(0,0,0,.5);
+    --shadow-1:none; --shadow-2:0 2px 8px rgba(0,0,0,.5); --shadow-3:0 10px 32px rgba(0,0,0,.5); --shadow-up:0 -6px 26px rgba(0,0,0,.5);
     color-scheme:dark;
   }
 }
@@ -44,6 +54,6 @@
   --canvas:#0E1219; --surface:#161B25; --surface-2:#1C2230; --fill:#242B3A;
   --ink:#E8EBF2; --ink-2:#B6BDCC; --muted:#8A93A6; --line:#252C3A; --line-2:#323B4D;
   --ok:#5BC98E; --ok-t:#13281D; --warn:#FF9A62; --warn-t:#2B1A10; --danger:#FF6B6B; --danger-t:#2C1515;
-  --shadow-1:none; --shadow-2:0 10px 32px rgba(0,0,0,.5);
+  --shadow-1:none; --shadow-2:0 2px 8px rgba(0,0,0,.5); --shadow-3:0 10px 32px rgba(0,0,0,.5); --shadow-up:0 -6px 26px rgba(0,0,0,.5);
   color-scheme:dark;
 }

@@ -22,7 +22,7 @@ html.kb-open .mon{bottom:0}
 .mon-kg{flex:none;display:flex;flex-direction:column;gap:3px}
 .mon-kh{font-size:var(--fs-caption);font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding-left:2px}
 .mon-kt{display:flex;gap:6px}
-.mon-k{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:80px;min-height:50px;padding:5px 10px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-align:left}
+.mon-k{display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;min-width:80px;min-height:50px;padding:5px 10px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--surface-2);color:var(--ink);text-align:left}
 .mon-k b{font-size:var(--fs-title3);line-height:1.1;font-weight:800;font-variant-numeric:tabular-nums}
 .mon-k span{font-size:var(--fs-caption);line-height:1.2;color:var(--ink-2);white-space:nowrap}
 .mon-k.on{border-color:transparent;background:var(--blue-t);box-shadow:inset 0 0 0 2px var(--tint)}
@@ -42,11 +42,11 @@ html.kb-open .mon{bottom:0}
 .mon[data-layout="mobile"] .mon-map .maplibregl-ctrl-bottom-right,.mon[data-layout="mobile"] .mon-map .maplibregl-ctrl-bottom-left{bottom:var(--sheet-vis,176px);transition:bottom .3s var(--ease)}
 
 /* Panel de unidades (iPhone: hoja inferior; tres alturas) */
-.mon-panel{position:absolute;left:0;right:0;bottom:0;z-index:3;height:100%;display:flex;flex-direction:column;background:var(--surface);border-radius:18px 18px 0 0;
-  box-shadow:0 -6px 26px rgba(15,25,45,.2);transform:translateY(calc(100% - var(--sheet-h,176px)));transition:transform .3s var(--ease);will-change:transform}
+.mon-panel{position:absolute;left:0;right:0;bottom:0;z-index:3;height:100%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r) var(--r) 0 0;
+  box-shadow:var(--shadow-up);transform:translateY(calc(100% - var(--sheet-h,176px)));transition:transform .3s var(--ease);will-change:transform}
 .mon-grab{flex:none;display:flex;justify-content:center;touch-action:none}
 .mon-grab-b{display:grid;place-items:center;width:84px;height:24px;padding:0;border:0;background:none}
-.mon-grab-b i{display:block;width:40px;height:5px;border-radius:3px;background:var(--line-2)}
+.mon-grab-b i{display:block;width:40px;height:5px;border-radius:var(--r-2xs);background:var(--line-2)}
 .mon-pv{flex:1;min-height:0;display:flex;flex-direction:column}
 .mon-pv[hidden]{display:none}
 .mon-phead{flex:none;padding:0 12px;touch-action:pan-x}
@@ -65,11 +65,11 @@ html.kb-open .mon{bottom:0}
 .mon-nog{margin:4px 2px 0;text-align:center}
 
 /* Fila de unidad */
-.mon-row{display:flex;flex-direction:column;gap:5px;width:100%;margin:0 0 8px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--lg-dot);border-radius:14px;background:var(--surface);color:var(--ink);text-align:left;font:inherit;box-shadow:var(--shadow-1)}
+.mon-row{display:flex;flex-direction:column;gap:5px;width:100%;margin:0 0 8px;padding:10px 12px;border:1px solid var(--line);border-left:4px solid var(--lg-dot);border-radius:var(--r);background:var(--surface);color:var(--ink);text-align:left;font:inherit;box-shadow:var(--shadow-1)}
 .mon-row:active{background:var(--fill)}
 .mon-row.is-sel{border-color:var(--tint);border-left-color:var(--lg-dot);box-shadow:0 0 0 2px color-mix(in srgb,var(--tint) 30%,transparent)}
 .mon-r1{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.mon-r1 .unit-badge{height:28px;min-width:44px;font-size:var(--fs-subhead);border-radius:8px}
+.mon-r1 .unit-badge{height:28px;min-width:44px;font-size:var(--fs-subhead);border-radius:var(--r-xs)}
 .unit-badge.dev{background:var(--fill);color:var(--ink-2);font-size:var(--fs-caption)}
 .mon-r2,.mon-r4{display:flex;align-items:center;flex-wrap:wrap;gap:2px 6px;min-width:0;font-size:var(--fs-footnote);color:var(--ink-2)}
 .mon-r2 .lg-tt{font-size:var(--fs-footnote)}
@@ -81,7 +81,7 @@ html.kb-open .mon{bottom:0}
 .mon-lnk .ic{width:14px;height:14px}
 
 /* Movimiento reportado por GPS (separado del estado de Logística) */
-.mon-gps{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:3px 9px 3px 7px;border-radius:999px;background:var(--fill);color:var(--ink-2);font-size:var(--fs-footnote);font-weight:700;white-space:nowrap}
+.mon-gps{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:3px 9px 3px 7px;border-radius:var(--r-pill);background:var(--fill);color:var(--ink-2);font-size:var(--fs-footnote);font-weight:700;white-space:nowrap}
 .mon-gps>span{overflow:hidden;text-overflow:ellipsis}
 .mon-gps .ic{flex:none;width:13px;height:13px}
 .mon-gps.m-moving{background:var(--ok-t);color:var(--ok)}
@@ -92,14 +92,14 @@ html.kb-open .mon{bottom:0}
 
 /* Detalle */
 .mon-dhead{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 -12px 6px;padding:0 4px;background:var(--surface)}
-.mon-dcard{display:flex;flex-direction:column;gap:9px;margin:0 0 16px;padding:12px;border-radius:14px;background:var(--surface-2);border:1px solid var(--line)}
+.mon-dcard{display:flex;flex-direction:column;gap:9px;margin:0 0 16px;padding:12px;border-radius:var(--r);background:var(--surface-2);border:1px solid var(--line)}
 .mon-dc1{display:flex;align-items:center;gap:12px}
 .mon-dc1>div{min-width:0}
 .mon-dc1 b{display:block;font-size:var(--fs-body)}
 .mon-dc1 small{color:var(--muted);font-size:var(--fs-footnote)}
 .mon-dst{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .mon-lbl{min-width:72px;font-size:var(--fs-caption);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.mon-warn{display:flex;gap:8px;margin:0;padding:8px 10px;border-radius:10px;background:var(--warn-t);color:var(--warn);font-size:var(--fs-footnote);line-height:1.35}
+.mon-warn{display:flex;gap:8px;margin:0;padding:8px 10px;border-radius:var(--r-sm);background:var(--warn-t);color:var(--warn);font-size:var(--fs-footnote);line-height:1.35}
 .mon-warn .ic{flex:none;width:18px;height:18px}
 .mon-detail .grp{margin:0 0 14px}
 .mon-gb{padding:8px 14px 2px}
@@ -124,7 +124,7 @@ html.kb-open .mon{bottom:0}
 /* Tarjeta del marcador (computadora) */
 .mon-pop{display:flex;flex-direction:column;gap:6px;min-width:230px;font-size:var(--fs-footnote)}
 .mon-pop-h{display:flex;align-items:center;gap:8px;padding-right:24px}
-.mon-pop-h .unit-badge{height:28px;min-width:44px;font-size:var(--fs-subhead);border-radius:8px}
+.mon-pop-h .unit-badge{height:28px;min-width:44px;font-size:var(--fs-subhead);border-radius:var(--r-xs)}
 .mon-pop p{display:flex;align-items:flex-start;gap:6px;margin:0;color:var(--ink-2)}
 .mon-pop p .ic{flex:none;width:15px;height:15px;margin-top:1px;color:var(--muted)}
 .mon-pop-age{font-size:var(--fs-footnote)}
@@ -132,13 +132,13 @@ html.kb-open .mon{bottom:0}
 .mon-pop-acts>*{min-height:44px;font-size:var(--fs-subhead)}
 
 /* Hoja para compartir el rastreo */
-.trk-url{padding:12px;border-radius:12px;background:var(--fill);font-size:var(--fs-subhead);line-height:1.4;word-break:break-all;-webkit-user-select:all;user-select:all}
+.trk-url{padding:12px;border-radius:var(--r-sm);background:var(--fill);font-size:var(--fs-subhead);line-height:1.4;word-break:break-all;-webkit-user-select:all;user-select:all}
 .trk-what{list-style:none;display:flex;flex-direction:column;gap:8px;margin:12px 0 4px;padding:0}
 .trk-what li{display:flex;gap:8px;font-size:var(--fs-subhead);line-height:1.4;color:var(--ink-2)}
 .trk-what .ic{flex:none;width:18px;height:18px;color:var(--muted)}
 
 /* Accesos: Logística → Monitoreo GPS e Inicio → «Ver mapa de unidades» */
-.mon-entry{display:flex;align-items:center;gap:12px;min-height:72px;padding:12px 14px;margin:0 0 10px;border-radius:var(--r-lg);border:1px solid var(--line);background:var(--surface);color:var(--ink);text-decoration:none;box-shadow:var(--shadow-1)}
+.mon-entry{display:flex;align-items:center;gap:12px;min-height:72px;padding:12px 14px;margin:0 0 10px;border-radius:var(--r);border:1px solid var(--line);background:var(--surface);color:var(--ink);text-decoration:none;box-shadow:var(--shadow-1)}
 .mon-entry:active{background:var(--fill);transform:scale(.99)}
 .mon-entry .mod-ic{width:44px;height:44px}
 .mon-entry-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
