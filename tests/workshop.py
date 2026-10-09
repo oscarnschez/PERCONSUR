@@ -224,7 +224,7 @@ try:
     # 18) Reporte consolidado
     pg.goto(BASE+f'#/operacion/taller/reporte-equipo/u/{pre["u21"]}'); pg.wait_for_selector('.eo-page',timeout=20000); pg.wait_for_timeout(800)
     pv=pg.evaluate("[...document.querySelectorAll('[data-pages] svg text')].map(t=>t.textContent).join(' ')")
-    ok('REPORTE DE SERVICIOS DE MANTENIMIENTO' in pv and 'DIAGRAMA CONSOLIDADO' in pv and 'MTTO-U21-20261008-001' in pv and 'Servicios (órdenes)' in pv,'reporte consolidado: resumen, servicios y diagrama consolidado')
+    ok('REPORTE DE SERVICIOS DE MANTENIMIENTO' in pv and 'DIAGRAMA CONSOLIDADO' in pv and 'MTTO-U21-20261008-001' in pv and 'SERVICIOS (ÓRDENES)' in pv,'reporte consolidado: resumen, servicios y diagrama consolidado')
     pg.locator('[data-per="custom"]').click(); pg.locator('[data-c="from"]').fill('2026-11-01'); pg.locator('[data-c="from"]').dispatch_event('change'); pg.wait_for_timeout(1200)
     ok('0 servicios' in txt(pg,'[data-note]'),'filtro por periodo: '+txt(pg,'[data-note]'))
     # 21) Persistencia al cerrar y reabrir la PWA

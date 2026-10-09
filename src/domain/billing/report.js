@@ -1,5 +1,5 @@
 /*
- * Reporte de cobranza — diseño del documento.
+ * Reporte de cobranza — diseño del documento (lenguaje visual de DOCGEN 3.1, ver domain/shared/pageDoc.js).
  *
  * Igual que el estado de cuenta de operador: produce un MODELO DE PÁGINAS (tamaño carta, coordenadas en puntos) que se
  * dibuja como vista previa (SVG) y como PDF vectorial (pdf-lib) con pageToSVG() y modelToPdf() de operators/statement.js.
@@ -7,7 +7,8 @@
  * Los importes salen de summarize() y de los mismos renglones que muestra la pantalla de Cobranza.
  */
 import { fmtDate } from '../operators/balance.js';
-import { PAGE, COLOR, docMoney, pdfSafe, longDate } from '../operators/statement.js';
+import { PAGE, COLOR, docMoney, longDate } from '../operators/statement.js';
+import { TR, createDoc } from '../shared/pageDoc.js';
 import { summarize, delayRows, daysBetween } from './billing.js';
 
 const CW = PAGE.w - PAGE.ml - PAGE.mr;
@@ -24,128 +25,73 @@ export function billingReportFilename(issued, divisions) {
  *           periodLabel, issued, measure(text,size,bold)→pt, imgs: { mark:{w,h}, word:{w,h}|null } }
  */
 export function buildBillingReport({ company, items, divisions, periodLabel, issued, measure, imgs }) {
-  const pages = [];
-  let page = null, y = 0;
-  const W = (t, s, b) => measure(pdfSafe(t), s, b);
   const divLabel = divisions.length > 1 ? 'Puerto y Campo' : DIV[divisions[0]];
   const asc = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
   const scope = divisions.flatMap((d) => items.filter((it) => it.division === d));
   const total = summarize(scope);
+  const D = createDoc({
+    measure, imgs, company,
+    head: {
+      kicker: 'Administración · Cobranza', title: 'Reporte de cobranza', sub: divLabel,
+      meta: [{ label: 'Fecha de emisión', value: fmtDate(issued) }, { label: 'Periodo', value: periodLabel, w: 1.9 }, { label: 'División', value: divLabel, w: 1.2 },
+        { label: 'Por cobrar', value: docMoney(total.due), w: 1.1, color: total.due ? COLOR.neg : COLOR.ink }, { label: 'Pagado', value: docMoney(total.paid), w: 1.1 }],
+    },
+    cont: { title: 'Reporte de cobranza', sub: [[`${divLabel}  ·  ${periodLabel}`, false]], asideLabel: 'Emitido', asideValue: fmtDate(issued) },
+    foot: { left: 'PERCONSUR | Reporte de cobranza', center: `Emitido ${fmtDate(issued)}` },
+  });
+  const { text, rect, line, fit, wrap } = D;
+  let y = 0;
 
-  /* ===== Primitivas (mismas que el estado de cuenta) ===== */
-  const text = (x, yy, str, o = {}) => page.items.push({ t: 'text', x, y: yy, text: pdfSafe(str), s: o.s || 8, b: !!o.b, c: o.c || COLOR.ink, a: o.a || 'start' });
-  const rect = (x, yy, w, h, o = {}) => page.items.push({ t: 'rect', x, y: yy, w, h, fill: o.fill || null, stroke: o.stroke || null, sw: o.sw || 0.6 });
-  const line = (x1, y1, x2, y2, o = {}) => page.items.push({ t: 'line', x1, y1, x2, y2, c: o.c || COLOR.line, w: o.w || 0.6 });
-  const image = (key, x, yy, w, h) => page.items.push({ t: 'image', key, x, y: yy, w, h });
-  function fit(str, s, b, maxW) {
-    let t = pdfSafe(str);
-    if (W(t, s, b) <= maxW) return t;
-    while (t.length > 1 && W(t + '…', s, b) > maxW) t = t.slice(0, -1);
-    return t.trimEnd() + '…';
-  }
-  function wrap(str, s, b, maxW, maxLines = 2) {
-    const words = pdfSafe(str).split(' ').filter(Boolean);
-    if (!words.length) return [''];
-    const lines = []; let cur = '';
-    words.forEach((w) => { const t = cur ? cur + ' ' + w : w; if (cur && W(t, s, b) > maxW) { lines.push(cur); cur = w; } else cur = t; });
-    lines.push(cur);
-    if (lines.length > maxLines) { const rest = lines.slice(maxLines - 1).join(' '); lines.length = maxLines - 1; lines.push(rest + '…'); }
-    return lines.map((l) => fit(l, s, b, maxW));
-  }
-  const band = (yy, h) => { rect(PAGE.ml, yy, CW * 0.78, h, { fill: COLOR.blue }); rect(PAGE.ml + CW * 0.78, yy, CW * 0.22, h, { fill: COLOR.orange }); };
-  const wordmark = (x, yy, h) => {
-    if (imgs.word) { const w = h * imgs.word.w / imgs.word.h; image('word', x, yy, w, h); return w; }
-    text(x, yy + h * 0.82, 'PERCONSUR', { s: h * 0.95, b: true, c: COLOR.blue }); return W('PERCONSUR', h * 0.95, true);
-  };
-
-  /* ===== Encabezados ===== */
-  function firstHeader() {
-    const mh = 42, mw = mh * imgs.mark.w / imgs.mark.h;
-    image('mark', PAGE.ml, 38, mw, mh);
-    const x = PAGE.ml + mw + 10;
-    wordmark(x, 40, 19);
-    text(x, 72, company.legal, { s: 7.4, b: true });
-    text(x, 81.5, company.addr1, { s: 6.8, c: COLOR.muted });
-    text(x, 90.5, company.addr2, { s: 6.8, c: COLOR.muted });
-    text(x, 99.5, [company.email, company.web].filter(Boolean).join('  |  '), { s: 6.8, c: COLOR.muted });
-    text(R, 52, 'REPORTE DE COBRANZA', { s: 12.5, b: true, c: COLOR.blue, a: 'end' });
-    const kv = [['Fecha de emisión', longDate(issued)], ['Periodo', periodLabel], ['División', divLabel]];
-    kv.forEach(([k, v], i) => {
-      const yy = 70 + i * 11.5;
-      text(R, yy, v, { s: 8, b: true, a: 'end' });
-      text(R - W(v, 8, true) - 8, yy, k, { s: 7.2, c: COLOR.muted, a: 'end' });
-    });
-    band(112, 3.2);
-    return 130;
-  }
-  function contHeader() {
-    const mh = 22, mw = mh * imgs.mark.w / imgs.mark.h;
-    image('mark', PAGE.ml, 32, mw, mh);
-    wordmark(PAGE.ml + mw + 7, 37, 11);
-    text(R, 41, 'Reporte de cobranza', { s: 8, b: true, c: COLOR.blue, a: 'end' });
-    text(R, 51, fit(`${divLabel}  |  ${periodLabel}  |  Emitido ${fmtDate(issued)}`, 7, false, 320), { s: 7, c: COLOR.muted, a: 'end' });
-    band(62, 1.6);
-    return 78;
-  }
-  function newPage() { page = { w: PAGE.w, h: PAGE.h, items: [] }; pages.push(page); y = pages.length === 1 ? firstHeader() : contHeader(); }
+  function newPage() { y = D.newPage(); }
   const fits = (h) => y + h <= PAGE.bottom;
   const ensure = (h) => { if (!fits(h)) { newPage(); return true; } return false; };
 
   /* ===== Bloques ===== */
-  function section(title, minAfter = 30) {
-    ensure(26 + minAfter);
-    text(PAGE.ml, y + 11, title.toUpperCase(), { s: 9, b: true, c: COLOR.blue });
-    line(PAGE.ml, y + 16, R, y + 16, { c: COLOR.blue, w: 0.8 });
-    y += 24;
-  }
+  function section(title, minAfter = 30) { ensure(22 + minAfter); const r = D.sectionHead(y, title); y = r.y; return r.n; }
   /* Franja que abre cada mitad del desglose (por cobrar / pagado) con su total */
   function banner(title, amount, color) {
     ensure(28 + 70);
-    rect(PAGE.ml, y, CW, 22, { fill: color });
-    text(PAGE.ml + 10, y + 14.6, title, { s: 10.5, b: true, c: WHITE });
+    D.rrect(PAGE.ml, y, CW, 22, 2.25, { fill: color });
+    text(PAGE.ml + 10, y + 14.4, title, { s: 9, b: true, up: true, tr: TR, c: WHITE });
     text(R - 10, y + 14.6, amount, { s: 10.5, b: true, c: WHITE, a: 'end' });
-    y += 30;
+    y += 32;
   }
   /* Tabla con encabezado repetido en cada página y filas que nunca se dividen */
   function table(title, cols, rows, { empty, totalRows = [] } = {}) {
-    const HH = 17, LH = 9.6;
+    const HH = 16, LH = 9.6;
     const xs = []; let acc = PAGE.ml; cols.forEach((c) => { xs.push(acc); acc += c.w; });
-    const header = () => {
-      rect(PAGE.ml, y, CW, HH, { fill: COLOR.blueL });
-      cols.forEach((c, i) => text(c.align === 'right' ? xs[i] + c.w - 5 : xs[i] + 5, y + 11.3, c.label, { s: 6.9, b: true, c: COLOR.blueD, a: c.align === 'right' ? 'end' : 'start' }));
-      y += HH;
-    };
     const prep = (r) => ({ ...r, h: Math.max(16.5, 7 + Math.max(...r.cells.map((c) => (c.lines || ['']).length * LH + (c.sub ? 7.6 : 0))) + 1) });
     const all = rows.map(prep), tots = totalRows.map(prep);
     if (!all.length) {
       section(title, 26);
       rect(PAGE.ml, y, CW, 24, { fill: COLOR.faint });
       text(PAGE.ml + 10, y + 15, empty, { s: 8, c: COLOR.muted });
-      y += 34;
+      y += 36;
       return;
     }
-    section(title, HH + all[0].h + (all.length === 1 ? tots.reduce((a, r) => a + r.h, 0) : 0));
-    header();
+    const n = section(title, HH + all[0].h + (all.length === 1 ? tots.reduce((a, r) => a + r.h, 0) : 0));
+    y = D.tableHead(y, cols, xs, HH);
+    let k = 0;
     const drawRow = (r, isTotal) => {
-      if (isTotal) rect(PAGE.ml, y, CW, r.h, { fill: COLOR.faint });
+      D.rowFrame(y, r.h, k++, { total: isTotal });
       r.cells.forEach((c, i) => {
         const col = cols[i], right = col.align === 'right';
-        const x = right ? xs[i] + col.w - 5 : xs[i] + 5 + (c.marker ? 8 : 0);
-        if (c.marker) rect(xs[i] + 5, y + 6.2, 4.6, 4.6, { fill: c.marker });
-        (c.lines || ['']).forEach((ln, k) => text(x, y + 11.2 + k * LH, ln, { s: 7.8, b: !!(c.b || isTotal), c: c.c || COLOR.ink, a: right ? 'end' : 'start' }));
+        const x = right ? xs[i] + col.w - 6 : xs[i] + 6 + (c.marker ? 8 : 0);
+        if (c.marker) D.rrect(xs[i] + 6, y + 6.2, 4.6, 4.6, 1, { fill: c.marker });
+        (c.lines || ['']).forEach((ln, j) => text(x, y + 11.2 + j * LH, ln, { s: 7.8, b: !!(c.b || isTotal), c: isTotal && !c.c ? COLOR.blue : c.c || COLOR.ink, a: right ? 'end' : 'start' }));
         if (c.sub) text(x, y + 11.2 + (c.lines || ['']).length * LH - 1.8, c.sub, { s: 6.2, c: c.subC || COLOR.muted, a: right ? 'end' : 'start' });
       });
       y += r.h;
-      line(PAGE.ml, y, R, y, { c: isTotal ? COLOR.blue : COLOR.line, w: isTotal ? 0.7 : 0.45 });
     };
     /* El último renglón viaja junto con los totales: un total nunca queda solo al inicio de una página */
     const totH = tots.reduce((a, r) => a + r.h, 0);
-    all.forEach((r, k) => {
-      if (!fits(r.h + (k === all.length - 1 ? totH : 0))) { newPage(); text(PAGE.ml, y + 9, `${title} (continuación)`, { s: 7.6, b: true, c: COLOR.blue }); y += 15; header(); }
+    all.forEach((r, j) => {
+      if (!fits(r.h + (j === all.length - 1 ? totH : 0))) { D.tableEnd(y); newPage(); y = D.sectionHead(y, `${title} (continuación)`, { n }).y; y = D.tableHead(y, cols, xs, HH); k = 0; }
       drawRow(r, false);
     });
     for (const r of tots) drawRow(r, true);
-    y += 12;
+    D.tableEnd(y);
+    y += 14;
   }
   const cell = (str, o = {}) => ({ lines: [str], ...o });
   const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -166,18 +112,18 @@ export function buildBillingReport({ company, items, divisions, periodLabel, iss
   table('Resumen', scols, srows, { totalRows: [srow('Total', both)] });
 
   /* Totales destacados */
-  ensure(58);
+  ensure(60);
   const bw = (CW - 10) / 2;
   const box = (x, label, sub, amount, accent, valueColor) => {
-    rect(x, y, bw, 44, { fill: COLOR.blueL });
-    rect(x, y, 3, 44, { fill: accent });
-    text(x + 12, y + 16, label, { s: 9, b: true, c: COLOR.blueD });
-    text(x + 12, y + 28, sub, { s: 6.8, c: COLOR.muted });
-    text(x + bw - 10, y + 36, amount, { s: 14, b: true, c: valueColor, a: 'end' });
+    rect(x, y, bw, 46, { fill: COLOR.blueL }); rect(x, y, 2.25, 46, { fill: accent });
+    line(x, y, x + bw, y, { c: COLOR.blue, w: 0.75 });
+    text(x + 12, y + 15, label, { s: 7.9, b: true, up: true, tr: TR, c: COLOR.blueD });
+    text(x + 12, y + 26, sub, { s: 6.8, c: COLOR.muted });
+    text(x + bw - 10, y + 38, amount, { s: 14, b: true, c: valueColor, a: 'end' });
   };
-  box(PAGE.ml, 'TOTAL POR COBRAR', `${plural(total.trips.due.n, 'viaje', 'viajes')} y ${plural(total.delays.due.n, 'demora', 'demoras')}`, docMoney(total.due, { mxn: true }), COLOR.orange, total.due ? COLOR.neg : COLOR.ink);
-  box(PAGE.ml + bw + 10, 'TOTAL PAGADO', `${plural(total.trips.paid.n, 'viaje', 'viajes')} y ${plural(total.delays.paid.n, 'demora', 'demoras')}`, docMoney(total.paid, { mxn: true }), OK, COLOR.ink);
-  y += 52;
+  box(PAGE.ml, 'Total por cobrar', `${plural(total.trips.due.n, 'viaje', 'viajes')} y ${plural(total.delays.due.n, 'demora', 'demoras')}`, docMoney(total.due, { mxn: true }), COLOR.orange, total.due ? COLOR.neg : COLOR.ink);
+  box(PAGE.ml + bw + 10, 'Total pagado', `${plural(total.trips.paid.n, 'viaje', 'viajes')} y ${plural(total.delays.paid.n, 'demora', 'demoras')}`, docMoney(total.paid, { mxn: true }), OK, COLOR.ink);
+  y += 54;
   text(PAGE.ml, y + 4, 'El importe de cada viaje es su total después de impuestos (su tarifa, si no los tiene). Las demoras en planta se cobran por separado. Importes en MXN.', { s: 6.8, c: COLOR.muted });
   y += 20;
 
@@ -221,16 +167,12 @@ export function buildBillingReport({ company, items, divisions, periodLabel, iss
   half(false);
   half(true);
 
-  /* Nota final */
-  ensure(40);
-  line(PAGE.ml, y, R, y, { w: 0.45 });
-  text(PAGE.ml, y + 12, `Este reporte refleja los viajes y las demoras registrados al ${longDate(issued)}. «Días» son los días transcurridos desde la fecha del viaje o de la demora.`, { s: 7, c: COLOR.muted });
-  text(PAGE.ml, y + 21.5, 'Documento de control administrativo interno de PERCONSUR.', { s: 7, c: COLOR.muted });
+  /* Nota final (declaración de DOCGEN: escudo y filo naranja) */
+  const fin = `Este reporte refleja los viajes y las demoras registrados al ${longDate(issued)}. «Días» son los días transcurridos desde la fecha del viaje o de la demora. Documento de control administrativo interno de PERCONSUR.`;
+  ensure(D.noteHeight(fin) + 4);
+  y += D.note(y, fin, { icon: 'shield', accent: COLOR.orange, iconColor: COLOR.orangeD });
 
   /* Pie de página con numeración */
-  pages.forEach((p, i) => {
-    p.items.push({ t: 'line', x1: PAGE.ml, y1: 750, x2: R, y2: 750, c: COLOR.line, w: 0.5 });
-    p.items.push({ t: 'text', x: PAGE.w / 2, y: 763, text: pdfSafe(`PERCONSUR · Reporte de cobranza · Emitido ${fmtDate(issued)} · Página ${i + 1} de ${pages.length}`), s: 6.8, b: false, c: COLOR.muted, a: 'middle' });
-  });
+  const pages = D.finish();
   return { pages, summary: total, count: scope.length };
 }

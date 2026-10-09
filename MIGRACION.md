@@ -10,7 +10,7 @@ Inventario completo del HTML original «PERCONSUR – Generador de documentos» 
 | Campo = PERCONSUR con pie «PERCONSUR \| División Campo» y correo `divisioncampo@` (escrito a mano en la hoja) | `COMPANIES.campo`, `cpSheetHTML` | `COMPANY_DEFAULTS.campo`; la hoja lo lee de ahí |
 | Logotipo cuadrado + nombre (mark) vs. logotipo horizontal | `CO.mark` | Igual, en la configuración de cada empresa |
 | Catálogos solo para PERCONSUR (`CO.lists`) | vaciaba los datalist en OASC/OSC | Catálogos por empresa; OASC y OSC inician vacíos y pueden llenarse |
-| Íconos de rastreo GPS por empresa | `TRACK_ICON_P`, `CO.track` | `assets/brand/track-*.png`, `company.track` |
+| Íconos de rastreo GPS por empresa | `TRACK_ICON_P`, `CO.track` | Desde 1.20 (diseño DOCGEN 3.1): ícono de trazo «rastreo» en el color de la empresa (`domain/shared/docIcons.js`); se retiraron las imágenes `track-*.png` |
 | Selector de división → empresa (recargaba la página) | `#pick` | Inicio (tarjetas Puerto/Campo) + hoja «Empresa transportista» sin recargar |
 
 ## Folios y fechas
@@ -64,7 +64,7 @@ Inventario completo del HTML original «PERCONSUR – Generador de documentos» 
 | Hasta 6 unidades: solicitud, unidad (llena placas), operador, placas, remolque, Tolva/Jaula; la nueva copia la solicitud | Paso 2 Unidades (+ atajos de solicitudes ya usadas) |
 | Datos por solicitud: hora, lugar, encargado (nombre propio), teléfono (formato MX), link de Maps | Paso 3 Solicitudes (con validación del link y «Abrir ubicación») |
 | Migración del formato viejo (`cp.horas`, `cp.hora`, `cp.lugar`, `cp.enc`, `cp.encTel`) | `normalizeCampo()` |
-| Hoja media carta horizontal: agrupación por solicitud, QR por solicitud, QR de planta, marca de agua de maíz, planta con una mazorca por unidad, leyenda «no representa el orden de carga», pie AU 2.0 | `domain/campo/sheet.js` (idéntica) |
+| Hoja media carta horizontal: agrupación por solicitud, QR por solicitud, QR de planta, leyenda «no representa el orden de carga», pie AU 2.0 | `domain/campo/sheet.js`. Desde 1.20 con el diseño de DOCGEN 3.1: letrero «División Campo» con ícono de mazorca, tira de datos (folio, fecha, planta, unidades, solicitudes) y recuadro de planta destino; sin marca de agua ni planta dibujada, igual que DOCGEN |
 | Revisión con pendientes | Paso 4 Revisión |
 | Nombre `Asignacion-campo-AAAA-MM-DD-AU-XXXX.pdf` | Igual |
 
@@ -73,11 +73,12 @@ Inventario completo del HTML original «PERCONSUR – Generador de documentos» 
 | Función original | Dónde quedó |
 |---|---|
 | html2canvas (escala 2.5) → JPEG → jsPDF carta / media carta | `services/pdf.js` (mismos parámetros) |
-| Banda corrugada, textos condensados, renglones de observaciones y planta SVG convertidos a imagen antes de rasterizar | `prepare()` en `services/pdf.js` |
+| Textos condensados, renglones de observaciones e íconos / código de barras SVG convertidos a imagen antes de rasterizar (igual que `prepClone()` de DOCGEN 3.1) | `prepare()` en `services/pdf.js` |
 | Enlaces clicables sobre QR y rastreo | Igual |
 | pdf-lib para combinar | Igual; incluido localmente en `vendor/` |
 | Descarga (`a.download` / `window.claude.downloads`) | Compartir de iOS (archivo), Guardar en Archivos, descarga en escritorio |
 | — | Nuevo: reintento con escala menor, liberación de memoria, vistas previas para el visor interno |
+| Diseño de hoja de DOCGEN 3.1 (encabezado con letrero y título condensado, banda 78/22, tira de datos con código de barras del folio, secciones numeradas, íconos de trazo, pie con folio y hoja n de N; letras Inter, Archivo y JetBrains Mono) | `styles/documents.css`, `domain/puerto/sheet.js`, `domain/campo/sheet.js`; el mismo lenguaje en los reportes de página con `domain/shared/pageDoc.js` (estado de cuenta, cobranza, taller) |
 
 ## Datos guardados (localStorage) → nuevo esquema
 

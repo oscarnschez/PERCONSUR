@@ -172,13 +172,13 @@ export async function generate(draft) {
       const s = draft.data, co = getCompany(draft.company);
       const attachments = [];
       for (const a of s.attachments || []) { const blob = await media.getBlob(a.id); if (blob) attachments.push({ kind: a.kind, name: a.name, blob, w: a.w, h: a.h }); }
-      spec = { format: 'letter', html, sheetSel: '.sheet', textSel: '.s-logo,.a-title,.s-box h1', linkSel: '.s-qr,.s-track', obsLines: true, colors: co.colors,
+      spec = { format: 'letter', html, sheetSel: '.sheet', textSel: '.s-logo,.a-title,.s-title', linkSel: '.s-qr,.s-track', obsLines: true, colors: co.colors,
         title: `Nota de entrega ${s.folio}`, author: 'PERCONSUR', subject: 'Nota de entrega – recepción', attachments };
       filename = `${s.folio}.pdf`;
       summary = puertoSummary(s, co);
     } else {
       const cp = draft.data, co = getCompany('campo');
-      spec = { format: 'half', html, sheetSel: '.hsheet', textSel: '.s-logo,.h-box h1', linkSel: '.h-qr,.h-dqr', obsLines: false, colors: co.colors,
+      spec = { format: 'half', html, sheetSel: '.hsheet', textSel: '.s-logo,.s-title', linkSel: '.h-qr,.h-dqr', obsLines: false, colors: co.colors,
         title: 'Asignación de unidades para carga', author: 'PERCONSUR División Campo', attachments: [] };
       filename = `Asignacion-campo-${cp.fecha || nowParts().fecha}-${cp.folio || ''}.pdf`.replace('-.pdf', '.pdf');
       summary = campoSummary(cp);
