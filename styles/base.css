@@ -17,20 +17,20 @@ a{color:var(--tint);text-decoration:none}
 html.sheet-open,html.sheet-open body,html.is-busy body{overflow:hidden}
 
 /* Banda corrugada (motivo de marca tomado de los documentos) */
-.band{height:6px;border-radius:2px;position:relative;overflow:hidden;
-  background:repeating-linear-gradient(90deg,#354FA3 0 9px,#233878 9px 12px,#4A63B5 12px 14px)}
-.band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:22%;background:repeating-linear-gradient(90deg,#F26F22 0 9px,#D65B15 9px 12px,#F58A4A 12px 14px)}
+.band{height:6px;border-radius:var(--r-2xs);position:relative;overflow:hidden;
+  background:repeating-linear-gradient(90deg,var(--blue) 0 9px,var(--blue-d) 9px 12px,var(--blue-m) 12px 14px)}
+.band::after{content:"";position:absolute;right:0;top:0;bottom:0;width:22%;background:repeating-linear-gradient(90deg,var(--brand-orange) 0 9px,var(--brand-orange-d) 9px 12px,var(--brand-orange-m) 12px 14px)}
 .band.slim{height:4px;width:96px;margin:18px auto 0}
 
 /* Pantalla de carga */
-#splash{position:fixed;inset:0;z-index:2000;background:var(--canvas);display:grid;place-items:center;transition:opacity .28s ease}
+#splash{position:fixed;inset:0;z-index:var(--z-splash);background:var(--canvas);display:grid;place-items:center;transition:opacity .28s ease}
 #splash.out{opacity:0;pointer-events:none}
 .sp-inner{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px;text-align:center}
 .sp-mark{width:76px;height:76px;object-fit:contain}
 .sp-word{font-size:34px}
-.sp-band{width:132px;height:5px;border-radius:2px;background:var(--fill);overflow:hidden;margin-top:6px}
+.sp-band{width:132px;height:5px;border-radius:var(--r-2xs);background:var(--fill);overflow:hidden;margin-top:6px}
 .sp-band i{display:block;height:100%;width:100%;transform-origin:left;animation:spFill .55s var(--ease) both;
-  background:repeating-linear-gradient(90deg,#354FA3 0 9px,#233878 9px 12px,#4A63B5 12px 14px)}
+  background:repeating-linear-gradient(90deg,var(--blue) 0 9px,var(--blue-d) 9px 12px,var(--blue-m) 12px 14px)}
 @keyframes spFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 .sp-msg{max-width:300px;color:var(--ink-2);font-size:var(--fs-subhead);margin:8px 0 0}
 #splash.err .sp-band{display:none}

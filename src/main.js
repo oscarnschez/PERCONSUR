@@ -38,6 +38,7 @@ import { applyTheme } from './services/theme.js';
 import { registerSW, onUpdateReady, applyUpdate, warmCache } from './services/pwa.js';
 import { tryLibs } from './services/libs.js';
 import { icon } from './ui/components/icons.js';
+import { initScrollHints } from './ui/components/scrollHints.js';
 import { toast } from './ui/components/toast.js';
 import { actionSheet } from './ui/components/sheet.js';
 import { openNewSheet, draftRoute, discardDraft } from './ui/flows.js';
@@ -182,6 +183,7 @@ async function boot() {
     const mig = ro ? null : await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
     routes();
     mountTabbar();
+    initScrollHints();
     watchKeyboard();
     startRouter(document.getElementById('view'));
     /* Rastreo para clientes: finaliza solo los enlaces de entregas terminadas (escucha Logística) */

@@ -105,7 +105,11 @@ export async function logisticsScreen() {
   function draw() {
     drawEc(); drawMon();
     const entries = lg.fleetBoard(), counts = countByStatus(entries);
-    stf.innerHTML = [['all', 'Todos', null], ...STATUS_ORDER.map((x) => [x.key, x.label, x.tone])].map(([k, l, tone]) =>
+    /* Celular: división y tipo de remolque van en la hoja «Filtros» (primer chip, siempre visible); en computadora se
+       muestran como segunda fila */
+    const extra = (f.division !== 'all') + (f.type !== 'all');
+    stf.innerHTML = `<button type="button" class="chip lg-moref${extra ? ' on' : ''}" data-moref aria-haspopup="dialog">${icon.filter}<span>Filtros${extra ? ` · ${extra}` : ''}</span></button>`
+      + [['all', 'Todos', null], ...STATUS_ORDER.map((x) => [x.key, x.label, x.tone])].map(([k, l, tone]) =>
       `<button type="button" class="chip lg-fchip${f.status === k ? ' on' : ''}" data-st="${k}" aria-pressed="${f.status === k}">${tone ? `<i class="lg-dot lg-t-${tone}" aria-hidden="true"></i>` : ''}${esc(l)}<b>${counts[k] || 0}</b></button>`).join('');
     root.querySelectorAll('[data-div]').forEach((b) => { b.classList.toggle('on', b.dataset.div === f.division); b.setAttribute('aria-pressed', b.dataset.div === f.division); });
     root.querySelectorAll('[data-tt]').forEach((b) => { b.classList.toggle('on', b.dataset.tt === f.type); b.setAttribute('aria-pressed', b.dataset.tt === f.type); });
@@ -124,7 +128,29 @@ export async function logisticsScreen() {
   on(root, 'click', '[data-st]', (e, b) => { f.status = b.dataset.st; draw(); });
   on(root, 'click', '[data-div]', (e, b) => { f.division = b.dataset.div; draw(); });
   on(root, 'click', '[data-tt]', (e, b) => { f.type = b.dataset.tt; draw(); });
+  on(root, 'click', '[data-moref]', () => openMoreFilters());
   on(root, 'click', '[data-more]', () => { showIdle = Infinity; draw(); });
+  /* Hoja «Filtros» (celular): los mismos chips de división y tipo de remolque; cada toque filtra al momento */
+  function openMoreFilters() {
+    const body = document.createElement('div');
+    body.className = 'lg-fsheet';
+    const paint = () => {
+      body.innerHTML = `<p class="fl">División</p><div class="chips">${[['all', 'Todas'], ...LOGISTICS_DIVISIONS.map(([k, , sh]) => [k, sh])].map(([k, l]) => `<button type="button" class="chip${f.division === k ? ' on' : ''}" data-fdiv="${k}" aria-pressed="${f.division === k}">${esc(l)}</button>`).join('')}</div>
+        <p class="fl">Tipo de remolque</p><div class="chips">${[['all', 'Todos'], ...TRAILER_TYPES].map(([k, l]) => `<button type="button" class="chip${f.type === k ? ' on' : ''}" data-ftt="${k}" aria-pressed="${f.type === k}">${k === 'all' ? '' : trailerIcon(k)}${esc(k === 'all' ? 'Todos los remolques' : l)}</button>`).join('')}</div>
+        <div class="form-foot"><button type="button" class="btn-secondary" data-freset${f.division === 'all' && f.type === 'all' ? ' disabled' : ''}>Quitar filtros</button><button type="button" class="btn-primary" data-fdone>Ver unidades</button></div>`;
+    };
+    paint();
+    const sh = openSheet({ title: 'Filtros', body });
+    body.addEventListener('click', (e) => {
+      const d = e.target.closest('[data-fdiv]'), t = e.target.closest('[data-ftt]');
+      if (d) f.division = d.dataset.fdiv;
+      else if (t) f.type = t.dataset.ftt;
+      else if (e.target.closest('[data-freset]')) { f.division = 'all'; f.type = 'all'; }
+      else if (e.target.closest('[data-fdone]')) { sh.close(); return; }
+      else return;
+      paint(); draw();
+    });
+  }
   root.querySelector('.search-in').addEventListener('input', (e) => { f.text = e.target.value; draw(); });
   draw();
   const u1 = lg.onLogisticsChange(draw), u2 = ec.onEmptiesChange(drawEc);

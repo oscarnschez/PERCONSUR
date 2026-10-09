@@ -51,7 +51,7 @@ export async function fuelScreen() {
           <div class="tile"><small>Litros</small><b>${nf(fl.liters, 0)}</b></div>
           <div class="tile wide"><small>Gasto en combustible</small><b>${money(fl.amount)}</b></div>
           <div class="tile wide"><small>Kilómetros registrados</small><b>${kmF(fl.km)}</b></div>
-          <div class="tile wide"><small>Rendimiento promedio de la flota</small><b>${fl.perf ? kmlF(fl.perf.kmL) : '<span class="muted">Pendiente</span>'}</b>${fl.perf ? `<small>${l100F(fl.perf.l100)} | ${fl.perf.n} periodo${fl.perf.n === 1 ? '' : 's'} medido${fl.perf.n === 1 ? '' : 's'}</small>` : ''}</div>
+          <div class="tile wide"><small>Rendimiento promedio de la flota</small><b>${fl.perf ? kmlF(fl.perf.kmL) : '<span class="muted" aria-label="Pendiente">—</span>'}</b>${fl.perf ? `<small>${l100F(fl.perf.l100)} | ${fl.perf.n} periodo${fl.perf.n === 1 ? '' : 's'} medido${fl.perf.n === 1 ? '' : 's'}</small>` : '<small>Se calcula con dos cargas de tanque lleno</small>'}</div>
           <div class="tile wide"><small>Precio promedio por litro</small><b>${pplF(fl.avgPrice)}</b></div>
         </div></section>
       <div class="sec-hrow"><h2 class="sec-h">Comparar unidades</h2></div>
@@ -59,7 +59,7 @@ export async function fuelScreen() {
       ${cmp.length ? `<div class="list">${cmp.map((u) => `<a class="row" href="#/operacion/combustible/${esc(u.id)}">
           <span class="unit-badge">${esc(u.label)}</span>
           <span class="row-tx"><span class="row-l2">${esc(u.placas)}${u.desc ? ' | ' + esc(u.desc) : ''}</span><span class="row-l3">${lF(u.m.liters)} | ${money(u.m.amount)} | ${kmF(u.m.km)}</span></span>
-          <span class="op-bal"><small>Rendimiento</small><b>${u.m.perf ? kmlF(u.m.perf.kmL) : '<span class="muted">Pendiente</span>'}</b></span></a>`).join('')}</div>
+          <span class="op-bal"><small>Rendimiento</small><b>${u.m.perf ? kmlF(u.m.perf.kmL) : '<span class="muted" title="Se calcula con dos cargas de tanque lleno">Sin medir</span>'}</b></span></a>`).join('')}</div>
         <p class="grp-note">El orden es una herramienta de análisis; no indica fallas ni diagnósticos.</p>`
     : '<div class="empty"><p>No hay recargas en este periodo.</p></div>'}
       <div class="sec-hrow"><h2 class="sec-h">Unidades</h2></div>
@@ -110,7 +110,7 @@ export async function fuelUnitScreen({ id }) {
       <dl class="sumlist unit-meta"><div><dt>Último odómetro</dt><dd>${last ? kmF(last.odometer) : '—'}</dd></div><div><dt>Última recarga</dt><dd>${last ? `${esc(fmtDate(last.date))} ${esc(last.time)} | ${lF(last.liters)}` : 'Sin recargas'}</dd></div></dl>
       <button type="button" class="btn-primary block lg" data-new>${icon.plus}<span>Registrar recarga</span></button>
       ${an.pending && (an.pending.records.length || !an.segments.length) && an.records.length ? `<p class="op-warn">${icon.info}<span><b>Rendimiento pendiente.</b> Se requiere una siguiente carga con tanque lleno para cerrar el periodo que inició el ${esc(fmtDate(an.pending.from.date))}${an.pending.liters ? ` (${lF(an.pending.liters)} cargados desde entonces)` : ''}.</span></p>` : ''}
-      ${!an.records.length ? '<div class="empty"><p>Aún no hay recargas de esta unidad.</p></div>' : `
+      ${!an.records.length ? `<div class="empty"><p><b class="empty-t">Aún no hay recargas</b>Registra la primera carga de combustible de esta unidad para empezar a medir su rendimiento.</p><button type="button" class="btn-primary sm" data-new>${icon.plus}<span>Registrar recarga</span></button></div>` : `
       <section class="perf-card">
         <span class="bal-l">Rendimiento actual</span>
         <b class="perf-v">${ind.current ? ind.current.kmL.toFixed(2) : '—'}<small> km/L</small></b>

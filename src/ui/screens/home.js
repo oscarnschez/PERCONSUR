@@ -54,7 +54,7 @@ export async function homeScreen() {
     </section>
     <section class="sec home-recent">
       <div class="sec-hrow"><h2 class="sec-h">Recientes</h2>${docs.length ? '<a class="link" href="#/documentos">Ver todos</a>' : ''}</div>
-      ${recent.length ? `<div class="list">${recent.map(docRow).join('')}</div>` : `<div class="empty"><p>Aún no hay documentos generados. Los PDF que generes aparecerán aquí.</p></div>`}
+      ${recent.length ? `<div class="list">${recent.map(docRow).join('')}</div>` : `<div class="empty"><p><b class="empty-t">Aún no hay documentos</b>Las notas de entrega y asignaciones que generes aparecerán aquí.</p></div>`}
     </section>
     <section class="sec lg-home" data-lghome aria-label="Unidades en operación"></section>
   </div>`);

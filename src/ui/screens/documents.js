@@ -7,7 +7,7 @@ import { esc, relDay, fmtFecha, agoText } from '../../domain/shared/format.js';
 import { icon } from '../components/icons.js';
 import { DIVISION_ICON } from '../../config/modules.js';
 import { pendingDrafts } from './home.js';
-import { draftRoute } from '../flows.js';
+import { draftRoute, startPuerto, startCampo } from '../flows.js';
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const STATUS = { generado: 'Generado', compartido: 'Compartido', borrador: 'Borrador' };
@@ -63,11 +63,14 @@ export async function documentsScreen() {
     const dr = pend.filter((d) => d.type === tab && inPeriod(d.updatedAt) && match([d.data.folio, d.data.operador, d.company].join(' ')));
     listEl.innerHTML = (dr.length ? `<h2 class="sec-h">Sin terminar</h2><div class="list">${dr.map(draftRow).join('')}</div>` : '')
       + (ds.length ? `<h2 class="sec-h">${ds.length} documento${ds.length === 1 ? '' : 's'}</h2><div class="list">${ds.slice(0, shown).map(docRow).join('')}</div>${ds.length > shown ? `<button type="button" class="btn-ghost block" data-more>Mostrar más (${ds.length - shown})</button>` : ''}`
-        : `<div class="empty"><p>${text || period !== 'todos' ? 'No hay documentos con ese filtro.' : tab === 'puerto' ? 'Aún no hay notas de entrega generadas.' : 'Aún no hay asignaciones generadas.'}</p></div>`);
+        : text || period !== 'todos' ? '<div class="empty"><p><b class="empty-t">Sin coincidencias</b>No hay documentos con ese filtro.</p></div>'
+          : `<div class="empty"><p><b class="empty-t">${tab === 'puerto' ? 'Aún no hay notas de entrega' : 'Aún no hay asignaciones'}</b>${tab === 'puerto' ? 'Las notas de entrega de División Puerto que generes aparecerán aquí.' : 'Las asignaciones de unidades de División Campo que generes aparecerán aquí.'}</p>`
+            + `<button type="button" class="btn-primary sm" data-new="${tab}">${icon.plus}<span>${tab === 'puerto' ? 'Crear nota de entrega' : 'Crear asignación'}</span></button></div>`);
   }
   on(root, 'click', '[data-tab]', (e, b) => { tab = b.dataset.tab; history.replaceState(null, '', '#/documentos?t=' + tab); draw(); });
   on(root, 'click', '[data-p]', (e, b) => { period = b.dataset.p; shown = 30; draw(); });
   on(root, 'click', '[data-more]', () => { shown += 30; draw(); });
+  on(root, 'click', '[data-new]', (e, b) => (b.dataset.new === 'puerto' ? startPuerto() : startCampo()));
   on(root, 'click', '[data-back]', () => back('/administracion'));
   root.querySelector('.search-in').addEventListener('input', (e) => { text = e.target.value.trim(); draw(); });
   draw();
