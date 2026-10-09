@@ -48,7 +48,7 @@ export async function workshopScreen() {
   await Promise.all([mt.loadMaintenance(), lg.loadLogistics()]);
   const f = { text: '', state: 'all', type: '' };
   let histLimit = 12, oilAll = false;
-  const s = screen('<div class="page mt-page"></div>');
+  const s = screen('<div class="page wide mt-page"></div>');
   const root = s.el;
   function render() {
     const y = window.scrollY, d = mt.dashboard(), all = mt.orders();
@@ -69,7 +69,7 @@ export async function workshopScreen() {
         <div class="mt-tile${d.openIssues.length ? ' warn' : ''}"><small>Fallas reportadas</small><b>${d.openIssues.length}</b></div>
         <div class="mt-tile${d.oilAlerts.length ? ' warn' : ''}"><small>Alertas de aceite</small><b>${d.oilAlerts.length}</b></div>
       </div>
-      <section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">En taller ahora</h2><span class="count">${d.open.length}</span></div>
+      <div class="mt-cols"><section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">En taller ahora</h2><span class="count">${d.open.length}</span></div>
         ${d.open.length ? `<div class="mt-cards">${d.open.map((o) => orderCard(o, d.now)).join('')}</div>` : '<div class="empty"><p>Ningún equipo en el taller.</p></div>'}</section>
       <section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Próximos cambios de aceite</h2><span class="count">${d.oilAlerts.length}</span></div>
         ${d.oilAlerts.length ? d.oilAlerts.map(oilAlert).join('') : '<p class="grp-note">Sin alertas. Se basan en el último cambio registrado y en el intervalo configurado de cada unidad.</p>'}</section>
@@ -90,7 +90,7 @@ export async function workshopScreen() {
       <section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Equipos</h2></div>
         <p class="grp-note">Historial de cada tractocamión y remolque del catálogo.</p>
         <div class="mt-eq-chips">${mt.vehicles().map((e) => `<a class="chip" href="${eqHref('vehicle', e.id)}">${esc(e.label)}${mt.availability(e.key).inShop ? ' · en taller' : ''}</a>`).join('')}</div>
-        <div class="mt-eq-chips">${mt.trailers().map((e) => `<a class="chip" href="${eqHref('trailer', e.id)}">${esc(e.label)}<small class="muted">${esc(e.kind ? kindLabel(e.kind).split(' ')[0] : 'Sin clasificar')}</small>${mt.availability(e.key).inShop ? ' · en taller' : ''}</a>`).join('')}</div></section>`;
+        <div class="mt-eq-chips">${mt.trailers().map((e) => `<a class="chip" href="${eqHref('trailer', e.id)}">${esc(e.label)}<small class="muted">${esc(e.kind ? kindLabel(e.kind).split(' ')[0] : 'Sin clasificar')}</small>${mt.availability(e.key).inShop ? ' · en taller' : ''}</a>`).join('')}</div></section></div>`;
     const q = root.querySelector('[data-q]');
     if (f.focus) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); f.focus = false; }
     window.scrollTo(0, y);
@@ -115,7 +115,7 @@ export async function workshopEquipmentScreen({ type, id }) {
   const t = type === 'u' ? 'vehicle' : 'trailer';
   if (!mt.equipmentOf(t, id)) { toast('Ese equipo ya no está en el catálogo.', { type: 'info' }); go('/operacion/taller', { replace: true }); return null; }
   let text = '';
-  const s = screen('<div class="page mt-page"></div>');
+  const s = screen('<div class="page wide mt-page"></div>');
   const root = s.el;
   let dg = null;
   function render() {
@@ -140,7 +140,7 @@ export async function workshopEquipmentScreen({ type, id }) {
         <div class="mt-tile"><small>Reparaciones</small><b>${sum.repairs}</b></div>
         <div class="mt-tile"><small>Reemplazos</small><b>${sum.replacements}</b></div>
       </div>
-      ${t === 'vehicle' ? `<section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Cambio de aceite</h2><button type="button" class="btn-ghost sm" data-cfg data-w>${icon.gear}<span>Intervalo</span></button></div>
+      <div class="mt-cols">${t === 'vehicle' ? `<section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Cambio de aceite</h2><button type="button" class="btn-ghost sm" data-cfg data-w>${icon.gear}<span>Intervalo</span></button></div>
         ${oil.state === 'proximo' || oil.state === 'vencido' ? oilAlert({ eq, st: oil }) : ''}
         <dl class="sumlist grp-b" style="padding-bottom:4px">
           <div><dt>Último cambio</dt><dd>${oil.last ? `${esc(fmtDT(oil.last.ts))} · <b>${esc(kmText(oil.last.odometer))}</b>` : '<i>Sin cambio registrado</i>'}</dd></div>
@@ -159,7 +159,7 @@ export async function workshopEquipmentScreen({ type, id }) {
         ${sum.issues.length ? `<div class="mt-list">${sum.issues.map(issueRow).join('')}</div>` : '<p class="grp-note">Sin fallas reportadas.</p>'}</section>
       <section class="mt-sec"><div class="sec-hrow"><h2 class="sec-h">Mantenimientos</h2><span class="count">${list.length}</span></div>
         <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" data-q placeholder="Folio, fecha o componente" value="${esc(text)}" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search"></label>
-        ${list.length ? `<div class="mt-cards">${list.map((o) => orderCard(o)).join('')}</div>` : `<div class="empty"><p>${text ? 'Sin coincidencias.' : 'Sin mantenimientos registrados.'}</p></div>`}</section>`;
+        ${list.length ? `<div class="mt-cards">${list.map((o) => orderCard(o)).join('')}</div>` : `<div class="empty"><p>${text ? 'Sin coincidencias.' : 'Sin mantenimientos registrados.'}</p></div>`}</section></div>`;
     const tb = root.querySelector('[data-tires]');
     if (tb) tb.replaceWith(tirePicker(prof.tireLayout, replacedPos, { interactive: false }).el);
     const slot = root.querySelector('[data-dg]');

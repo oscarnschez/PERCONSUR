@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '518254fd7f';
+const VERSION = '769ab84d41';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -134,6 +134,7 @@ const PRECACHE = [
   "./src/ui/screens/workshopReport.js",
   "./styles/base.css",
   "./styles/components.css",
+  "./styles/desktop.css",
   "./styles/documents.css",
   "./styles/logistics.css",
   "./styles/maps.css",
@@ -155,13 +156,14 @@ const PRECACHE = [
   "./assets/brand/track-oasc.png",
   "./assets/brand/track-osc.png",
   "./assets/brand/track-perconsur.png",
-  "./assets/divisions/campo.png",
-  "./assets/divisions/puerto.png",
   "./vendor/bwip-js-min.js",
   "./vendor/fonts/archivo-latin-ext.woff2",
   "./vendor/fonts/archivo-latin.woff2",
   "./vendor/fonts/archivo-vietnamese.woff2",
   "./vendor/fonts/archivo.css",
+  "./vendor/fonts/inter-latin-ext.woff2",
+  "./vendor/fonts/inter-latin.woff2",
+  "./vendor/fonts/inter.css",
   "./vendor/html2canvas.min.js",
   "./vendor/jspdf.umd.min.js",
   "./vendor/leaflet/LICENSE.txt",

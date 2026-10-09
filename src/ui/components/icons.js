@@ -7,6 +7,9 @@ export const icon = {
   plus: I('<path d="M12 5v14M5 12h14"/>', ' stroke-width="2.4"'),
   catalog: I('<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M4 9.3h16M4 14.6h16M9 4v16"/>'),
   gear: I('<circle cx="12" cy="12" r="3"/><path d="M19.4 13.5a7.7 7.7 0 0 0 0-3l2-1.6-2-3.4-2.4.9a7.6 7.6 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.4a7.6 7.6 0 0 0-2.6 1.5l-2.4-.9-2 3.4 2 1.6a7.7 7.7 0 0 0 0 3l-2 1.6 2 3.4 2.4-.9a7.6 7.6 0 0 0 2.6 1.5l.4 2.4h4l.4-2.4a7.6 7.6 0 0 0 2.6-1.5l2.4.9 2-3.4z"/>'),
+  /* Divisiones: contenedores apilados (Puerto) y brote (Campo) */
+  containers: I('<rect x="2.5" y="12.5" width="9.5" height="7" rx=".8"/><rect x="12" y="12.5" width="9.5" height="7" rx=".8"/><rect x="7.25" y="5.5" width="9.5" height="7" rx=".8"/><path d="M5.6 14.6v2.8M8.9 14.6v2.8M15.1 14.6v2.8M18.4 14.6v2.8M10.4 7.6v2.8M13.6 7.6v2.8"/>'),
+  sprout: I('<path d="M4.5 20.5h15"/><path d="M12 20.5v-9"/><path d="M12 15.2c-.2-3.4-2.5-5.6-6.6-5.8.1 3.8 2.5 5.9 6.6 5.8z"/><path d="M12 11.5c.1-3.9 2.6-6.6 7-6.8-.1 4.2-2.6 6.8-7 6.8z"/>'),
   container: I('<rect x="2.5" y="6.5" width="19" height="11" rx="1"/><path d="M6 9v6M9.5 9v6M13 9v6M16.5 9v6"/><path d="M2.5 19.5h19"/>'),
   truck: I('<path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 9.5h4l3 3.2v2.8h-7"/><circle cx="6.5" cy="17.5" r="1.8"/><circle cx="17" cy="17.5" r="1.8"/>'),
   camera: I('<path d="M4 8h3l1.6-2.3h6.8L17 8h3a1 1 0 0 1 1 1v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.3" r="3.6"/>'),

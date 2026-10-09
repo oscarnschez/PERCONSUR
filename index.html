@@ -19,6 +19,8 @@
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32.png">
 <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png">
+<link rel="preload" href="./vendor/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="./vendor/fonts/inter.css">
 <link rel="stylesheet" href="./vendor/fonts/archivo.css">
 <link rel="stylesheet" href="./styles/tokens.css">
 <link rel="stylesheet" href="./styles/base.css">
@@ -30,6 +32,7 @@
 <link rel="stylesheet" href="./styles/maps.css">
 <link rel="stylesheet" href="./styles/monitor.css">
 <link rel="stylesheet" href="./styles/workshop.css">
+<link rel="stylesheet" href="./styles/desktop.css">
 <script>
   /* Aplica el tema elegido antes del primer pintado (evita destello) */
   try { var t = localStorage.getItem('pcs-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}

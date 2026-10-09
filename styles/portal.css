@@ -1,4 +1,6 @@
 /* ===== Portal de rastreo para clientes (página pública del Worker; claro u oscuro según el sistema) ===== */
+/* Letra de la interfaz (la página del Worker solo enlaza Archivo; así no hace falta volver a publicar el Worker) */
+@import url("../vendor/fonts/inter.css");
 *,*::before,*::after{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;background:var(--canvas)}
 body.pt-body{margin:0;min-height:100%;background:var(--canvas);color:var(--ink);font-family:var(--font);font-size:var(--fs-body);line-height:1.45;-webkit-font-smoothing:antialiased}

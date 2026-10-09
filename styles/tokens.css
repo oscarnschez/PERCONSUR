@@ -3,7 +3,8 @@
  * Paleta: blanco y gris muy claro de base, azul corporativo para marca y navegación,
  * naranja corporativo para acentos (banda, íconos, gráficas). Los botones y textos naranjas usan --cta / --cta-ink,
  * un tono más oscuro del mismo naranja que sí cumple contraste 4.5:1 (WCAG AA) con texto blanco o sobre fondo claro.
- * Tipografía: la del sistema (SF Pro en iPhone) para la interfaz; Archivo condensada solo para el logotipo.
+ * Tipografía: Inter para la interfaz (copia local en vendor/fonts, igual en iPhone, Android y Windows; si no carga,
+ * la del sistema); Archivo condensada solo para el logotipo.
  * Escala de 7 tamaños (estilos de texto de iOS); ningún texto de la interfaz mide menos de 12 px. Los documentos y
  * PDF (documents.css) conservan sus tamaños de impresión y los logotipos el suyo.
  * Motivo gráfico: la banda corrugada azul/naranja de los documentos (puerta de contenedor).
@@ -19,7 +20,7 @@
   --shadow-1:0 1px 2px rgba(20,30,55,.06);
   --shadow-2:0 8px 28px rgba(20,30,55,.14);
   --r-xs:8px; --r-sm:10px; --r:14px; --r-lg:18px;
-  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
   --fs-caption:12px; --fs-footnote:13px; --fs-subhead:15px; --fs-body:17px; --fs-title3:20px; --fs-title2:24px; --fs-title1:30px;
   --font-brand:"Archivo","Arial Narrow",Arial,sans-serif;
   --ease:cubic-bezier(.2,.8,.2,1);
