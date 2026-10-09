@@ -5,7 +5,7 @@
  * - Estrategia: caché primero (la versión cambia con cada despliegue → caché nueva).
  */
 /* PRECACHE:START */
-const VERSION = '89f12345c0';
+const VERSION = 'd26653f89b';
 const PRECACHE = [
   "./",
   "./index.html",
@@ -31,6 +31,10 @@ const PRECACHE = [
   "./src/domain/gps/geo.js",
   "./src/domain/gps/gps.js",
   "./src/domain/logistics/logistics.js",
+  "./src/domain/maintenance/catalog.js",
+  "./src/domain/maintenance/diagrams.js",
+  "./src/domain/maintenance/maintenance.js",
+  "./src/domain/maintenance/report.js",
   "./src/domain/operators/balance.js",
   "./src/domain/operators/money.js",
   "./src/domain/operators/statement.js",
@@ -64,6 +68,8 @@ const PRECACHE = [
   "./src/services/gps.js",
   "./src/services/libs.js",
   "./src/services/logistics.js",
+  "./src/services/maintenance.js",
+  "./src/services/maintenancePdf.js",
   "./src/services/media.js",
   "./src/services/migration.js",
   "./src/services/operators.js",
@@ -122,6 +128,10 @@ const PRECACHE = [
   "./src/ui/screens/tripImport.js",
   "./src/ui/screens/viewer.js",
   "./src/ui/screens/wizardShell.js",
+  "./src/ui/screens/workshop.js",
+  "./src/ui/screens/workshopForms.js",
+  "./src/ui/screens/workshopKit.js",
+  "./src/ui/screens/workshopReport.js",
   "./styles/base.css",
   "./styles/components.css",
   "./styles/documents.css",
@@ -132,6 +142,7 @@ const PRECACHE = [
   "./styles/portal.css",
   "./styles/screens.css",
   "./styles/tokens.css",
+  "./styles/workshop.css",
   "./assets/icons/apple-touch-icon.png",
   "./assets/icons/favicon-32.png",
   "./assets/icons/icon-192.png",

@@ -21,6 +21,9 @@ import { loadTripAttachments } from './tripAttachments.js';
 import { loadEmpties } from './empties.js';
 import { loadGeocodes } from './geocode.js';
 import { loadFuel } from './fuel.js';
+import { loadMaintenance } from './maintenance.js';
+import { ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS } from '../domain/maintenance/catalog.js';
+import { TIRE_LAYOUTS } from '../domain/maintenance/maintenance.js';
 import { SYNC_SETTINGS } from '../domain/sync/sync.js';
 import { COMPANY_DEFAULTS, EDITABLE_FIELDS, PUERTO_COMPANIES } from '../config/companies.js';
 
@@ -28,6 +31,10 @@ const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles
   'operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents', 'geocodes');
+/* Taller (v10): órdenes, trabajos, fallas, intervenciones del diagrama, llantas, aceite, fotos, bitácora y configuración */
+const MT_STORES = ['maintenanceOrders', 'maintenanceServices', 'maintenanceIssues', 'maintenanceComponents', 'tireReplacements', 'oilChanges',
+  'maintenanceAttachments', 'maintenanceEvents', 'maintenanceProfiles', 'maintenanceParts'];
+DATA_STORES.push(...MT_STORES);
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
    cambiar a dónde se envía la clave de este dispositivo), los avisos pendientes de rastreo de este dispositivo y la
    configuración de Información compartida (clave, papel e identificador de este dispositivo) */
@@ -74,6 +81,26 @@ export function sanitizeImport(data) {
   for (const st of rowsOf('operatorStatements')) st.pages = numOr(st.pages);
   for (const st of rowsOf('operatorSettings')) if (st.satManual != null && !Number.isInteger(Number(st.satManual))) st.satManual = null; else if (st.satManual != null) st.satManual = Number(st.satManual);
   for (const f of rowsOf('fuelRecords')) f.liters = numOr(f.liters);
+  /* Taller: valores fijos (tipos, estados, gravedad, acciones) y números; lo que no corresponde se descarta */
+  const keys = (list) => new Set(list.map((x) => (Array.isArray(x) ? x[0] : x.key)));
+  const OT = keys(ORDER_TYPES), OS = keys(ORDER_STATUSES), SV = keys(SEVERITIES), AC = keys(ACTIONS), WS = keys(WORK_STATUSES), WT = keys(WORK_TYPES), TR = keys(TIRE_REASONS);
+  const okKind = (k) => ['tractor', 'chasis', 'jaula', 'tolva'].includes(k);
+  const ts = (v) => (v == null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+  data.maintenanceOrders = rowsOf('maintenanceOrders').filter((o) => typeof o.id === 'string' && (o.equipmentType === 'vehicle' || o.equipmentType === 'trailer') && okKind(o.kind) && Number.isFinite(Number(o.inAt))).map((o) => ({
+    ...o, type: OT.has(o.type) ? o.type : 'general', status: OS.has(o.status) ? o.status : 'reportado', inAt: Number(o.inAt), outAt: ts(o.outAt),
+    odometer: o.equipmentType === 'vehicle' && ts(o.odometer) != null && ts(o.odometer) >= 0 ? ts(o.odometer) : null, folio: String(o.folio || ''),
+  })).filter((o) => o.outAt == null || o.outAt >= o.inAt);
+  const work = (r) => ({ ...r, severity: SV.has(r.severity) ? r.severity : '', action: AC.has(r.action) ? r.action : '', replaced: r.action === 'reemplazado' || !!r.replaced, date: ts(r.date) });
+  data.maintenanceServices = rowsOf('maintenanceServices').filter((r) => typeof r.orderId === 'string').map((r) => ({ ...work(r), type: WT.has(r.type) ? r.type : 'otro', workStatus: WS.has(r.workStatus) ? r.workStatus : 'terminado' }));
+  data.maintenanceComponents = rowsOf('maintenanceComponents').filter((r) => typeof r.orderId === 'string' && typeof r.componentId === 'string').map(work);
+  data.maintenanceIssues = rowsOf('maintenanceIssues').filter((r) => okKind(r.kind) && Number.isFinite(Number(r.date))).map((r) => ({ ...r, date: Number(r.date), severity: SV.has(r.severity) ? r.severity : 'leve' }));
+  data.tireReplacements = rowsOf('tireReplacements').filter((r) => typeof r.orderId === 'string').map((r) => ({
+    ...r, quantity: Math.max(1, Math.min(24, Math.round(numOr(r.quantity, 1)))), positions: Array.isArray(r.positions) ? r.positions.filter((x) => typeof x === 'string').slice(0, 24) : [],
+    layout: TIRE_LAYOUTS[r.layout] ? r.layout : null, reason: TR.has(r.reason) ? r.reason : 'otro', date: ts(r.date),
+  }));
+  data.oilChanges = rowsOf('oilChanges').filter((r) => typeof r.orderId === 'string').map((r) => ({ ...r, odometer: Math.max(0, numOr(r.odometer)), liters: r.liters == null ? null : Math.max(0, numOr(r.liters)), date: ts(r.date) }));
+  data.maintenanceProfiles = rowsOf('maintenanceProfiles').filter((r) => typeof r.id === 'string').map((r) => ({ ...r, oilKm: r.oilKm == null ? null : Math.max(0, numOr(r.oilKm)), oilDays: r.oilDays == null ? null : Math.max(0, numOr(r.oilDays)), tireLayout: TIRE_LAYOUTS[r.tireLayout] ? r.tireLayout : null }));
+  data.maintenanceParts = rowsOf('maintenanceParts').filter((r) => typeof r.id === 'string' && okKind(r.kind) && typeof r.name === 'string');
   return data;
 }
 
@@ -89,8 +116,8 @@ export async function exportBackup({ includeMedia = false } = {}) {
   data.settings = (data.settings || []).filter((r) => !NO_EXPORT.has(r.key));
   const atts = await db.all(db.S.attachments);
   data.attachments = atts
-    /* Borradores y fotografías de operadores siempre; PDF y fotos de documentos solo en el respaldo completo */
-    .filter((a) => includeMedia || /^(draft|op):/.test(String(a.owner || '')))
+    /* Borradores, fotografías de operadores y evidencias del Taller siempre; PDF y fotos de documentos solo en el respaldo completo */
+    .filter((a) => includeMedia || /^(draft|op|mt):/.test(String(a.owner || '')))
     .map(({ buf, ...rest }) => ({ ...rest, b64: b64.from(buf) }));
   const json = JSON.stringify({ app: 'perconsur', format: 1, version: APP_VERSION, exportedAt: new Date().toISOString(), includeMedia, data });
   const d = new Date(), p = (n) => String(n).padStart(2, '0');
@@ -120,6 +147,7 @@ export async function inspectBackup(file) {
         `Documentos adicionales de viajes: ${n('tripAttachments')}`,
         `Control de vacíos: ${n('emptyContainers')} contenedores, ${n('emptyContainerEvents')} movimientos, ${n('yards')} patios`,
         `Ubicaciones de destinos en el mapa: ${(obj.data.geocodes || []).filter((g) => g && g.precision !== 'none').length}`,
+        `Taller: ${n('maintenanceOrders')} órdenes, ${n('maintenanceIssues')} fallas, ${n('oilChanges')} cambios de aceite, ${n('tireReplacements')} reemplazos de llantas`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -161,6 +189,9 @@ export async function importBackup(info) {
     return true;
   });
   for (const r of data.fuelRecords || []) if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId);
+  /* Taller: las órdenes, fallas, aceite y configuración se reasignan a la unidad existente (remolques, abajo) */
+  for (const s of ['maintenanceOrders', 'maintenanceIssues', 'oilChanges', 'tireReplacements']) for (const r of data[s] || []) if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId);
+  for (const r of data.maintenanceProfiles || []) { const m = /^v:(.+)$/.exec(r.id); if (m && vmap.has(m[1])) r.id = 'v:' + vmap.get(m[1]); }
   /* Logística: las operaciones se reasignan a la unidad y al operador existentes (remolques, abajo) */
   for (const r of data.logisticsOperations || []) { if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId); if (remap.has(r.operatorId)) r.operatorId = remap.get(r.operatorId); }
   /* Remolques: no duplicar por empresa + placas (se conserva el tipo si el existente no lo tiene) */
@@ -173,6 +204,8 @@ export async function importBackup(info) {
     return !twin;
   });
   for (const r of data.logisticsOperations || []) if (tmap.has(r.trailerId)) r.trailerId = tmap.get(r.trailerId);
+  for (const s of ['maintenanceOrders', 'maintenanceIssues', 'tireReplacements']) for (const r of data[s] || []) if (tmap.has(r.trailerId)) r.trailerId = tmap.get(r.trailerId);
+  for (const r of data.maintenanceProfiles || []) { const m = /^t:(.+)$/.exec(r.id); if (m && tmap.has(m[1])) r.id = 't:' + tmap.get(m[1]); }
   /* Control de vacíos: unidad, operadores y remolque al registro existente; patios sin duplicar por nombre */
   for (const r of data.emptyContainers || []) {
     if (vmap.has(r.vehicleId)) r.vehicleId = vmap.get(r.vehicleId); if (tmap.has(r.trailerId)) r.trailerId = tmap.get(r.trailerId);
@@ -211,6 +244,8 @@ export async function importBackup(info) {
       continue;
     }
     if (s === 'drafts') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
+    /* Taller: se conserva la versión más reciente de cada registro (la bitácora y las fotos solo se agregan) */
+    if (MT_STORES.includes(s)) { for (const r of rows) { if (!r || !r.id) continue; const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || r.at || 0) > (cur.updatedAt || cur.at || 0)) await db.put(s, r); } continue; }
     if (rows.length) await db.putMany(s, rows);
   }
   for (const a of data.attachments || []) {
@@ -222,5 +257,5 @@ export async function importBackup(info) {
 }
 /* Vuelve a leer de la base local todo lo que las pantallas guardan en memoria (después de importar o de recibir la
    información compartida) */
-export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); }
+export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); }
 const reload = reloadAll;

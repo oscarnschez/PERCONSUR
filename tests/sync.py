@@ -127,10 +127,10 @@ try:
     bp.goto(BASE+'#/'); bp.wait_for_timeout(300); bp.reload(); bp.wait_for_selector('.home',timeout=15000); bp.wait_for_timeout(800)
     ok(bp.evaluate("document.documentElement.classList.contains('ro')") and 'PCS-0999' in txt(bp,'.home') and not bp.locator('.tab-new').is_visible(),'al reabrir la app arranca en solo consulta con la información recibida')
     seen=[]
-    for r in ['#/operacion','#/operacion/logistica','#/operacion/logistica/historial','#/operacion/logistica/vacios','#/operacion/combustible','#/administracion','#/operadores','#/operadores/resumen','#/cobranza','#/catalogos','#/catalogos/vehicles','#/documentos','#/doc/d_sync1','#/ajustes','#/ajustes/gps']:
+    for r in ['#/operacion','#/operacion/logistica','#/operacion/logistica/historial','#/operacion/logistica/vacios','#/operacion/combustible','#/administracion','#/operadores','#/operadores/resumen','#/cobranza','#/catalogos','#/catalogos/vehicles','#/operacion/taller','#/documentos','#/doc/d_sync1','#/ajustes','#/ajustes/gps']:
         bp.goto(BASE+r); bp.wait_for_timeout(450)
         if 'solo consulta' in ' '.join(bp.locator('.toast').all_inner_texts()): seen.append(r)
-    ok(not seen,'consulta: recorrer Operación, Administración, Cobranza, Catálogos, Documentos y Ajustes no intenta capturar nada '+str(seen))
+    ok(not seen,'consulta: recorrer Operación, Taller, Administración, Cobranza, Catálogos, Documentos y Ajustes no intenta capturar nada '+str(seen))
     bp.goto(BASE+'#/ajustes/compartir'); bp.wait_for_selector('.sync-set')
     # El capturista cambia algo y borra un archivo; la consulta lo recibe
     a.evaluate("async(ids)=>{const l=await import('./src/services/logistics.js'); await l.setStatus(ids.op,'empty_transit'); const m=await import('./src/services/media.js'); await m.remove(ids.prev)}", ids)

@@ -15,10 +15,14 @@
  *   tripAttachments   documentos adicionales de cada viaje (metadatos; el archivo vive en attachments) (v7)
  *   yards, emptyContainers, emptyContainerEvents   control de vacíos: patios, contenedores por devolver y su historial (v8)
  *   geocodes   ubicación en el mapa de cada dirección (destinos de notas, patios, terminales) (v9)
+ *   maintenanceOrders, maintenanceServices, maintenanceIssues, maintenanceComponents, tireReplacements, oilChanges,
+ *   maintenanceAttachments, maintenanceEvents, maintenanceProfiles, maintenanceParts   Taller (v10): órdenes por equipo
+ *     (vehicleId o trailerId del catálogo), trabajos, fallas, intervenciones por componente (datos del diagrama),
+ *     llantas, aceite, fotos, bitácora, intervalos y ejes por equipo, y componentes agregados por el usuario
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 9;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones */
+const DB_VERSION = 10;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -29,6 +33,10 @@ export const S = {
   logisticsOperations: 'logisticsOperations', tripAttachments: 'tripAttachments',
   yards: 'yards', emptyContainers: 'emptyContainers', emptyContainerEvents: 'emptyContainerEvents',
   geocodes: 'geocodes',
+  maintenanceOrders: 'maintenanceOrders', maintenanceServices: 'maintenanceServices', maintenanceIssues: 'maintenanceIssues',
+  maintenanceComponents: 'maintenanceComponents', tireReplacements: 'tireReplacements', oilChanges: 'oilChanges',
+  maintenanceAttachments: 'maintenanceAttachments', maintenanceEvents: 'maintenanceEvents', maintenanceProfiles: 'maintenanceProfiles',
+  maintenanceParts: 'maintenanceParts',
 };
 
 let dbp = null;
@@ -77,6 +85,17 @@ export function openDB() {
       mk(S.emptyContainerEvents, { keyPath: 'id' }, [['emptyContainerId', 'emptyContainerId'], ['createdAt', 'createdAt']]);
       /* v9 — Ubicación (lat/lng) de cada dirección ya buscada o fijada en el mapa; clave = dirección normalizada */
       mk(S.geocodes, { keyPath: 'key' });
+      /* v10 — Taller: todo se relaciona con la orden (orderId) y con el equipo del catálogo (vehicleId o trailerId) */
+      mk(S.maintenanceOrders, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['trailerId', 'trailerId'], ['inAt', 'inAt']]);
+      mk(S.maintenanceServices, { keyPath: 'id' }, [['orderId', 'orderId']]);
+      mk(S.maintenanceIssues, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['trailerId', 'trailerId'], ['orderId', 'orderId']]);
+      mk(S.maintenanceComponents, { keyPath: 'id' }, [['orderId', 'orderId']]);
+      mk(S.tireReplacements, { keyPath: 'id' }, [['orderId', 'orderId']]);
+      mk(S.oilChanges, { keyPath: 'id' }, [['vehicleId', 'vehicleId'], ['orderId', 'orderId']]);
+      mk(S.maintenanceAttachments, { keyPath: 'id' }, [['parentId', 'parentId'], ['orderId', 'orderId']]);
+      mk(S.maintenanceEvents, { keyPath: 'id' }, [['orderId', 'orderId']]);
+      mk(S.maintenanceProfiles, { keyPath: 'id' });
+      mk(S.maintenanceParts, { keyPath: 'id' });
     };
     req.onsuccess = () => {
       const db = req.result;
