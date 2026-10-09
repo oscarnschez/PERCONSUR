@@ -24,7 +24,8 @@ try:
     if pg.locator('.asheet').count(): pg.get_by_role('button',name='Ahora no').click()
     # ===== Navegación =====
     tabs=[x.inner_text().strip() for x in pg.locator('.tabbar a, .tabbar button').all()]
-    ok(tabs==['Inicio','Operación','Nuevo','Administración','Ajustes'],'barra principal: '+' | '.join(tabs))
+    # En un celular de 390 px «Administración» se muestra abreviada («Admin.»); su nombre accesible es el completo
+    ok(tabs==['Inicio','Operación','Nuevo','Admin.','Ajustes'] and pg.locator('.tabbar [data-tab="admin"]').get_attribute('aria-label')=='Administración','barra principal: '+' | '.join(tabs))
     imgs=pg.locator('.div-ic.img img').evaluate_all('l=>l.map(i=>i.getAttribute("src")+":"+(i.naturalWidth>0))')
     ok(imgs==['./assets/divisions/puerto.png:true','./assets/divisions/campo.png:true'],'Inicio usa las imágenes adjuntas de Puerto y Campo')
     shot(pg,'n01_inicio')

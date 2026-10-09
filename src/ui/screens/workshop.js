@@ -31,7 +31,7 @@ const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
 function orderCard(o, now = Date.now()) {
   const eq = mt.equipmentOfOrder(o), d = orderDuration(o, now);
   return `<a class="mt-card lg-t-${({ reportado: 'gray', pendiente: 'amber', diagnostico: 'teal', mantenimiento: 'blue', refacciones: 'orange', finalizado: 'ok' })[o.status] || 'gray'}" href="${orderHref(o.id)}">
-    <div class="mt-c1">${badge(eq)}<span class="mt-folio">${esc(o.folio)}</span>${statusChip(o.status)}</div>
+    <div class="mt-c1">${badge(eq)}<span class="mt-folio" title="${esc(o.folio)}">${esc(o.folio)}</span>${statusChip(o.status)}</div>
     <p class="mt-c2">${esc(o.reason || typeLabel(o.type))}</p>
     <p class="mt-c3"><span>${esc(typeLabel(o.type))}</span><span>${icon.clock}${esc(fmtDT(o.inAt))}</span>${d ? `<span>${d.running ? 'En taller ' : ''}${esc(d.text)}</span>` : ''}${o.equipmentType === 'trailer' ? `<span>${esc(kindLabel(o.kind))}</span>` : ''}</p>
   </a>`;

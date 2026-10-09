@@ -60,7 +60,7 @@ function mountTabbar() {
     <a href="#/" data-tab="home">${icon.home}<span>Inicio</span></a>
     <a href="#/operacion" data-tab="op">${icon.gauge}<span>Operación</span></a>
     <button type="button" class="tab-new" data-tab="new" aria-label="Nuevo documento"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
-    <a href="#/administracion" data-tab="admin">${icon.briefcase}<span>Administración</span></a>
+    <a href="#/administracion" data-tab="admin" aria-label="Administración">${icon.briefcase}<span class="tl-l">Administración</span><span class="tl-s" aria-hidden="true">Admin.</span></a>
     <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>`;
   document.body.appendChild(nav);
   nav.querySelector('.tab-new').addEventListener('click', openNewSheet);
