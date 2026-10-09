@@ -317,19 +317,24 @@ export function pageToSVG(page, srcs) {
     if (it.t === 'rect') out.push(`<rect x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" fill="${it.fill || 'none'}"${it.stroke ? ` stroke="${it.stroke}" stroke-width="${it.sw}"` : ''}/>`);
     else if (it.t === 'line') out.push(`<line x1="${it.x1}" y1="${it.y1}" x2="${it.x2}" y2="${it.y2}" stroke="${it.c}" stroke-width="${it.w}"/>`);
     else if (it.t === 'image' && srcs[it.key]) out.push(`<image href="${srcs[it.key]}" x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" preserveAspectRatio="none"/>`);
+    /* Trazo vectorial (diagramas del Taller): misma ruta que dibuja pdf-lib con drawSvgPath */
+    else if (it.t === 'path') out.push(`<path d="${it.d}" transform="translate(${it.x} ${it.y}) scale(${it.scale})" fill="${it.fill || 'none'}"${it.stroke ? ` stroke="${it.stroke}" stroke-width="${it.sw}" stroke-linejoin="round" stroke-linecap="round"` : ''}${it.dash ? ` stroke-dasharray="${it.dash.join(' ')}"` : ''}/>`);
     else if (it.t === 'text') out.push(`<text x="${it.x}" y="${it.y}" font-size="${it.s}" font-family="Helvetica, Arial, sans-serif"${it.b ? ' font-weight="700"' : ''} fill="${it.c}" text-anchor="${it.a}" xml:space="preserve">${xmlEsc(it.text)}</text>`);
   }
   out.push('</svg>');
   return out.join('');
 }
 
-/* PDF vectorial con pdf-lib (texto real, seleccionable y ligero). images = { mark: bytesPNG, word: bytesPNG|null } */
+/* PDF vectorial con pdf-lib (texto real, seleccionable y ligero). images = { mark: bytesPNG, word: bytesPNG|null, <clave>: { bytes, jpg: true } } */
 export async function modelToPdf(PDFLib, pages, images, meta) {
   const { PDFDocument, StandardFonts, rgb } = PDFLib;
   const doc = await PDFDocument.create();
   const reg = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const emb = {};
-  for (const [k, bytes] of Object.entries(images)) if (bytes) emb[k] = await doc.embedPng(bytes);
+  for (const [k, img] of Object.entries(images)) {
+    if (!img) continue;
+    try { emb[k] = img.jpg ? await doc.embedJpg(img.bytes) : await doc.embedPng(img.bytes || img); } catch (e) { console.warn('imagen omitida', k, e); }
+  }
   const col = (h) => rgb(...hex(h));
   for (const p of pages) {
     const pg = doc.addPage([p.w, p.h]);
@@ -337,6 +342,12 @@ export async function modelToPdf(PDFLib, pages, images, meta) {
       if (it.t === 'rect') pg.drawRectangle({ x: it.x, y: p.h - it.y - it.h, width: it.w, height: it.h, ...(it.fill ? { color: col(it.fill) } : {}), ...(it.stroke ? { borderColor: col(it.stroke), borderWidth: it.sw } : {}) });
       else if (it.t === 'line') pg.drawLine({ start: { x: it.x1, y: p.h - it.y1 }, end: { x: it.x2, y: p.h - it.y2 }, thickness: it.w, color: col(it.c) });
       else if (it.t === 'image' && emb[it.key]) pg.drawImage(emb[it.key], { x: it.x, y: p.h - it.y - it.h, width: it.w, height: it.h });
+      else if (it.t === 'path') {
+        const o = { x: it.x, y: p.h - it.y, scale: it.scale };
+        if (it.fill) o.color = col(it.fill);
+        if (it.stroke) { o.borderColor = col(it.stroke); o.borderWidth = it.sw; if (it.dash) o.borderDashArray = it.dash; }
+        if (o.color || o.borderColor) pg.drawSvgPath(it.d, o);
+      }
       else if (it.t === 'text' && it.text) {
         const f = it.b ? bold : reg, w = f.widthOfTextAtSize(it.text, it.s);
         const x = it.a === 'end' ? it.x - w : it.a === 'middle' ? it.x - w / 2 : it.x;
@@ -345,6 +356,7 @@ export async function modelToPdf(PDFLib, pages, images, meta) {
     }
   }
   doc.setTitle(meta.title); doc.setAuthor('PERCONSUR'); doc.setSubject(meta.subject || 'Estado de cuenta de operador'); doc.setCreator('PERCONSUR');
+  if (meta.keywords) doc.setKeywords(meta.keywords);
   doc.setCreationDate(new Date()); doc.setProducer('PERCONSUR');
   return doc.save();
 }

@@ -14,6 +14,7 @@ import { hasRecords } from '../../services/operators.js';
 import { vehicleHasFuel } from '../../services/fuel.js';
 import { inOpenOperation } from '../../services/logistics.js';
 import { yardInUse } from '../../services/empties.js';
+import { equipmentHasMaintenance } from '../../services/maintenance.js';
 import { trailerIcon } from '../components/icons.js';
 import { pickPoint } from '../components/pinPicker.js';
 import { placeLoc, cached as geoCached } from '../../services/geocode.js';
@@ -87,6 +88,7 @@ export async function catalogListScreen({ kind }) {
       ${geo ? `<div class="fld geo-fld"><span class="fl">Ubicación en el mapa</span><div class="geo-row"><span class="geo-st" data-geo-st></span><button type="button" class="btn-secondary sm" data-geo-pick>${icon.crosshair}<span>Ubicar en el mapa</span></button></div>
         <span class="fhint">Se usa para marcar el destino en el mapa de Logística. Si no se fija, se busca con la dirección.</span></div>` : ''}
       <button type="submit" class="btn-primary block">${isNew ? 'Agregar' : 'Guardar cambios'}</button>
+      ${!isNew && (kind === 'vehicles' || kind === 'trailers') ? `<a class="btn-secondary block" href="#/operacion/taller/equipo/${kind === 'vehicles' ? 'u' : 'r'}/${encodeURIComponent(v.id)}">${icon.wrench}<span>Ver historial de mantenimiento</span></a>` : ''}
       ${isNew ? '' : `<button type="button" class="btn-danger block" data-del>${icon.trash}<span>Eliminar ${esc(def.one)}</span></button>`}</form>`;
     const sh = openSheet({ title: isNew ? `Agregar ${def.one}` : `Editar ${def.one}`, body });
     const form = sh.body.querySelector('form');
@@ -140,6 +142,10 @@ export async function catalogListScreen({ kind }) {
       }
       if (kind === 'yards' && await yardInUse(v.id)) {
         toast('Este patio está asignado a contenedores vacíos pendientes; no se puede eliminar. Puedes marcarlo como Inactivo.', { type: 'warn', ms: 5500 });
+        return;
+      }
+      if ((kind === 'vehicles' || kind === 'trailers') && await equipmentHasMaintenance(kind === 'vehicles' ? 'vehicleId' : 'trailerId', v.id)) {
+        toast('Este equipo tiene mantenimientos registrados en Taller; no se puede eliminar para conservar su historial. Puedes editar sus datos.', { type: 'warn', ms: 5500 });
         return;
       }
       const lgField = { vehicles: 'vehicleId', operators: 'operatorId', trailers: 'trailerId' }[kind];

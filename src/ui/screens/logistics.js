@@ -34,6 +34,7 @@ import { createGpsPanel } from './gpsPanel.js';
 import { mountMap } from '../components/gpsMap.js';
 import { targetOf, onTargetsChange } from '../../services/destinations.js';
 import { distanceKm, distanceText, isApprox } from '../../domain/gps/geo.js';
+import * as mt from '../../services/maintenance.js';
 
 const TYPE_SHORT = { chasis: 'Chasis', jaula: 'Jaula', tolva: 'Tolva' };
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
@@ -48,26 +49,30 @@ export function trailerType(type, { full = false, cls = '' } = {}) {
 }
 const routeTxt = (o) => (o && (o.origin || o.destination) ? `${o.origin || '—'} → ${o.destination || '—'}` : '');
 const unitHref = (vehicleId) => `#/operacion/logistica/u/${encodeURIComponent(vehicleId)}`;
+/* Disponibilidad del equipo (Taller): independiente del estado del viaje */
+const inShop = (type, id) => !!id && mt.availability((type === 'vehicle' ? 'v:' : 't:') + id).inShop;
+const shopTag = (type, id) => (inShop(type, id) ? `<span class="mt-av">${icon.wrench}En taller</span>` : '');
 
 /* Tarjeta compacta del tablero: 1) qué unidad, 2) qué hace, 3) quién la opera, 4) a dónde va */
 function boardCard(e) {
   const v = lg.entryView(e), o = e.op, s = statusOf(e.status);
   const ref = [o.reference ? `Ref. ${esc(o.reference)}` : '', o.deliveryPlace ? esc(o.deliveryPlace) : ''].filter(Boolean).join('<span class="dot">·</span>');
   return `<a class="lg-card lg-t-${s.tone}" href="${unitHref(e.unit.id)}">
-    <div class="lg-c1"><span class="unit-badge">${esc(v.label)}</span>${statusChip(e.status)}<span class="chev">${icon.chev}</span></div>
+    <div class="lg-c1"><span class="unit-badge">${esc(v.label)}</span>${statusChip(e.status)}${shopTag('vehicle', e.unit.id)}<span class="chev">${icon.chev}</span></div>
     <div class="lg-op">${v.operator ? esc(v.operator) : '<span class="muted">Sin operador</span>'}</div>
-    <div class="lg-meta">${o.division ? `<span>${esc(divisionLabel(o.division, true))}</span><span class="dot">·</span>` : ''}${v.trailer ? `${trailerType(v.trailerType)}<span class="dot">·</span><span>${esc(v.trailer)}</span>` : '<span class="muted">Sin remolque</span>'}</div>
+    <div class="lg-meta">${o.division ? `<span>${esc(divisionLabel(o.division, true))}</span><span class="dot">·</span>` : ''}${v.trailer ? `${trailerType(v.trailerType)}<span class="dot">·</span><span>${esc(v.trailer)}</span>${shopTag('trailer', o.trailerId)}` : '<span class="muted">Sin remolque</span>'}</div>
     ${routeTxt(o) ? `<div class="lg-route">${esc(o.origin || '—')}<span class="arr" aria-label="a">→</span>${esc(o.destination || '—')}</div>` : ''}
     ${ref ? `<div class="lg-ref">${ref}</div>` : ''}
   </a>`;
 }
 
 /* Unidad sin operación abierta: mosaico compacto (número económico y placas) */
-const idleTile = (e) => { const v = lg.entryView(e); return `<a class="lg-idle" href="${unitHref(e.unit.id)}" aria-label="${esc(`${v.label}, sin operación activa`)}"><b>${esc(v.label)}</b><small>${esc(v.placas || 'Sin placas')}</small></a>`; };
+const idleTile = (e) => { const v = lg.entryView(e), sh = inShop('vehicle', e.unit.id); return `<a class="lg-idle" href="${unitHref(e.unit.id)}" aria-label="${esc(`${v.label}, sin operación activa${sh ? ', en taller' : ''}`)}"><b>${esc(v.label)}</b><small>${esc(sh ? 'En taller' : v.placas || 'Sin placas')}</small></a>`; };
 
 /* ===== Tablero ===== */
 export async function logisticsScreen() {
   await lg.loadLogistics();
+  await mt.loadMaintenance();
   const f = { status: 'all', division: 'all', type: 'all', text: '' };
   let showIdle = 12;
   const s = screen(`<div class="page lg-page">
@@ -166,6 +171,7 @@ const isoDay = (ts) => { const d = new Date(ts), p = (n) => String(n).padStart(2
 /* ===== Detalle de la unidad ===== */
 export async function logisticsUnitScreen({ id }) {
   await lg.loadLogistics();
+  await mt.loadMaintenance();
   if (!lg.unitById(id)) { toast('Esa unidad ya no está en el catálogo.', { type: 'info' }); go('/operacion/logistica', { replace: true }); return null; }
   const s = screen('<div class="page lg-page lg-detail"></div>');
   const root = s.el;
@@ -182,7 +188,8 @@ export async function logisticsUnitScreen({ id }) {
         ${op ? `<button type="button" class="nav-act" data-edit aria-label="Editar operación">${icon.edit}</button>` : ''}</header>
       <div class="unit-head"><span class="unit-badge lg">${esc(v.label)}</span><div><h1>${esc(u.placas || 'Sin placas')}</h1><p>${[u.companyShort, u.desc].filter(Boolean).map(esc).join(' · ') || 'Unidad'}</p></div></div>
       <section class="lg-hero lg-t-${st.tone}">
-        <div class="lg-hero-top"><small>Estado</small>${statusChip(st.key, 'lg-big')}</div>
+        <div class="lg-hero-top"><small>Estado de viaje</small>${statusChip(st.key, 'lg-big')}</div>
+        ${(() => { const av = mt.availability('v:' + id); return `<p class="lg-hero-sub">Disponibilidad: ${av.inShop ? `<b>En taller</b> · <a class="link" href="#/operacion/taller/orden/${esc(av.order.id)}">${esc(av.order.folio)}</a>` : 'Disponible'} · <a class="link" href="#/operacion/taller/equipo/u/${esc(id)}">Historial de mantenimiento</a></p>`; })()}
         <p class="lg-hero-sub">${op ? `${esc(st.hint)} · actualizado ${esc(agoText(op.updatedAt))}` : 'Sin operación activa. La unidad se considera Inactiva hasta que se le asigne una operación.'}</p>
         ${op ? `<button type="button" class="btn-primary block lg" data-status>${icon.refresh}<span>Actualizar estado</span></button>`
     : `<button type="button" class="btn-primary block lg" data-new>${icon.plus}<span>Nueva asignación</span></button>`}

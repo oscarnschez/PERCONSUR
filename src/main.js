@@ -25,6 +25,9 @@ import { initSync, startSync } from './services/sync.js';
 import { isReadOnly, READ_ONLY_TEXT } from './services/access.js';
 import { reloadAll } from './services/backup.js';
 import { syncSettingsScreen } from './ui/screens/syncSettings.js';
+import { workshopScreen, workshopEquipmentScreen, workshopOrderScreen } from './ui/screens/workshop.js';
+import { workshopOrderReportScreen, workshopEquipmentReportScreen } from './ui/screens/workshopReport.js';
+import { loadMaintenance } from './services/maintenance.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -103,6 +106,11 @@ function routes() {
   route('/operacion/logistica/monitoreo', gpsMonitorScreen, { name: 'monitor', tabs: true, tab: 'op' });
   route('/operacion/logistica/vacios', emptiesScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/logistica/vacios/:id', emptyDetailScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/taller', workshopScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/taller/equipo/:type/:id', workshopEquipmentScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/taller/orden/:id', workshopOrderScreen, { name: 'op', tabs: true, tab: 'op' });
+  route('/operacion/taller/reporte/:id', workshopOrderReportScreen, { name: 'wizard' });
+  route('/operacion/taller/reporte-equipo/:type/:id', workshopEquipmentReportScreen, { name: 'wizard' });
   route('/operacion/combustible', fuelScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/operacion/combustible/:id', fuelUnitScreen, { name: 'op', tabs: true, tab: 'op' });
   route('/documentos', documentsScreen, { name: 'docs', tabs: true, tab: 'admin' });
@@ -153,6 +161,8 @@ async function boot() {
     initSync();
     applyTheme();
     await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties(), loadGeocodes()]);
+    /* Taller (disponibilidad «En taller» en Logística e Inicio) */
+    await loadMaintenance(false, { withFuel: false });
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');
