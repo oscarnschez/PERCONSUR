@@ -168,8 +168,15 @@ export function buildMaintenanceReport(args) {
   function diagram(records, { note = '' } = {}) {
     const states = componentStates(records), nums = numbering(states, kind, parts), cv = componentViews(kind), views = viewsOf(kind);
     let show = views.filter((v) => [...states.keys()].some((c) => (cv.get(c) || []).includes(v.id)));
-    /* Si una vista lateral derecha repite exactamente lo de la izquierda, basta con una */
-    if (show.some((v) => v.id === 'izq') && show.some((v) => v.id === 'der')) show = show.filter((v) => v.id !== 'der');
+    /* Lateral izquierda y derecha: si una no muestra ningún componente intervenido que no esté ya en la otra, basta con
+       una (las llantas de cada lado sí distinguen una de otra) */
+    const inView = (id) => new Set([...states.keys()].filter((c) => (cv.get(c) || []).includes(id)));
+    for (const [a, b] of [['izq', 'der'], ['lado', 'lado_der']]) {
+      if (!show.some((v) => v.id === a) || !show.some((v) => v.id === b)) continue;
+      const A = inView(a), B = inView(b);
+      if ([...B].every((c) => A.has(c))) show = show.filter((v) => v.id !== b);
+      else if ([...A].every((c) => B.has(c))) show = show.filter((v) => v.id !== a);
+    }
     if (!show.length) show = views.slice(0, 1);
     const wide = show.filter((v) => v.w > 700), narrow = show.filter((v) => v.w <= 700);
     const drawView = (v, box) => {

@@ -9,6 +9,7 @@
  * total, azul reemplazado). Los componentes intervenidos llevan además un número (no se depende solo del color).
  */
 import { STATE_COLORS, TIRE_LAYOUTS, positionsOf } from './maintenance.js';
+import { SEVERITY_RANK, LEGACY_ALIASES } from './catalog.js';
 
 /* ===== Primitivas ===== */
 const R = (x, y, w, h, r = 0) => ({ k: 'rect', x, y, w, h, r });
@@ -72,74 +73,85 @@ const LINE_NONE = '#8A93A3';
 const L = (c, style, ...prims) => ({ c, style, prims });
 const lugs = (cx, cy) => [C(cx, cy, 9), ...[0, 1, 2, 3, 4].map((i) => C(cx + 15 * Math.cos(i * 1.2566 - 1.57), cy + 15 * Math.sin(i * 1.2566 - 1.57), 2.2))];
 
-/* Tractocamión — lateral izquierda (frente a la izquierda) */
+/* Tractocamión moderno (cabina dormitorio de techo alto, cofre inclinado, defensa aerodinámica) — lateral izquierda,
+   frente a la izquierda. La lateral derecha es este mismo dibujo reflejado con las llantas del otro lado. */
 function tractorSide() {
   return [
     L(null, 'ground', D('M20,384 L980,384')),
-    L(null, 'metal', R(60, 292, 850, 18, 3)),
-    L(null, 'metal', R(578, 40, 14, 252, 4), R(574, 34, 22, 10, 3)),
+    L(null, 'metal', R(80, 292, 830, 16, 3)),
     L(null, 'metal', P([[690, 276], [830, 276], [836, 290], [684, 290]]), R(740, 266, 40, 10, 2)),
-    L('susp_del', 'part', D('M84,298 Q150,316 216,298 L216,306 Q150,324 84,306 Z')),
-    L('amortiguadores', 'part', R(220, 298, 8, 34, 3), R(644, 300, 8, 32, 3), R(868, 300, 8, 30, 3)),
+    L(null, 'dark', R(884, 306, 12, 68, 3)),
+    L('susp_del', 'part', D('M94,298 Q160,316 226,298 L226,306 Q160,324 94,306 Z')),
+    L('amortiguadores', 'part', R(232, 298, 8, 34, 3), R(644, 300, 8, 32, 3), R(866, 300, 8, 30, 3)),
     L('susp_tras', 'part', R(724, 298, 62, 14, 4), P([[740, 290], [770, 290], [764, 298], [746, 298]])),
-    L('bolsas_aire', 'part', R(616, 278, 26, 16, 7), R(880, 278, 26, 16, 7)),
-    L('llantas_del', 'part', C(150, 334, 46)),
-    L('llantas_trac', 'part', C(700, 334, 46), C(810, 334, 46)),
-    L('rines', 'part', C(150, 334, 26), C(700, 334, 26), C(810, 334, 26)),
-    L(null, 'detail', ...lugs(150, 334), ...lugs(700, 334), ...lugs(810, 334)),
-    L('valvulas', 'part', R(170, 309, 5, 10, 1.5), R(720, 309, 5, 10, 1.5), R(830, 309, 5, 10, 1.5)),
-    L('camaras', 'part', R(196, 316, 20, 10, 3), R(746, 318, 18, 10, 3), R(856, 318, 10, 10, 3)),
-    L('combustible', 'part', R(318, 300, 150, 48, 22)),
-    L(null, 'detail', D('M350,301 L350,347 M436,301 L436,347'), C(334, 312, 4)),
-    L('baterias', 'part', R(478, 298, 72, 46, 4)),
-    L(null, 'detail', D('M480,314 L548,314 M480,330 L548,330')),
-    L('cabina', 'part', D('M300,300 L300,186 L326,90 Q330,80 342,79 L440,76 Q452,75 456,64 L462,56 Q466,50 476,50 L560,50 Q572,50 572,62 L572,300 Z')),
-    L(null, 'detail', R(492, 96, 52, 30, 5), D('M440,78 L440,290 M456,66 L560,66')),
-    L('puertas', 'part', P([[350, 112], [432, 110], [434, 292], [350, 292]])),
-    L(null, 'detail', P([[357, 118], [426, 116], [426, 176], [357, 178]]), D('M410,200 L426,200')),
-    L('parabrisas', 'part', P([[304, 182], [328, 96], [342, 94], [318, 182]])),
-    L(null, 'detail', D('M300,150 L286,150 M300,118 L286,116')),
-    L('espejos', 'part', R(272, 104, 14, 52, 3)),
-    L('cofre', 'part', D('M64,296 L68,212 Q72,198 90,195 L300,182 L300,300 L212,300 Q212,262 150,260 Q88,262 88,300 Z')),
-    L(null, 'detail', D('M92,214 L296,201'), R(236, 222, 42, 14, 3)),
-    L('radiador', 'part', R(60, 206, 12, 82, 3)),
-    L('luces', 'part', R(70, 262, 30, 16, 5), R(150, 202, 12, 6, 2), R(900, 294, 10, 14, 2)),
-    L('defensas', 'part', R(36, 284, 26, 50, 6)),
-    L('lineas_aire', 'line', D('M572,120 C620,120 600,170 640,176 C676,182 660,236 700,252')),
+    L('bolsas_aire', 'part', R(616, 278, 26, 16, 7), R(870, 276, 26, 16, 7)),
+    L('llantas_del_izq', 'part', C(160, 334, 46)),
+    L('llantas_trac_izq', 'part', C(700, 334, 46), C(810, 334, 46)),
+    L('rines', 'part', C(160, 334, 28), C(700, 334, 28), C(810, 334, 28)),
+    L(null, 'detail', C(160, 334, 22), C(700, 334, 22), C(810, 334, 22), ...lugs(160, 334), ...lugs(700, 334), ...lugs(810, 334)),
+    L('valvulas', 'part', R(180, 307, 5, 10, 1.5), R(720, 307, 5, 10, 1.5), R(830, 307, 5, 10, 1.5)),
+    L('camaras', 'part', R(208, 316, 20, 10, 3), R(746, 318, 18, 10, 3), R(856, 318, 10, 10, 3)),
+    L('combustible', 'part', R(316, 302, 152, 44, 20)),
+    L(null, 'detail', D('M346,303 L346,345 M438,303 L438,345'), C(332, 314, 4)),
+    L('baterias', 'part', R(476, 300, 66, 46, 6)),
+    L(null, 'detail', D('M480,316 L538,316 M480,331 L538,331')),
+    L('cabina', 'part', D('M300,300 L300,166 L344,84 Q350,72 364,71 L420,67 Q434,40 468,35 L562,32 Q576,32 578,46 L582,300 Z'), P([[578, 42], [602, 50], [606, 292], [582, 300]])),
+    L(null, 'detail', D('M440,70 L440,292 M424,66 L566,58'), R(492, 112, 58, 34, 8), R(458, 206, 108, 54, 8), D('M500,214 L524,214 M300,296 L580,296')),
+    L('puertas', 'part', P([[350, 102], [436, 96], [438, 292], [350, 292]])),
+    L(null, 'detail', P([[372, 108], [430, 104], [430, 174], [356, 178]]), D('M412,204 L428,204 M354,270 L434,270')),
+    L('parabrisas', 'part', P([[306, 166], [348, 86], [362, 84], [330, 166]])),
+    L(null, 'metal', D('M286,128 L304,124 L304,130 L286,134 Z M286,150 L300,148 L300,154 L286,156 Z')),
+    L('espejos', 'part', R(272, 112, 16, 52, 6), R(112, 168, 12, 16, 4)),
+    L(null, 'detail', D('M118,184 L122,190')),
+    L('cofre', 'part', D('M46,268 Q40,230 62,206 Q76,192 106,188 L300,166 L300,300 L232,300 C232,272 204,256 160,256 C116,256 92,272 92,300 L92,274 Q92,268 86,268 Z')),
+    L(null, 'detail', D('M114,198 L296,176 M58,256 Q70,262 88,264'), D('M248,206 L290,201 L290,216 L248,221 Z')),
+    L('radiador', 'part', D('M42,264 Q38,232 54,208 L64,214 Q50,236 54,264 Z')),
+    L('luces', 'part', D('M54,240 Q60,226 80,224 L128,226 Q134,234 126,240 L66,250 Q54,250 54,240 Z'), R(214, 254, 14, 6, 2), R(508, 26, 12, 5, 2), R(900, 294, 10, 14, 2)),
+    L('defensas', 'part', D('M46,262 L94,262 Q102,262 102,270 L104,326 Q104,336 94,336 L54,336 Q40,336 37,324 Q30,298 36,274 Q38,262 46,262 Z')),
+    L(null, 'detail', D('M34,300 L102,300'), R(42, 310, 24, 12, 5)),
+    L('lineas_aire', 'line', D('M606,150 C644,150 626,200 656,210 C684,220 676,250 700,264')),
   ];
 }
-/* Tractocamión — frente */
+/* Tractocamión — frente (el lado derecho del equipo queda a la izquierda de quien lo mira) */
 function tractorFront() {
+  const hl = 'M134,298 Q136,284 150,288 L190,306 Q198,310 197,320 L195,330 Q193,338 183,336 L144,326 Q133,322 134,310 Z';
   return [
     L(null, 'ground', D('M30,500 L570,500')),
-    L('llantas_del', 'part', R(108, 384, 50, 114, 10), R(442, 384, 50, 114, 10)),
-    L('cabina', 'part', P([[190, 170], [200, 40], [214, 28], [386, 28], [400, 40], [410, 170]])),
-    L('parabrisas', 'part', P([[214, 52], [386, 52], [396, 150], [204, 150]])),
-    L(null, 'detail', D('M300,52 L300,150 M164,90 L198,96 M436,90 L402,96')),
-    L('espejos', 'part', R(140, 60, 24, 70, 4), R(436, 60, 24, 70, 4)),
-    L('cofre', 'part', P([[112, 404], [118, 312], [128, 272], [170, 258], [180, 170], [420, 170], [430, 258], [472, 272], [482, 312], [488, 404], [420, 404], [420, 226], [180, 226], [180, 404]])),
-    L('radiador', 'part', R(186, 230, 228, 170, 6)),
-    L(null, 'detail', ...[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => D(`M196,${248 + i * 15} L404,${248 + i * 15}`))),
-    L('luces', 'part', R(122, 318, 46, 24, 6), R(432, 318, 46, 24, 6), R(250, 16, 14, 7, 2), R(293, 16, 14, 7, 2), R(336, 16, 14, 7, 2)),
-    L('defensas', 'part', R(96, 404, 408, 40, 8)),
-    L(null, 'detail', R(132, 416, 30, 14, 4), R(438, 416, 30, 14, 4)),
+    L(null, 'label', T(130, 522, 'LADO DERECHO', { s: 12, b: true }), T(470, 522, 'LADO IZQUIERDO', { s: 12, b: true })),
+    L('llantas_del_der', 'part', R(82, 398, 58, 100, 12)),
+    L('llantas_del_izq', 'part', R(460, 398, 58, 100, 12)),
+    L('cabina', 'part', D('M156,220 L166,96 Q170,62 204,58 L396,58 Q430,62 434,96 L444,220 Z'), D('M170,64 Q176,20 222,14 L378,14 Q424,20 430,64 Z')),
+    L(null, 'detail', D('M200,40 L400,40'), R(158, 120, 10, 70, 3), R(432, 120, 10, 70, 3)),
+    L('parabrisas', 'part', D('M186,98 Q188,78 208,76 L392,76 Q412,78 414,98 L422,178 Q300,192 178,178 Z')),
+    L(null, 'detail', D('M300,77 L300,186 M214,176 L266,150 M334,180 L386,152')),
+    L('espejos', 'part', R(112, 88, 28, 78, 9), R(460, 88, 28, 78, 9), R(146, 196, 16, 22, 5), R(438, 196, 16, 22, 5)),
+    L(null, 'detail', D('M140,104 L166,108 M140,150 L164,152 M460,104 L434,108 M460,150 L436,152 M154,218 L162,230 M446,218 L438,230')),
+    L('cofre', 'part', D('M184,214 L416,214 Q446,216 458,250 L480,332 Q486,360 484,394 L116,394 Q114,360 120,332 L142,250 Q154,216 184,214 Z')),
+    L(null, 'detail', D('M170,228 Q300,220 430,228')),
+    L('radiador', 'part', D('M222,236 L378,236 Q392,236 394,250 L406,372 Q406,386 392,386 L208,386 Q194,386 194,372 L206,250 Q208,236 222,236 Z')),
+    L(null, 'detail', ...[0, 1, 2, 3, 4, 5, 6, 7].map((i) => D(`M${212 - i},${260 + i * 15} L${388 + i},${260 + i * 15}`)), D('M204,312 L396,312')),
+    L('defensas', 'part', D('M120,392 L480,392 Q496,392 498,408 L494,444 Q492,458 478,458 L122,458 Q108,458 106,444 L102,408 Q104,392 120,392 Z')),
+    L(null, 'detail', R(232, 420, 136, 22, 7), D('M244,431 L356,431')),
+    L('luces', 'part', D(hl), D(mirrorD(hl, 600)), R(124, 414, 34, 16, 7), R(442, 414, 34, 16, 7), R(258, 64, 14, 6, 2), R(293, 64, 14, 6, 2), R(328, 64, 14, 6, 2)),
   ];
 }
-/* Tractocamión — trasera */
+/* Tractocamión — trasera (dormitorio con extensiones laterales; el lado izquierdo queda a la izquierda) */
 function tractorRear() {
   return [
     L(null, 'ground', D('M30,500 L570,500')),
-    L(null, 'metal', R(150, 20, 14, 262, 4), R(436, 20, 14, 262, 4)),
-    L('cabina', 'part', R(170, 28, 260, 250, 10)),
-    L(null, 'detail', D('M180,60 L420,60 M180,250 L420,250'), R(270, 90, 60, 36, 4)),
-    L('lineas_aire', 'line', D('M262,150 C240,206 330,224 300,282'), D('M338,150 C360,206 270,224 300,282')),
+    L(null, 'label', T(126, 522, 'LADO IZQUIERDO', { s: 12, b: true }), T(474, 522, 'LADO DERECHO', { s: 12, b: true })),
+    L(null, 'metal', P([[124, 48], [150, 40], [150, 286], [130, 278]]), P([[476, 48], [450, 40], [450, 286], [470, 278]])),
+    L('cabina', 'part', D('M150,48 Q154,22 186,18 L414,18 Q446,22 450,48 L452,286 L148,286 Z')),
+    L(null, 'detail', D('M162,64 L438,64 M160,256 L440,256'), R(266, 86, 68, 34, 6), D('M276,96 L324,96 M276,110 L324,110')),
     L(null, 'metal', P([[150, 282], [450, 282], [440, 300], [160, 300]]), R(214, 300, 24, 42, 2), R(362, 300, 24, 42, 2)),
+    L('lineas_aire', 'line', D('M276,140 C256,170 296,186 276,214 C258,240 292,258 284,290'), D('M324,140 C344,170 304,186 324,214 C342,240 308,258 316,290')),
     L(null, 'metal', R(66, 350, 120, 12, 6), R(414, 350, 120, 12, 6)),
     L('ejes', 'part', R(150, 404, 300, 16, 6)),
     L('diferenciales', 'part', C(300, 412, 40)),
     L('bolsas_aire', 'part', R(206, 352, 34, 30, 10), R(360, 352, 34, 30, 10)),
-    L('llantas_trac', 'part', R(70, 370, 54, 128, 10), R(128, 370, 54, 128, 10), R(418, 370, 54, 128, 10), R(476, 370, 54, 128, 10)),
-    L('luces', 'part', R(196, 320, 40, 16, 3), R(364, 320, 40, 16, 3)),
+    L('llantas_trac_izq', 'part', R(70, 370, 54, 128, 10), R(128, 370, 54, 128, 10)),
+    L('llantas_trac_der', 'part', R(418, 370, 54, 128, 10), R(476, 370, 54, 128, 10)),
+    L('luces', 'part', R(196, 320, 40, 16, 3), R(364, 320, 40, 16, 3), R(282, 26, 36, 6, 2)),
   ];
 }
 /* Tractocamión — esquema de sistemas (vista superior; frente a la izquierda, lado del operador abajo) */
@@ -147,7 +159,7 @@ function tractorSystems() {
   return [
     L(null, 'label', T(40, 34, 'FRENTE', { a: 'start', b: true }), T(500, 22, 'LADO DERECHO', { s: 12 }), T(500, 432, 'LADO IZQUIERDO (OPERADOR)', { s: 12 })),
     L(null, 'detail', D('M110,28 L94,28 M94,28 L101,23 M94,28 L101,33')),
-    L(null, 'dash', P([[60, 124], [300, 112], [300, 328], [60, 316]]), R(300, 100, 272, 240, 10)),
+    L(null, 'dash', D('M44,150 Q48,122 80,118 L300,108 L300,332 L80,322 Q48,318 44,290 Z'), R(300, 100, 300, 240, 14)),
     L(null, 'metal', R(70, 176, 846, 14, 3), R(70, 250, 846, 14, 3), R(420, 190, 8, 60, 1), R(600, 190, 8, 60, 1), R(900, 190, 8, 60, 1)),
     L('defensas', 'part', R(52, 116, 12, 208, 4)),
     L('luces', 'part', R(64, 176, 8, 14, 2), R(64, 250, 8, 14, 2), R(912, 176, 8, 14, 2), R(912, 250, 8, 14, 2)),
@@ -171,8 +183,10 @@ function tractorSystems() {
     L('diferenciales', 'part', C(700, 220, 22), C(810, 220, 22)),
     L('cableado', 'line', D('M86,206 L204,206 M476,204 L688,204 M722,204 L900,204')),
     L('lineas_aire', 'line', D('M282,144 L282,138 L886,138 L886,302 L870,302')),
-    L('llantas_del', 'part', R(114, 80, 72, 30, 8), R(114, 330, 72, 30, 8)),
-    L('llantas_trac', 'part', R(664, 58, 72, 22, 6), R(664, 82, 72, 22, 6), R(774, 58, 72, 22, 6), R(774, 82, 72, 22, 6), R(664, 336, 72, 22, 6), R(664, 360, 72, 22, 6), R(774, 336, 72, 22, 6), R(774, 360, 72, 22, 6)),
+    L('llantas_del_der', 'part', R(114, 80, 72, 30, 8)),
+    L('llantas_del_izq', 'part', R(114, 330, 72, 30, 8)),
+    L('llantas_trac_der', 'part', R(664, 58, 72, 22, 6), R(664, 82, 72, 22, 6), R(774, 58, 72, 22, 6), R(774, 82, 72, 22, 6)),
+    L('llantas_trac_izq', 'part', R(664, 336, 72, 22, 6), R(664, 360, 72, 22, 6), R(774, 336, 72, 22, 6), R(774, 360, 72, 22, 6)),
     L('frenos_del', 'part', R(126, 114, 48, 12, 3), R(126, 314, 48, 12, 3)),
     L('frenos_tras', 'part', R(670, 108, 60, 12, 3), R(670, 320, 60, 12, 3), R(780, 108, 60, 12, 3), R(780, 320, 60, 12, 3)),
     L('camaras', 'part', C(186, 134, 7), C(186, 306, 7), C(742, 124, 7), C(742, 316, 7), C(852, 124, 7), C(852, 316, 7)),
@@ -199,7 +213,7 @@ function chasisSide() {
     L('patines', 'part', R(306, 222, 14, 108, 2), R(296, 330, 34, 10, 3)),
     L(null, 'detail', D('M320,250 L340,250 L340,262')),
     L('suspension', 'part', R(760, 222, 188, 16, 4)),
-    L('llantas', 'part', C(800, 314, 42), C(898, 314, 42)),
+    L('llantas_izq', 'part', C(800, 314, 42), C(898, 314, 42)),
     L(null, 'base', C(800, 314, 24), C(898, 314, 24)),
     L('ejes', 'part', C(800, 314, 9), C(898, 314, 9)),
     L('frenos', 'part', R(820, 280, 22, 10, 3), R(918, 280, 22, 10, 3)),
@@ -209,7 +223,7 @@ function chasisSide() {
 function chasisTop() {
   const xs = [100, 200, 300, 400, 560, 660, 760, 860];
   return [
-    L(null, 'label', T(40, 22, 'FRENTE', { a: 'start', b: true })),
+    L(null, 'label', T(40, 22, 'FRENTE', { a: 'start', b: true }), T(600, 12, 'LADO DERECHO', { s: 11 }), T(600, 296, 'LADO IZQUIERDO', { s: 11 })),
     L('largueros', 'part', R(40, 104, 920, 12, 2), R(40, 184, 920, 12, 2)),
     L('estructura', 'part', ...xs.map((x) => R(x, 116, 6, 68, 1)), R(40, 64, 28, 172, 3), R(476, 64, 28, 172, 3), R(928, 64, 32, 172, 3)),
     L('seguros', 'part', R(42, 66, 14, 14, 2), R(42, 220, 14, 14, 2), R(478, 66, 14, 14, 2), R(478, 220, 14, 14, 2), R(936, 66, 14, 14, 2), R(936, 220, 14, 14, 2)),
@@ -219,7 +233,8 @@ function chasisTop() {
     L('suspension', 'part', R(762, 96, 180, 6, 2), R(762, 198, 180, 6, 2)),
     L('ejes', 'part', R(796, 54, 8, 192, 3), R(894, 54, 8, 192, 3)),
     L('frenos', 'part', R(776, 70, 46, 10, 3), R(776, 220, 46, 10, 3), R(874, 70, 46, 10, 3), R(874, 220, 46, 10, 3)),
-    L('llantas', 'part', R(772, 18, 56, 16, 5), R(772, 36, 56, 16, 5), R(870, 18, 56, 16, 5), R(870, 36, 56, 16, 5), R(772, 248, 56, 16, 5), R(772, 266, 56, 16, 5), R(870, 248, 56, 16, 5), R(870, 266, 56, 16, 5)),
+    L('llantas_der', 'part', R(772, 18, 56, 16, 5), R(772, 36, 56, 16, 5), R(870, 18, 56, 16, 5), R(870, 36, 56, 16, 5)),
+    L('llantas_izq', 'part', R(772, 248, 56, 16, 5), R(772, 266, 56, 16, 5), R(870, 248, 56, 16, 5), R(870, 266, 56, 16, 5)),
     L('luces', 'part', R(960, 104, 8, 12, 2), R(960, 184, 8, 12, 2)),
   ];
 }
@@ -233,7 +248,9 @@ function chasisRear() {
     L('suspension', 'part', R(190, 262, 60, 18, 4), R(350, 262, 60, 18, 4)),
     L('ejes', 'part', R(150, 300, 300, 14, 5)),
     L('frenos', 'part', R(186, 318, 24, 12, 3), R(390, 318, 24, 12, 3)),
-    L('llantas', 'part', R(70, 268, 52, 128, 10), R(126, 268, 52, 128, 10), R(422, 268, 52, 128, 10), R(478, 268, 52, 128, 10)),
+    L(null, 'label', T(124, 416, 'LADO IZQUIERDO', { s: 11 }), T(476, 416, 'LADO DERECHO', { s: 11 })),
+    L('llantas_izq', 'part', R(70, 268, 52, 128, 10), R(126, 268, 52, 128, 10)),
+    L('llantas_der', 'part', R(422, 268, 52, 128, 10), R(478, 268, 52, 128, 10)),
   ];
 }
 
@@ -250,7 +267,7 @@ function jaulaSide() {
     L('acoplamiento', 'part', R(110, 250, 48, 8, 2), R(128, 258, 12, 14, 3)),
     L(null, 'metal', R(300, 250, 14, 92, 2), R(290, 342, 34, 10, 3)),
     L('suspension', 'part', R(760, 250, 190, 16, 4)),
-    L('llantas', 'part', C(800, 316, 42), C(898, 316, 42)),
+    L('llantas_izq', 'part', C(800, 316, 42), C(898, 316, 42)),
     L(null, 'base', C(800, 316, 24), C(898, 316, 24)),
     L('ejes', 'part', C(800, 316, 9), C(898, 316, 9)),
     L('frenos', 'part', R(820, 282, 22, 10, 3), R(918, 282, 22, 10, 3)),
@@ -259,8 +276,9 @@ function jaulaSide() {
 }
 function jaulaTop() {
   return [
-    L(null, 'label', T(40, 22, 'FRENTE', { a: 'start', b: true })),
-    L('llantas', 'part', R(772, 24, 56, 14, 4), R(870, 24, 56, 14, 4), R(772, 262, 56, 14, 4), R(870, 262, 56, 14, 4)),
+    L(null, 'label', T(40, 22, 'FRENTE', { a: 'start', b: true }), T(600, 12, 'LADO DERECHO', { s: 11 }), T(600, 296, 'LADO IZQUIERDO', { s: 11 })),
+    L('llantas_der', 'part', R(772, 24, 56, 14, 4), R(870, 24, 56, 14, 4)),
+    L('llantas_izq', 'part', R(772, 262, 56, 14, 4), R(870, 262, 56, 14, 4)),
     L('piso', 'part', R(56, 66, 888, 168, 2)),
     L(null, 'detail', ...Array.from({ length: 9 }, (_, i) => D(`M58,${84 + i * 17} L942,${84 + i * 17}`))),
     L('paneles', 'part', R(40, 54, 920, 12, 2), R(40, 234, 920, 12, 2)),
@@ -280,7 +298,9 @@ function jaulaRear() {
     L('suspension', 'part', R(190, 308, 60, 16, 4), R(350, 308, 60, 16, 4)),
     L('ejes', 'part', R(150, 332, 300, 12, 5)),
     L('frenos', 'part', R(184, 348, 22, 10, 3), R(394, 348, 22, 10, 3)),
-    L('llantas', 'part', R(70, 296, 52, 102, 10), R(126, 296, 52, 102, 10), R(422, 296, 52, 102, 10), R(478, 296, 52, 102, 10)),
+    L(null, 'label', T(124, 416, 'LADO IZQUIERDO', { s: 11 }), T(476, 416, 'LADO DERECHO', { s: 11 })),
+    L('llantas_izq', 'part', R(70, 296, 52, 102, 10), R(126, 296, 52, 102, 10)),
+    L('llantas_der', 'part', R(422, 296, 52, 102, 10), R(478, 296, 52, 102, 10)),
   ];
 }
 
@@ -296,7 +316,7 @@ function tolvaSide() {
     L('hidraulico', 'part', R(278, 268, 34, 10, 4), R(568, 268, 34, 10, 4)),
     L(null, 'metal', R(250, 206, 14, 128, 2), R(240, 334, 34, 10, 3)),
     L('suspension', 'part', R(800, 206, 150, 16, 4)),
-    L('llantas', 'part', C(836, 316, 42), C(926, 316, 42)),
+    L('llantas_izq', 'part', C(836, 316, 42), C(926, 316, 42)),
     L(null, 'base', C(836, 316, 24), C(926, 316, 24)),
     L('ejes', 'part', C(836, 316, 9), C(926, 316, 9)),
     L('frenos', 'part', R(856, 282, 22, 10, 3), R(946, 282, 16, 10, 3)),
@@ -305,8 +325,9 @@ function tolvaSide() {
 }
 function tolvaTop() {
   return [
-    L(null, 'label', T(40, 22, 'FRENTE', { a: 'start', b: true })),
-    L('llantas', 'part', R(808, 18, 56, 14, 4), R(898, 18, 56, 14, 4), R(808, 268, 56, 14, 4), R(898, 268, 56, 14, 4)),
+    L(null, 'label', T(40, 22, 'FRENTE', { a: 'start', b: true }), T(600, 12, 'LADO DERECHO', { s: 11 }), T(600, 296, 'LADO IZQUIERDO', { s: 11 })),
+    L('llantas_der', 'part', R(808, 18, 56, 14, 4), R(898, 18, 56, 14, 4)),
+    L('llantas_izq', 'part', R(808, 268, 56, 14, 4), R(898, 268, 56, 14, 4)),
     L('caja', 'part', R(60, 60, 880, 180, 4)),
     L(null, 'detail', ...[140, 220, 300, 380, 460, 540, 620, 700, 780, 860].map((x) => D(`M${x},64 L${x},236`))),
     L(null, 'dash', R(240, 82, 260, 136, 4), R(530, 82, 260, 136, 4)),
@@ -324,31 +345,39 @@ function tolvaRear() {
     L('suspension', 'part', R(196, 300, 60, 16, 4), R(344, 300, 60, 16, 4)),
     L('ejes', 'part', R(150, 324, 300, 12, 5)),
     L('frenos', 'part', R(184, 340, 22, 10, 3), R(394, 340, 22, 10, 3)),
-    L('llantas', 'part', R(70, 296, 52, 102, 10), R(126, 296, 52, 102, 10), R(422, 296, 52, 102, 10), R(478, 296, 52, 102, 10)),
+    L(null, 'label', T(124, 416, 'LADO IZQUIERDO', { s: 11 }), T(476, 416, 'LADO DERECHO', { s: 11 })),
+    L('llantas_izq', 'part', R(70, 296, 52, 102, 10), R(126, 296, 52, 102, 10)),
+    L('llantas_der', 'part', R(422, 296, 52, 102, 10), R(478, 296, 52, 102, 10)),
   ];
 }
+
+/* Vista lateral derecha: el mismo dibujo reflejado; los componentes «_izq» visibles pasan a ser los del lado derecho */
+const toRight = (layers) => layers.map((l) => (l.c && l.c.endsWith('_izq') ? { ...l, c: l.c.slice(0, -4) + '_der' } : l));
 
 /* Vistas por tipo de equipo */
 const VIEWS = {
   tractor: [
     { id: 'izq', name: 'Lateral izquierda', w: 1000, h: 400, build: tractorSide },
-    { id: 'der', name: 'Lateral derecha', w: 1000, h: 400, build: () => tractorSide(), mirror: true },
-    { id: 'frente', name: 'Frontal', w: 600, h: 520, build: tractorFront },
-    { id: 'trasera', name: 'Trasera', w: 600, h: 520, build: tractorRear },
+    { id: 'der', name: 'Lateral derecha', w: 1000, h: 400, build: () => toRight(tractorSide()), mirror: true },
+    { id: 'frente', name: 'Frontal', w: 600, h: 530, build: tractorFront },
+    { id: 'trasera', name: 'Trasera', w: 600, h: 530, build: tractorRear },
     { id: 'sistemas', name: 'Esquema de sistemas', w: 1000, h: 440, build: tractorSystems },
   ],
   chasis: [
-    { id: 'lado', name: 'Lateral', w: 1000, h: 380, build: chasisSide },
+    { id: 'lado', name: 'Lateral izquierda', w: 1000, h: 380, build: chasisSide },
+    { id: 'lado_der', name: 'Lateral derecha', w: 1000, h: 380, build: () => toRight(chasisSide()), mirror: true },
     { id: 'superior', name: 'Vista superior', w: 1000, h: 300, build: chasisTop },
     { id: 'trasera', name: 'Trasera', w: 600, h: 420, build: chasisRear },
   ],
   jaula: [
-    { id: 'lado', name: 'Lateral', w: 1000, h: 380, build: jaulaSide },
+    { id: 'lado', name: 'Lateral izquierda', w: 1000, h: 380, build: jaulaSide },
+    { id: 'lado_der', name: 'Lateral derecha', w: 1000, h: 380, build: () => toRight(jaulaSide()), mirror: true },
     { id: 'superior', name: 'Vista superior', w: 1000, h: 300, build: jaulaTop },
     { id: 'trasera', name: 'Trasera', w: 600, h: 420, build: jaulaRear },
   ],
   tolva: [
-    { id: 'lado', name: 'Lateral', w: 1000, h: 380, build: tolvaSide },
+    { id: 'lado', name: 'Lateral izquierda', w: 1000, h: 380, build: tolvaSide },
+    { id: 'lado_der', name: 'Lateral derecha', w: 1000, h: 380, build: () => toRight(tolvaSide()), mirror: true },
     { id: 'superior', name: 'Vista superior', w: 1000, h: 300, build: tolvaTop },
     { id: 'trasera', name: 'Trasera', w: 600, h: 420, build: tolvaRear },
   ],
@@ -368,10 +397,39 @@ export function viewLayers(kind, viewId) {
   cache.set(key, out);
   return out;
 }
-/* Componentes que aparecen en cada vista: Map componentId → [vistas] */
+/* Componentes que aparecen en cada vista: Map componentId → [vistas] (un componente anterior a la separación por
+   lado aparece donde aparezca cualquiera de sus lados) */
 export function componentViews(kind) {
   const out = new Map();
   for (const v of VIEWS[kind] || []) for (const l of viewLayers(kind, v.id).layers) if (l.c) { const a = out.get(l.c) || []; if (!a.includes(v.id)) a.push(v.id); out.set(l.c, a); }
+  for (const [old, sides] of Object.entries(LEGACY_ALIASES[kind] || {})) {
+    const vs = (VIEWS[kind] || []).map((v) => v.id).filter((id) => sides.some((c) => (out.get(c) || []).includes(id)));
+    if (vs.length) out.set(old, vs);
+  }
+  return out;
+}
+/*
+ * Estados por región del dibujo: un registro anterior (p. ej. «Llantas de tracción (ambos lados)») pinta los dos lados;
+ * si un lado tiene además registros propios, manda el reemplazo y luego la gravedad más alta.
+ */
+export function diagramStates(kind, states) {
+  const al = LEGACY_ALIASES[kind] || {};
+  if (![...states.keys()].some((k) => al[k])) return states;
+  const out = new Map(states);
+  for (const [id, v] of states) {
+    for (const side of al[id] || []) {
+      const cur = out.get(side);
+      if (!cur) { out.set(side, { ...v, componentId: side }); continue; }
+      const severity = (SEVERITY_RANK[v.severity] || 0) > (SEVERITY_RANK[cur.severity] || 0) ? v.severity : cur.severity, replaced = cur.replaced || v.replaced;
+      out.set(side, { ...cur, severity, replaced, items: [...cur.items, ...v.items], state: replaced ? 'reemplazado' : severity || 'none' });
+    }
+  }
+  return out;
+}
+/* Puntos de las etiquetas numeradas: Map componentId → [[x, y]...] (un componente anterior se numera en cada lado visible) */
+function anchorsOf(kind, v, numbers) {
+  const al = LEGACY_ALIASES[kind] || {}, out = [];
+  for (const [c, n] of numbers) for (const id of al[c] || [c]) { const a = anchorOf(v, id); if (a) out.push([a, n]); }
   return out;
 }
 /* Punto para la etiqueta numerada de un componente en una vista (centro de su primera figura) */
@@ -398,13 +456,15 @@ export function svgMarkup(kind, viewId, { states = new Map(), numbers = new Map(
   const v = viewLayers(kind, viewId);
   if (!v) return '';
   const out = [`<svg class="dg-svg" viewBox="0 0 ${v.w} ${v.h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(title || v.name)}">`];
+  states = diagramStates(kind, states);
+  const sels = (LEGACY_ALIASES[kind] || {})[selected] || [selected];
   for (const l of v.layers) {
     if (l.style === 'label') { for (const p of l.prims) out.push(`<text x="${p.x}" y="${p.y}" font-size="${p.s}" text-anchor="${p.a}" font-family="Helvetica, Arial, sans-serif"${p.b ? ' font-weight="700"' : ''} fill="${ST.label.fill}">${esc(p.t)}</text>`); continue; }
     const st = l.c ? (states.get(l.c) || {}).state || '' : '';
     const pt = paint(l, st), d = l.prims.map(primD).join(' ');
     const attrs = `fill="${pt.fill || 'none'}" stroke="${pt.stroke}" stroke-width="${pt.sw}"${pt.dash ? ` stroke-dasharray="${pt.dash.join(' ')}"` : ''} stroke-linejoin="round" stroke-linecap="round"`;
     if (!l.c) { out.push(`<path d="${d}" ${attrs} pointer-events="none"/>`); continue; }
-    const nm = names.get(l.c) || l.c, sel = selected === l.c, lab = nm;
+    const nm = names.get(l.c) || l.c, sel = sels.includes(l.c), lab = nm;
     if (interactive) {
       out.push(`<g class="dg-c${sel ? ' sel' : ''}${st ? ' on' : ''}" data-c="${esc(l.c)}" tabindex="0" role="button" aria-label="${esc(lab)}"><title>${esc(nm)}</title>`
         + (l.style === 'line' ? `<path d="${d}" fill="none" stroke="transparent" stroke-width="22"/>` : '')
@@ -412,9 +472,7 @@ export function svgMarkup(kind, viewId, { states = new Map(), numbers = new Map(
     } else out.push(`<path d="${d}" ${attrs}/>`);
   }
   /* Etiquetas numeradas de los componentes intervenidos */
-  for (const [c, n] of numbers) {
-    const a = anchorOf(v, c);
-    if (!a) continue;
+  for (const [a, n] of anchorsOf(kind, v, numbers)) {
     out.push(`<g class="dg-n" pointer-events="none"><path d="${circleD({ cx: a[0], cy: a[1], r: 13 })}" fill="#FFFFFF" stroke="${INK}" stroke-width="2"/><text x="${n2(a[0])}" y="${n2(a[1] + 5)}" font-size="15" font-weight="700" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" fill="${INK}">${n}</text></g>`);
   }
   out.push('</svg>');
@@ -431,15 +489,14 @@ export function pdfItems(kind, viewId, { states = new Map(), numbers = new Map()
   const scale = Math.min(box.w / v.w, box.h / v.h), w = v.w * scale, h = v.h * scale;
   const ox = box.x + (box.w - w) / 2, oy = box.y;
   const items = [];
+  states = diagramStates(kind, states);
   for (const l of v.layers) {
     if (l.style === 'label') { for (const p of l.prims) items.push({ t: 'text', x: ox + p.x * scale, y: oy + p.y * scale, text: p.t, s: Math.max(5.5, p.s * scale), b: p.b, c: ST.label.fill, a: p.a }); continue; }
     const st = l.c ? (states.get(l.c) || {}).state || '' : '';
     const pt = paint(l, st);
     for (const p of l.prims) items.push({ t: 'path', d: primD(p), x: ox, y: oy, scale, fill: pt.fill || null, stroke: pt.stroke || null, sw: pt.sw, dash: pt.dash || null });
   }
-  for (const [c, n] of numbers) {
-    const a = anchorOf(v, c);
-    if (!a) continue;
+  for (const [a, n] of anchorsOf(kind, v, numbers)) {
     items.push({ t: 'path', d: circleD({ cx: a[0], cy: a[1], r: 13 }), x: ox, y: oy, scale, fill: '#FFFFFF', stroke: INK, sw: 2, dash: null });
     items.push({ t: 'text', x: ox + a[0] * scale, y: oy + (a[1] + 5) * scale, text: String(n), s: Math.max(5.5, 15 * scale), b: true, c: INK, a: 'middle' });
   }

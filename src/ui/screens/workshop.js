@@ -11,7 +11,7 @@ import { go, back } from '../../core/router.js';
 import * as mt from '../../services/maintenance.js';
 import * as lg from '../../services/logistics.js';
 import { esc } from '../../domain/shared/format.js';
-import { ORDER_TYPES, kindLabel, workTypeLabel, workStatusLabel, actionLabel, tireReasonLabel, isOpenStatus } from '../../domain/maintenance/catalog.js';
+import { ORDER_TYPES, kindLabel, workTypeLabel, workStatusLabel, actionLabel, tireReasonLabel, isOpenStatus, relatedIds } from '../../domain/maintenance/catalog.js';
 import {
   fmtDT, fmtD, orderDuration, durationText, kmText, nf, componentStates, numbering, matchOrder, equipmentSummary, OIL_STATE_TEXT, oilLine,
   positionLabel, positionsOf, pendingPositions, STATE_LABELS,
@@ -182,11 +182,12 @@ export async function workshopEquipmentScreen({ type, id }) {
 }
 /* Historial de un componente en todas las órdenes del equipo */
 function componentHistory(eq, componentId) {
-  const rows = mt.ordersOf(eq.key).flatMap((o) => mt.componentsOfOrder(o.id).filter((c) => c.componentId === componentId).map((c) => ({ c, o })));
-  const st = componentStates(rows.map((r) => r.c)).get(componentId);
+  const rel = relatedIds(eq.kind, componentId);
+  const rows = mt.ordersOf(eq.key).flatMap((o) => mt.componentsOfOrder(o.id).filter((c) => rel.includes(c.componentId)).map((c) => ({ c, o })));
+  const st = componentStates(rows.map((r) => ({ ...r.c, componentId }))).get(componentId);
   openSheet({ title: mt.componentName(eq.kind, componentId), full: true, body: `<div class="op-form">
     <p>${st ? stateChip(st.state) : stateChip('none')}</p>
-    ${rows.length ? `<div class="mt-list">${rows.map(({ c, o }) => `<a class="mt-row" href="${orderHref(o.id)}"><span class="mt-row-tx"><b>${esc(o.folio)}</b><small>${esc(fmtD(c.date))}${c.description ? ' · ' + esc(c.description) : ''}</small>${c.severity ? sevChip(c.severity) : ''}<span class="lg-st lg-t-gray"><i></i>${esc(actionLabel(c.action))}</span></span><span class="chev">${icon.chev}</span></a>`).join('')}</div>` : '<p class="grp-note">Sin intervenciones registradas en este componente.</p>'}</div>` });
+    ${rows.length ? `<div class="mt-list">${rows.map(({ c, o }) => `<a class="mt-row" href="${orderHref(o.id)}"><span class="mt-row-tx"><b>${esc(o.folio)}</b><small>${esc(fmtD(c.date))}${c.description ? ' · ' + esc(c.description) : ''}${c.componentId !== componentId ? ' · registro de ambos lados' : ''}</small>${c.severity ? sevChip(c.severity) : ''}<span class="lg-st lg-t-gray"><i></i>${esc(actionLabel(c.action))}</span></span><span class="chev">${icon.chev}</span></a>`).join('')}</div>` : '<p class="grp-note">Sin intervenciones registradas en este componente.</p>'}</div>` });
 }
 
 /* ===== Orden de mantenimiento ===== */

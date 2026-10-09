@@ -8,7 +8,7 @@
 import { esc } from '../../domain/shared/format.js';
 import { orderStatusOf, severityLabel, systemsOf } from '../../domain/maintenance/catalog.js';
 import { STATE_LABELS, STATE_KEYS, componentStates, numbering, positionsOf } from '../../domain/maintenance/maintenance.js';
-import { viewsOf, svgMarkup, componentViews, tireSvg } from '../../domain/maintenance/diagrams.js';
+import { viewsOf, svgMarkup, componentViews, diagramStates, tireSvg } from '../../domain/maintenance/diagrams.js';
 import * as mt from '../../services/maintenance.js';
 import * as media from '../../services/media.js';
 import { compressPhoto } from '../../services/camera.js';
@@ -50,7 +50,7 @@ export function createDiagram({ kind, records, onPick, startView = '' }) {
     <p class="dg-tip" data-tip aria-live="polite">Toca una parte del diagrama o usa la lista de componentes.</p>
     ${legendHTML()}`;
   const $ = (s) => el.querySelector(s);
-  const names = () => new Map(mt.componentsFor(kind).map((c) => [c.id, c.name]));
+  const names = () => new Map(mt.componentsFor(kind, { withLegacy: true }).map((c) => [c.id, c.name]));
   function draw() {
     const states = componentStates(records()), nums = numbering(states, kind, mt.parts());
     el.querySelectorAll('[data-view]').forEach((b) => { const on = b.dataset.view === view; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
@@ -63,7 +63,7 @@ export function createDiagram({ kind, records, onPick, startView = '' }) {
   }
   function pick(id) {
     selected = id; draw();
-    const nm = names().get(id) || id, st = componentStates(records()).get(id);
+    const nm = names().get(id) || id, st = diagramStates(kind, componentStates(records())).get(id);
     $('[data-tip]').innerHTML = `<b>${esc(nm)}</b> · ${esc(STATE_LABELS[(st && st.state) || 'none'])}`;
     onPick && onPick(id);
   }
@@ -85,7 +85,7 @@ export function createDiagram({ kind, records, onPick, startView = '' }) {
 
 /* Lista alternativa de componentes (agrupada por sistema, con buscador y su estado actual) */
 export function openComponentList(kind, records, onPick) {
-  const states = componentStates(records), comps = mt.componentsFor(kind), fold = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const states = diagramStates(kind, componentStates(records)), comps = mt.componentsFor(kind, { withLegacy: true }).filter((c) => !c.legacy || states.has(c.id)), fold = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const body = document.createElement('div');
   body.className = 'picker';
   body.innerHTML = `<label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" placeholder="Buscar componente" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search"></label><div class="picker-list" data-l></div>`;
