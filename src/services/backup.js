@@ -20,6 +20,8 @@ import { loadLogistics } from './logistics.js';
 import { loadTripAttachments } from './tripAttachments.js';
 import { loadEmpties } from './empties.js';
 import { loadGeocodes } from './geocode.js';
+import { loadFuel } from './fuel.js';
+import { SYNC_SETTINGS } from '../domain/sync/sync.js';
 import { COMPANY_DEFAULTS, EDITABLE_FIELDS, PUERTO_COMPANIES } from '../config/companies.js';
 
 const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles', 'trailers', 'places', 'plants', 'terminals', 'drafts', 'documents',
@@ -27,8 +29,11 @@ const DATA_STORES = ['settings', 'companies', 'counters', 'operators', 'vehicles
 const OP_STORES = ['operatorSettings', 'operatorTrips', 'operatorLoans', 'operatorAdjustments', 'operatorStatements'];
 DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttachments', 'yards', 'emptyContainers', 'emptyContainerEvents', 'geocodes');
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
-   cambiar a dónde se envía la clave de este dispositivo) y los avisos pendientes de rastreo de este dispositivo */
-const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey', 'gpsUrl', 'trackQueue']);
+   cambiar a dónde se envía la clave de este dispositivo), los avisos pendientes de rastreo de este dispositivo y la
+   configuración de Información compartida (clave, papel e identificador de este dispositivo) */
+const SKIP_SETTINGS = new Set(['seeded', 'legacyMigrated', 'gpsKey', 'gpsUrl', 'trackQueue', ...SYNC_SETTINGS]);
+/* Ajustes que nunca salen del dispositivo en un respaldo */
+const NO_EXPORT = new Set(['gpsKey', 'trackQueue', ...SYNC_SETTINGS]);
 
 /*
  * Un respaldo es un archivo externo (llega por WhatsApp, correo…): antes de guardarlo se validan los campos que la app
@@ -80,8 +85,8 @@ const b64 = {
 export async function exportBackup({ includeMedia = false } = {}) {
   const data = {};
   for (const s of DATA_STORES) data[s] = await db.all(s);
-  /* La clave del intermediario GPS no viaja en los respaldos (se vuelve a capturar en Ajustes → GPS) */
-  data.settings = (data.settings || []).filter((r) => r.key !== 'gpsKey' && r.key !== 'trackQueue');
+  /* Las claves del intermediario GPS y de Información compartida no viajan en los respaldos (se vuelven a capturar en Ajustes) */
+  data.settings = (data.settings || []).filter((r) => !NO_EXPORT.has(r.key));
   const atts = await db.all(db.S.attachments);
   data.attachments = atts
     /* Borradores y fotografías de operadores siempre; PDF y fotos de documentos solo en el respaldo completo */
@@ -215,4 +220,7 @@ export async function importBackup(info) {
   await reload();
   return { documents: (data.documents || []).length };
 }
-async function reload() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); }
+/* Vuelve a leer de la base local todo lo que las pantallas guardan en memoria (después de importar o de recibir la
+   información compartida) */
+export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); }
+const reload = reloadAll;

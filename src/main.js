@@ -2,7 +2,7 @@
  * PERCONSUR — arranque de la aplicación (se carga solo después de iniciar sesión; ver src/auth/gate.js).
  * Orden: base de datos → ajustes/empresas/catálogos → migración del sistema anterior → rutas.
  */
-import { startRouter, route, go } from './core/router.js';
+import { startRouter, route, go, refresh } from './core/router.js';
 import { openDB } from './services/db.js';
 import { loadSettings, getSetting } from './services/settings.js';
 import { loadCompanies } from './services/companies.js';
@@ -21,6 +21,10 @@ import { emptiesScreen, emptyDetailScreen } from './ui/screens/empties.js';
 import { gpsSettingsScreen } from './ui/screens/gpsSettings.js';
 import { gpsMonitorScreen } from './ui/screens/gpsMonitor.js';
 import { startTracking } from './services/tracking.js';
+import { initSync, startSync } from './services/sync.js';
+import { isReadOnly, READ_ONLY_TEXT } from './services/access.js';
+import { reloadAll } from './services/backup.js';
+import { syncSettingsScreen } from './ui/screens/syncSettings.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
@@ -81,6 +85,14 @@ function watchKeyboard() {
   document.addEventListener('focusout', () => setTimeout(check, 80));
 }
 
+/* Pantallas de captura (documentos nuevos, estados de cuenta, importar viajes): no se abren en modo solo consulta */
+const capture = (handler) => (params, q) => {
+  if (!isReadOnly()) return handler(params, q);
+  toast(READ_ONLY_TEXT, { type: 'warn', ms: 3500 });
+  go('/', { replace: true });
+  return null;
+};
+
 function routes() {
   route('/', homeScreen, { name: 'home', tabs: true, tab: 'home' });
   route('/administracion', adminScreen, { name: 'admin', tabs: true, tab: 'admin' });
@@ -100,23 +112,24 @@ function routes() {
   route('/catalogos/tipos', isoScreen, { name: 'cat', tabs: true, tab: 'admin' });
   route('/catalogos/:kind', catalogListScreen, { name: 'cat', tabs: true, tab: 'admin' });
   route('/operadores', operatorsScreen, { name: 'ops', tabs: true, tab: 'admin' });
-  route('/operadores/importar', tripImportScreen, { name: 'wizard' });
+  route('/operadores/importar', capture(tripImportScreen), { name: 'wizard' });
   route('/operadores/resumen', summaryScreen, { name: 'ops', tabs: true, tab: 'admin' });
   route('/operadores/:id', operatorScreen, { name: 'ops', tabs: true, tab: 'admin' });
-  route('/operadores/:id/estado', statementScreen, { name: 'wizard' });
+  route('/operadores/:id/estado', capture(statementScreen), { name: 'wizard' });
   route('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
   route('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
+  route('/ajustes/compartir', syncSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/empresa/:key', companyScreen, { name: 'settings', tabs: true, tab: 'settings' });
-  route('/puerto/:company/:step', puertoWizard, { name: 'wizard' });
-  route('/campo/:step', campoWizard, { name: 'wizard' });
+  route('/puerto/:company/:step', capture(puertoWizard), { name: 'wizard' });
+  route('/campo/:step', capture(campoWizard), { name: 'wizard' });
 }
 
 /* "Tienes un documento sin terminar" al abrir la app */
 async function offerRecovery() {
   const path = (location.hash.replace(/^#/, '') || '/');
-  if (path !== '/') return;
+  if (path !== '/' || isReadOnly()) return;
   const pend = await pendingDrafts();
   if (!pend.length) return;
   const d = pend[0], isP = d.type === 'puerto';
@@ -136,22 +149,33 @@ async function boot() {
   try {
     await openDB();
     await loadSettings();
+    /* Información compartida: un dispositivo de consulta queda en solo lectura antes de cualquier otra escritura */
+    initSync();
     applyTheme();
     await Promise.all([loadCompanies(), loadCatalogs(), loadOperatorData(), loadLogistics(), loadTripAttachments(), loadEmpties(), loadGeocodes()]);
     /* ¿Se acaba de instalar una versión nueva? (instalaciones previas a este aviso se reconocen por los catálogos ya sembrados) */
     let seen = null; try { seen = localStorage.getItem('pcs-version'); } catch (e) { /* */ }
     const updated = seen ? seen !== APP_VERSION : !!getSetting('seeded');
     try { localStorage.setItem('pcs-version', APP_VERSION); } catch (e) { /* */ }
-    await seedIfNeeded();
-    await seedYardsIfNeeded();
-    await reconcileMirrors();
-    const mig = await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
+    /* Siembra, borradores y migración escriben registros: no aplican en un dispositivo de consulta */
+    const ro = isReadOnly();
+    if (!ro) { await seedIfNeeded(); await seedYardsIfNeeded(); await reconcileMirrors(); }
+    const mig = ro ? null : await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
     routes();
     mountTabbar();
     watchKeyboard();
     startRouter(document.getElementById('view'));
     /* Rastreo para clientes: finaliza solo los enlaces de entregas terminadas (escucha Logística) */
     startTracking();
+    /* Información compartida: el capturista publica sus cambios; la consulta recibe los del capturista */
+    startSync();
+    /* Una captura que llegó a la base en modo consulta: aviso y se descarta lo que quedó en memoria */
+    window.addEventListener('unhandledrejection', (e) => {
+      if (!e.reason || !e.reason.readOnly) return;
+      e.preventDefault();
+      toast(READ_ONLY_TEXT, { type: 'warn', ms: 3500 });
+      reloadAll().then(() => refresh()).catch(() => {});
+    });
     if (!('switch' in document.createElement('input'))) document.documentElement.classList.add('sw-fallback');
     if (mig && (mig.drafts.length || mig.campo || mig.vehicles || mig.counters)) toast('Se recuperaron los datos del sistema anterior', { type: 'info', ms: 4500 });
     else if (updated) toast(`PERCONSUR se actualizó a la versión ${APP_VERSION}`, { type: 'info', ms: 5000 });

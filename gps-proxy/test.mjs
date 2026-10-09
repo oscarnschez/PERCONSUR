@@ -264,7 +264,63 @@ try {
   r = await call('/r/<script>', { e: envT, origin: null, key: null }); ok(r.status === 404, 'portal con código inválido → 404');
   ok(appUrl({ APP_URL: 'https://x.test/a"><script>' }) === '' && appUrl({ APP_URL: 'http://x.test/' }) === '' && appUrl({ APP_URL: 'https://app.test' }) === 'https://app.test/' && appUrl({ ALLOWED_ORIGIN: ORIGIN }) === ORIGIN + '/PERCONSUR/', 'APP_URL: solo https y sin caracteres peligrosos');
   r = await call('/salud', { e: envT, origin: null, key: null }); ok(r.body.rastreoClientes && r.body.rastreoClientes.kv === true && r.body.rastreoClientes.portal === true, '/salud indica si el rastreo para clientes está listo');
+
+  /* ===== Información compartida (capturista / consulta) ===== */
+  __reset();
+  const kvD = memKV(), WK = 'clave-captura-123456', RK = 'clave-consulta-654321';
+  const envD = { ...env, DATA: kvD, DATA_WRITE_KEY: WK, DATA_READ_KEY: RK };
+  const dcall = async (path, { key, method = 'GET', body, headers = {}, e = envD, ip = '' } = {}) => {
+    const h = { Origin: ORIGIN, ...headers }; if (key) h['X-PCS-Data'] = key; if (ip) h['CF-Connecting-IP'] = ip;
+    const res = await worker.fetch(new Request('https://perconsur-gps.ejemplo.workers.dev' + path, { method, headers: h, body }), e);
+    return res;
+  };
+  let res = await dcall('/v1/datos/estado', { key: WK, e: { ...env, DATA_WRITE_KEY: WK, DATA_READ_KEY: RK } });
+  ok(res.status === 503 && /KV «DATA»/.test((await res.json()).error), 'datos sin espacio KV: aviso claro (503)');
+  res = await dcall('/v1/datos/estado'); ok(res.status === 401, 'datos sin clave → 401');
+  res = await dcall('/v1/datos/estado', { key: 'otra' }); ok(res.status === 401, 'clave de datos incorrecta → 401 (y cuenta como intento fallido)');
+  res = await dcall('/v1/datos/estado', { key: PCS_KEY_FOR_TEST() }); ok(res.status === 401, 'la clave del GPS no abre la información compartida');
+  res = await dcall('/v1/datos/estado', { key: WK }); let jb = await res.json();
+  ok(res.status === 200 && jb.role === 'write' && jb.published === null, 'capturista: papel «write» y sin información publicada todavía');
+  res = await dcall('/v1/datos/estado', { key: RK }); jb = await res.json(); ok(jb.role === 'read', 'consulta: papel «read»');
+  res = await dcall('/v1/datos', { key: RK }); ok(res.status === 404, 'consulta antes de publicar → 404');
+  const snap1 = new TextEncoder().encode(JSON.stringify({ app: 'perconsur', data: { vehicles: [{ id: 'v1' }] } }));
+  const pub = (key, ver, device, extra = {}) => dcall('/v1/datos', { key, method: 'PUT', body: snap1, headers: { 'X-PCS-Ver': ver, 'X-PCS-Device': device, 'X-PCS-Enc': 'json', 'X-PCS-Files': '2', 'X-PCS-By': 'Administrador', ...extra } });
+  res = await pub(RK, 'v1', 'devA'); ok(res.status === 403, 'consulta no puede publicar (403)');
+  res = await pub(WK, 'v1', 'devA'); jb = await res.json();
+  ok(res.status === 200 && jb.published.ver === 'v1' && jb.published.device === 'devA' && jb.published.files === 2 && jb.published.size === snap1.byteLength, 'capturista publica la foto (versión, dispositivo, archivos y tamaño)');
+  res = await dcall('/v1/datos', { key: RK });
+  ok(res.status === 200 && res.headers.get('X-PCS-Ver') === 'v1' && res.headers.get('X-PCS-Enc') === 'json' && new TextDecoder().decode(await res.arrayBuffer()).includes('"v1"') && res.headers.get('Access-Control-Allow-Origin') === ORIGIN, 'consulta descarga la foto con su versión (CORS para la app)');
+  res = await pub(WK, 'v2', 'devA'); ok(res.status === 200, 'el mismo dispositivo vuelve a publicar');
+  res = await pub(WK, 'v3', 'devB'); jb = await res.json();
+  ok(res.status === 409 && jb.published.device === 'devA', 'otro dispositivo sin partir de la versión vigente → 409 (no reemplaza por error)');
+  res = await pub(WK, 'v3', 'devB', { 'X-PCS-Base': 'v2' }); ok(res.status === 200, 'otro dispositivo que descargó la versión vigente (X-PCS-Base) sí publica');
+  res = await pub(WK, 'v4', 'devC', { 'X-PCS-Force': '1' }); ok(res.status === 200, 'reemplazo expreso (X-PCS-Force)');
+  res = await pub(WK, 'v<5>', 'devC'); ok(res.status === 400, 'versión con caracteres no válidos → 400');
+  /* Archivos */
+  const pdf = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55, 1, 2, 3]);
+  res = await dcall('/v1/archivos/att_123', { key: RK, method: 'PUT', body: pdf }); ok(res.status === 403, 'consulta no sube archivos');
+  res = await dcall('/v1/archivos/att_123', { key: WK, method: 'PUT', body: pdf }); ok(res.status === 200, 'capturista sube un archivo');
+  res = await dcall('/v1/archivos/att_123', { key: RK });
+  const got = new Uint8Array(await res.arrayBuffer());
+  ok(res.status === 200 && got.length === pdf.length && got.every((b, i) => b === pdf[i]), 'consulta descarga el archivo idéntico');
+  ok(res.headers.get('Content-Type') === 'application/octet-stream' && res.headers.get('Content-Disposition') === 'attachment' && /sandbox/.test(res.headers.get('Content-Security-Policy')) && res.headers.get('X-Content-Type-Options') === 'nosniff', 'los archivos se entregan como descarga binaria (nunca como página en el sitio del Worker)');
+  res = await dcall('/v1/archivos/..%2Fsnap', { key: RK }); ok(res.status === 400, 'nombre de archivo inválido → 400');
+  res = await dcall('/v1/archivos/att_123', { key: RK, method: 'DELETE' }); ok(res.status === 403, 'consulta no borra archivos');
+  res = await dcall('/v1/archivos/att_123', { key: WK, method: 'DELETE' }); ok(res.status === 200, 'capturista borra un archivo');
+  res = await dcall('/v1/archivos/att_123', { key: RK }); ok(res.status === 404, 'archivo borrado → 404');
+  res = await dcall('/v1/archivos/grande', { key: WK, method: 'PUT', body: new Uint8Array(24 * 1024 * 1024 + 10) }); ok(res.status === 413, 'archivo de más de 24 MB → 413');
+  res = await dcall('/v1/datos', { key: WK, method: 'DELETE' }); ok(res.status === 404 || res.status === 405, 'no se puede borrar la foto completa');
+  res = await dcall('/v1/datos/estado', { method: 'OPTIONS' });
+  ok(/PUT/.test(res.headers.get('Access-Control-Allow-Methods')) && /X-PCS-Data/.test(res.headers.get('Access-Control-Allow-Headers')) && /X-PCS-Ver/.test(res.headers.get('Access-Control-Expose-Headers')), 'CORS: PUT, DELETE y encabezados de datos para la app');
+  /* Límite propio: sincronizar muchos archivos no choca con el de 120 por minuto */
+  __reset();
+  let codesD = []; for (let i = 0; i < 200; i++) codesD.push((await dcall('/v1/datos/estado', { key: RK, ip: '198.51.100.20' })).status);
+  ok(codesD.every((c) => c === 200), '200 consultas de datos en un minuto con clave válida: sin bloqueo');
+  codesD = []; for (let i = 0; i < 5; i++) codesD.push((await dcall('/v1/datos/estado', { key: 'mala' + i, ip: '198.51.100.21' })).status);
+  ok(codesD[codesD.length - 1] === 429, '5 claves de datos incorrectas → bloqueo (429)');
+  r = await call('/salud', { e: envD, origin: null, key: null }); ok(r.body.informacionCompartida && r.body.informacionCompartida.kv === true && r.body.informacionCompartida.claves === true, '/salud indica si la información compartida está lista');
 } finally { srv.close(); }
+function PCS_KEY_FOR_TEST() { return 'clave-app-PERCONSUR-123'; }
 
 /* KV en memoria (get/put/list con metadatos) */
 function memKV() {

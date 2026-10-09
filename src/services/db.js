@@ -15,7 +15,7 @@
  *   tripAttachments   documentos adicionales de cada viaje (metadatos; el archivo vive en attachments) (v7)
  *   yards, emptyContainers, emptyContainerEvents   control de vacíos: patios, contenedores por devolver y su historial (v8)
  *   geocodes   ubicación en el mapa de cada dirección (destinos de notas, patios, terminales) (v9)
- * Diseñado para que más adelante un servicio de sincronización lea/escriba estos mismos stores.
+ * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
 const DB_VERSION = 9;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones */
@@ -95,19 +95,39 @@ const done = (tx) => new Promise((res, rej) => { tx.oncomplete = () => res(); tx
 export async function get(store, key) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).get(key)); }
 export async function all(store) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).getAll()); }
 export async function byIndex(store, index, value) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).index(index).getAll(value)); }
-export async function put(store, value) { const db = await openDB(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(value); await done(tx); return value; }
-export async function putMany(store, values) { const db = await openDB(); const tx = db.transaction(store, 'readwrite'); const st = tx.objectStore(store); values.forEach((v) => st.put(v)); await done(tx); }
-export async function del(store, key) { const db = await openDB(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).delete(key); await done(tx); }
+/*
+ * Información compartida (services/sync.js): toda escritura pasa por put/putMany/del/tx.
+ *   onWrite(fn)        fn(store, keys, values) después de guardar (keys = null si no se conocen; values solo en put/putMany)
+ *                      → el capturista sabe qué publicar
+ *   setWriteGuard(fn)  fn(store, keyOrValue) antes de guardar; si lanza un error la escritura no ocurre (dispositivo de
+ *                      consulta). La sincronización escribe con { silent: true }: sin guardia ni aviso.
+ */
+const writeSubs = new Set();
+let writeGuard = null;
+export function onWrite(fn) { writeSubs.add(fn); return () => writeSubs.delete(fn); }
+export function setWriteGuard(fn) { writeGuard = fn || null; }
+const keyOf = (store, v) => (v == null || typeof v !== 'object' ? v : v.id ?? v.key ?? v.tripId ?? v.operatorId);
+function guard(store, items, silent) { if (writeGuard && !silent) for (const it of items) writeGuard(store, it); }
+function notify(store, keys, silent, values = null) { if (silent) return; writeSubs.forEach((fn) => { try { fn(store, keys, values); } catch (e) { console.warn(e); } }); }
+
+export async function put(store, value, { silent = false } = {}) { guard(store, [value], silent); const db = await openDB(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).put(value); await done(tx); notify(store, [keyOf(store, value)], silent, [value]); return value; }
+export async function putMany(store, values, { silent = false } = {}) { guard(store, values, silent); const db = await openDB(); const tx = db.transaction(store, 'readwrite'); const st = tx.objectStore(store); values.forEach((v) => st.put(v)); await done(tx); notify(store, values.map((v) => keyOf(store, v)), silent, values); }
+export async function del(store, key, { silent = false } = {}) { guard(store, [key], silent); const db = await openDB(); const tx = db.transaction(store, 'readwrite'); tx.objectStore(store).delete(key); await done(tx); notify(store, [key], silent); }
+/* Claves de un store sin leer los valores (archivos grandes) */
+export async function keys(store) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).getAllKeys()); }
+export async function indexKeys(store, index, range) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).index(index).getAllKeys(range)); }
 /* ¿Existe la clave? (sin leer el valor: útil para archivos grandes) */
 export async function has(store, key) { if (key == null) return false; const db = await openDB(); return (await wrap(db.transaction(store).objectStore(store).count(key))) > 0; }
 export async function count(store) { const db = await openDB(); return wrap(db.transaction(store).objectStore(store).count()); }
 
 /* Transacción de lectura-escritura sobre varios stores; fn recibe { store(name) } */
-export async function tx(stores, fn) {
+export async function tx(stores, fn, { silent = false } = {}) {
+  [].concat(stores).forEach((n) => guard(n, [undefined], silent));
   const db = await openDB();
   const t = db.transaction(stores, 'readwrite');
   const result = await fn({ store: (n) => t.objectStore(n), req: wrap });
   await done(t);
+  [].concat(stores).forEach((n) => notify(n, null, silent));
   return result;
 }
 

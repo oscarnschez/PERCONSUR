@@ -4,6 +4,8 @@
  *   node tests/worker_local.mjs <puerto> <APP_URL>
  * Control de la simulación (solo pruebas): POST /__mock  { devices: [...] }  → posiciones que entrega el «proveedor»
  *   (vacía la caché de 30 s del Worker para que la prueba no tenga que esperar; los enlaces siguen en el KV)
+ *   GET /__data → claves guardadas en el espacio DATA (información compartida) con su tamaño
+ * Claves de información compartida de prueba: capturista «datos-captura», consulta «datos-consulta».
  */
 import http from 'node:http';
 import { createHash } from 'node:crypto';
@@ -32,20 +34,33 @@ const iop = http.createServer((req, res) => {
 });
 await new Promise((r) => iop.listen(0, '127.0.0.1', r));
 
-/* KV en memoria (get/put/list con metadatos y caducidad) */
-const store = new Map();
-const KV = {
-  async get(k, t) { const v = store.get(k); if (!v || (v.exp && Date.now() > v.exp)) return null; return t === 'json' ? JSON.parse(v.v) : v.v; },
-  async put(k, v, o = {}) { store.set(k, { v, meta: o.metadata, exp: o.expirationTtl ? Date.now() + o.expirationTtl * 1000 : 0 }); },
-  async delete(k) { store.delete(k); },
-  async list({ prefix = '' } = {}) { return { keys: [...store].filter(([k]) => k.startsWith(prefix)).map(([name, x]) => ({ name, metadata: x.meta })), list_complete: true }; },
-};
-const env = { IOP_APPID: APPID, IOP_SECRET: SECRET, PCS_KEY: 'clave-app', ALLOWED_ORIGIN: 'http://127.0.0.1:8806', IOP_BASE: `http://127.0.0.1:${iop.address().port}`, TRACKING: KV, APP_URL };
+/* KV en memoria (get/put/list con metadatos y caducidad; valores de texto o binarios como en Cloudflare) */
+function mkKV() {
+  const store = new Map();
+  const KV = {
+    store,
+    async get(k, t) {
+      const x = store.get(k); if (!x || (x.exp && Date.now() > x.exp)) return null;
+      const v = x.v;
+      if (t === 'json') return JSON.parse(typeof v === 'string' ? v : new TextDecoder().decode(v));
+      if (t === 'arrayBuffer') return typeof v === 'string' ? new TextEncoder().encode(v).buffer : v;
+      return typeof v === 'string' ? v : new TextDecoder().decode(v);
+    },
+    async put(k, v, o = {}) { store.set(k, { v: typeof v === 'string' ? v : v instanceof ArrayBuffer ? v.slice(0) : new Uint8Array(v).slice().buffer, meta: o.metadata, exp: o.expirationTtl ? Date.now() + o.expirationTtl * 1000 : 0 }); },
+    async delete(k) { store.delete(k); },
+    async list({ prefix = '' } = {}) { return { keys: [...store].filter(([k]) => k.startsWith(prefix)).map(([name, x]) => ({ name, metadata: x.meta })), list_complete: true }; },
+  };
+  return KV;
+}
+const KV = mkKV(), DATA = mkKV();
+const env = { IOP_APPID: APPID, IOP_SECRET: SECRET, PCS_KEY: 'clave-app', ALLOWED_ORIGIN: 'http://127.0.0.1:8806', IOP_BASE: `http://127.0.0.1:${iop.address().port}`, TRACKING: KV, APP_URL,
+  DATA, DATA_WRITE_KEY: 'datos-captura', DATA_READ_KEY: 'datos-consulta' };
 
 http.createServer(async (req, res) => {
   const chunks = []; for await (const c of req) chunks.push(c);
   const body = Buffer.concat(chunks);
   if (req.url === '/__mock' && req.method === 'POST') { devices = JSON.parse(body.toString() || '{}').devices || []; __reset(); res.writeHead(204); return res.end(); }
+  if (req.url === '/__data' && req.method === 'GET') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify([...DATA.store].map(([k, x]) => ({ k, size: typeof x.v === 'string' ? x.v.length : x.v.byteLength })))); }
   /* La prueba entra como https://gps.test (el navegador la reenvía aquí) */
   const host = req.headers['x-forwarded-host'] || 'gps.test';
   const headers = new Headers(); for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v);

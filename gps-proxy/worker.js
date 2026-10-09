@@ -17,6 +17,9 @@
  *   APP_URL         Texto   opcional; dirección de la app (por defecto ALLOWED_ORIGIN + /PERCONSUR/). El portal del cliente
  *                           carga de ahí el mapa y su diseño.
  *   TRACK_MAX_HOURS Texto   opcional; vigencia máxima de un enlace de rastreo en horas (por defecto 72)
+ *   DATA            KV      información compartida entre dispositivos (Ajustes → Sincronización de la app)
+ *   DATA_WRITE_KEY  Secret  clave del dispositivo capturista (publica la información)
+ *   DATA_READ_KEY   Secret  clave de los dispositivos de consulta (solo reciben)
  *
  * Endpoints:
  *   GET /salud                 ¿se pudo autenticar con IOPGPS? (sin credenciales ni ubicaciones; con ?key= añade nombres de campos)
@@ -28,6 +31,11 @@
  *   POST /v1/enlaces/:id                   actualiza estado, origen y destino; un estado sin rastreo lo finaliza
  *   POST /v1/enlaces/:id/finalizar         la entrega terminó: el enlace deja de dar la ubicación
  *   POST /v1/enlaces/:id/revocar           revocación manual
+ *   Información compartida (header X-PCS-Data con DATA_WRITE_KEY o DATA_READ_KEY):
+ *   GET  /v1/datos/estado                  versión publicada (quién, cuándo, tamaño) y el papel de la clave
+ *   GET  /v1/datos                         la «foto» comprimida de los registros (catálogos, documentos, Logística…)
+ *   PUT  /v1/datos                         publica una foto nueva (solo capturista; 409 si otra la publicó)
+ *   GET|PUT|DELETE /v1/archivos/:id        archivos (PDF, fotos, documentos adicionales); PUT y DELETE solo capturista
  *   Públicos (sin clave; solo con el enlace):
  *   GET /r/:token              página del portal de rastreo (identidad PERCONSUR; el mapa y el diseño vienen de APP_URL)
  *   GET /v1/publico/:token     datos del portal: origen, destino, estado y ubicación actual de ESA unidad mientras el
@@ -115,10 +123,10 @@ function corsHeaders(req, env) {
   const h = { 'Vary': 'Origin' };
   if (o && allow.includes(o)) {
     h['Access-Control-Allow-Origin'] = o;
-    h['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-    h['Access-Control-Allow-Headers'] = 'X-PCS-Key, Content-Type';
+    h['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+    h['Access-Control-Allow-Headers'] = 'X-PCS-Key, X-PCS-Data, X-PCS-Ver, X-PCS-Base, X-PCS-Device, X-PCS-Force, X-PCS-Enc, X-PCS-Files, X-PCS-By, Content-Type';
     h['Access-Control-Max-Age'] = '86400';
-    h['Access-Control-Expose-Headers'] = 'Retry-After';
+    h['Access-Control-Expose-Headers'] = 'Retry-After, X-PCS-Ver, X-PCS-Enc';
   }
   return h;
 }
@@ -513,25 +521,118 @@ function portalResponse(env, token, status = 200) {
     'Referrer-Policy': 'no-referrer', 'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow', 'Permissions-Policy': 'geolocation=(), camera=(), microphone=()' } });
 }
 
+/* ===== Información compartida entre dispositivos ===== */
+/*
+ * Un dispositivo CAPTURISTA publica; los de CONSULTA solo reciben. Se guarda en el espacio KV «DATA»:
+ *   snap        la «foto» de los registros (JSON comprimido por la app; el Worker no la abre)
+ *   snap:meta   { ver, device, at, size, files, enc, by } — se lee en cada consulta de estado (lectura pequeña)
+ *   f:<id>      cada archivo (PDF, foto, documento adicional), tal como lo guarda la app
+ * Para que un dispositivo vacío o desactualizado no reemplace la información por error, una foto nueva solo se acepta
+ * si viene del mismo dispositivo que publicó la anterior, si parte de la versión vigente (X-PCS-Base) o si se pide
+ * expresamente (X-PCS-Force). Los archivos se entregan siempre como descarga binaria (nunca se muestran en este sitio).
+ */
+const DATA_MAX = 24 * 1024 * 1024;   /* KV admite hasta 25 MiB por valor */
+const DATA_REQ_MAX = 600;            /* consultas por minuto por IP en las rutas de datos (sincronizar muchos archivos) */
+const FILE_ID_RE = /^[A-Za-z0-9_.:-]{1,120}$/;
+const VER_RE = /^[A-Za-z0-9_.-]{1,64}$/;
+const dataReqs = new Map();
+const isDataPath = (p) => /^\/v1\/(datos|archivos)(\/|$)/.test(p);
+function dataRole(req, env) {
+  const k = req.headers.get('X-PCS-Data') || '';
+  if (!k) return { given: false, role: '' };
+  if (sameKey(k, env.DATA_WRITE_KEY)) return { given: true, role: 'write' };
+  if (sameKey(k, env.DATA_READ_KEY)) return { given: true, role: 'read' };
+  return { given: true, role: '' };
+}
+function dataTooMany(ip, now = Date.now()) {
+  prune(dataReqs, now);
+  const list = recent(dataReqs.get(ip) || [], LIMITS.REQ_WINDOW, now);
+  list.push(now); dataReqs.set(ip, list);
+  return list.length > DATA_REQ_MAX ? Math.ceil((LIMITS.REQ_WINDOW - (now - list[list.length - DATA_REQ_MAX - 1])) / 1000) : 0;
+}
+async function readBinary(req, max) {
+  const len = Number(req.headers.get('Content-Length') || 0);
+  if (len > max) return null;
+  const buf = await req.arrayBuffer();
+  return buf.byteLength > max ? null : buf;
+}
+async function dataRoute(req, env, ip, url) {
+  const { given, role } = dataRole(req, env);
+  if (given && !role && (env.DATA_WRITE_KEY || env.DATA_READ_KEY)) {
+    const lock = await registerFail(ip, env);
+    if (lock) return limited(req, env, lock, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lock)}.`);
+  } else if (role) await clearFails(ip, env);
+  if (!role) return json(req, env, 401, { ok: false, error: 'Clave de datos inválida o ausente' });
+  const kv = env.DATA;
+  if (!kv) return json(req, env, 503, { ok: false, error: 'Falta vincular el espacio KV «DATA» en el Worker (ver README → Información compartida).' });
+  const p = url.pathname, m = req.method;
+  const getMeta = async () => kv.get('snap:meta', 'json');
+  if (p === '/v1/datos/estado' && m === 'GET') return json(req, env, 200, { ok: true, role, published: await getMeta() });
+  if (p === '/v1/datos' && m === 'GET') {
+    const [value, meta] = await Promise.all([kv.get('snap', 'arrayBuffer'), getMeta()]);
+    if (!value || !meta) return json(req, env, 404, { ok: false, error: 'Todavía no se ha publicado información.' });
+    return new Response(value, { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store', 'X-PCS-Ver': meta.ver, 'X-PCS-Enc': meta.enc || 'json', 'X-Content-Type-Options': 'nosniff', ...corsHeaders(req, env) } });
+  }
+  if (p === '/v1/datos' && m === 'PUT') {
+    if (role !== 'write') return json(req, env, 403, { ok: false, error: 'Este dispositivo es de consulta: solo el capturista publica la información.' });
+    const ver = req.headers.get('X-PCS-Ver') || '', device = req.headers.get('X-PCS-Device') || '', base = req.headers.get('X-PCS-Base') || '';
+    if (!VER_RE.test(ver) || !VER_RE.test(device)) return json(req, env, 400, { ok: false, error: 'Versión o dispositivo inválidos' });
+    const cur = await getMeta();
+    if (cur && cur.device !== device && cur.ver !== base && req.headers.get('X-PCS-Force') !== '1') {
+      return json(req, env, 409, { ok: false, error: 'La información de la nube la publicó otro dispositivo.', published: cur });
+    }
+    const buf = await readBinary(req, DATA_MAX);
+    if (!buf) return json(req, env, 413, { ok: false, error: 'La información es demasiado grande para publicarse.' });
+    const meta = { ver, device, at: Date.now(), size: buf.byteLength, files: Math.max(0, Math.floor(Number(req.headers.get('X-PCS-Files')) || 0)),
+      enc: req.headers.get('X-PCS-Enc') === 'gzip' ? 'gzip' : 'json', by: txt(req.headers.get('X-PCS-By'), 240) };
+    await kv.put('snap', buf);
+    await kv.put('snap:meta', JSON.stringify(meta));
+    return json(req, env, 200, { ok: true, published: meta });
+  }
+  const fm = /^\/v1\/archivos\/([^/]+)$/.exec(p);
+  if (fm) {
+    let id = '';
+    try { id = decodeURIComponent(fm[1]); } catch (e) { id = ''; }
+    if (!FILE_ID_RE.test(id)) return json(req, env, 400, { ok: false, error: 'Archivo inválido' });
+    if (m === 'GET') {
+      const value = await kv.get('f:' + id, 'arrayBuffer');
+      if (!value) return json(req, env, 404, { ok: false, error: 'El archivo no está en la nube.' });
+      return new Response(value, { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment', 'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; sandbox", ...corsHeaders(req, env) } });
+    }
+    if (role !== 'write') return json(req, env, 403, { ok: false, error: 'Este dispositivo es de consulta: solo el capturista publica la información.' });
+    if (m === 'PUT') {
+      const buf = await readBinary(req, DATA_MAX);
+      if (!buf) return json(req, env, 413, { ok: false, error: 'El archivo es demasiado grande (máximo 24 MB).' });
+      await kv.put('f:' + id, buf);
+      return json(req, env, 200, { ok: true, id, size: buf.byteLength });
+    }
+    if (m === 'DELETE') { await kv.delete('f:' + id); return json(req, env, 200, { ok: true, id }); }
+  }
+  return json(req, env, 404, { ok: false, error: 'Ruta no encontrada' });
+}
+
 /* ===== Router ===== */
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(req, env) });
-    const isPost = req.method === 'POST';
-    if (req.method !== 'GET' && !(isPost && url.pathname.startsWith('/v1/enlaces'))) return json(req, env, 405, { ok: false, error: 'Método no permitido' });
+    const isPost = req.method === 'POST', isData = isDataPath(url.pathname);
+    if (req.method !== 'GET' && !(isPost && url.pathname.startsWith('/v1/enlaces')) && !(isData && ['PUT', 'DELETE'].includes(req.method))) return json(req, env, 405, { ok: false, error: 'Método no permitido' });
     const o = req.headers.get('Origin');
     /* El portal del cliente se sirve desde este mismo Worker: su propio origen siempre está permitido */
     if (o && o !== url.origin && !origins(env).includes(o)) return json(req, env, 403, { ok: false, error: 'Origen no autorizado' });
     /* Límite de intentos: antes de revisar cualquier clave */
     const ip = clientIp(req);
-    const busy = tooManyRequests(ip);
+    /* Las rutas de datos tienen su propio límite (más alto: sincronizar muchos archivos); las claves se revisan igual */
+    const busy = isData ? dataTooMany(ip) : tooManyRequests(ip);
     if (busy) return limited(req, env, busy, `Demasiadas consultas desde esta conexión. Intenta de nuevo en ${waitText(busy)}.`);
     const lockS = await lockedFor(ip, env);
     if (lockS) return limited(req, env, lockS, `Demasiados intentos con una clave incorrecta. Intenta de nuevo en ${waitText(lockS)}.`);
     /* Rastreo para clientes: rutas públicas, sin clave (el código del enlace es el permiso) */
     const pub = req.method === 'GET' && /^\/(r|v1\/publico)\/([^/]*)\/?$/.exec(url.pathname);
     if (pub) return publicRoute(req, env, ip, pub[1], pub[2]);
+    if (isData) { try { return await dataRoute(req, env, ip, url); } catch (e) { return json(req, env, 502, { ok: false, error: 'No se pudo guardar o leer la información compartida.' }); } }
     const given = appKey(req, url);
     const authorized = sameKey(given, env.PCS_KEY);
     if (given && !authorized && env.PCS_KEY) {
@@ -550,6 +651,7 @@ export default {
           }
         } catch (e) { out.autenticacion = out.autenticacion || 'fallida'; out.error = e.message; }
         out.rastreoClientes = { kv: !!kvOf(env), portal: !!appUrl(env) };
+        out.informacionCompartida = { kv: !!env.DATA, claves: !!(env.DATA_WRITE_KEY && env.DATA_READ_KEY) };
         return json(req, env, out.ok ? 200 : 502, out);
       }
       if (!authorized) return json(req, env, 401, { ok: false, error: 'Clave de PERCONSUR inválida o ausente' });
@@ -606,4 +708,4 @@ async function publicRoute(req, env, ip, kind, token) {
 }
 
 /* Solo para pruebas locales: reinicia el estado en memoria */
-export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; linkMem.clear(); listMem = null; }
+export function __reset() { token = null; tokenExp = 0; tokenPending = null; authFail = null; cache.clear(); inflight.clear(); failures.clear(); fails.clear(); reqs.clear(); globalFails = []; linkMem.clear(); listMem = null; dataReqs.clear(); }
