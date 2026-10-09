@@ -10,7 +10,7 @@ import { save as saveCatalog, listAll, TRAILER_TYPES } from '../../services/cata
 import { statusLabel } from '../../config/logistics.js';
 import {
   ORDER_TYPES, ORDER_STATUSES, SEVERITIES, DIAGRAM_ACTIONS, ACTIONS, WORK_TYPES, WORK_STATUSES, TIRE_REASONS, ODOMETER_FIXES,
-  isOpenStatus, orderStatusOf, severityLabel, actionLabel, systemsOf, kindLabel,
+  isOpenStatus, orderStatusOf, severityLabel, actionLabel, systemsOf, kindLabel, componentOf, relatedIds,
 } from '../../domain/maintenance/catalog.js';
 import {
   toTs, splitTs, fmtDT, fmtD, durationText, parseKm, parseCount, kmText, nf, odometerCheck, readingAge, TIRE_LAYOUTS, layoutsFor, positionsOf,
@@ -274,20 +274,23 @@ export function openServiceForm(order, svc = null, { componentId = '', onSaved =
 
 /* ===== Componente desde el diagrama ===== */
 export function openComponentSheet(order, componentId, onSaved) {
-  const kind = order.kind, name = mt.componentName(kind, componentId);
-  const mine = mt.componentsOfOrder(order.id).filter((c) => c.componentId === componentId);
+  const kind = order.kind, name = mt.componentName(kind, componentId), comp = componentOf(kind, componentId, mt.parts()) || {};
+  /* Los registros anteriores a la separación por lado («ambos lados») también cuentan para cada lado */
+  const rel = relatedIds(kind, componentId), both = (c) => (c.componentId !== componentId ? ' · registro de ambos lados' : '');
+  const mine = mt.componentsOfOrder(order.id).filter((c) => rel.includes(c.componentId));
   const key = equipmentKey(order.equipmentType, order.vehicleId || order.trailerId);
-  const prev = mt.ordersOf(key).filter((o) => o.id !== order.id).flatMap((o) => mt.componentsOfOrder(o.id).filter((c) => c.componentId === componentId).map((c) => ({ c, o })));
-  const st = componentStates(mine).get(componentId);
+  const prev = mt.ordersOf(key).filter((o) => o.id !== order.id).flatMap((o) => mt.componentsOfOrder(o.id).filter((c) => rel.includes(c.componentId)).map((c) => ({ c, o })));
+  const st = componentStates(mine.map((c) => ({ ...c, componentId }))).get(componentId);
   const state = { severity: '', action: 'reparado' };
   const svcOf = (c) => (c.serviceId ? mt.servicesOf(order.id).find((s) => s.id === c.serviceId) : null);
   const line = (c) => `${c.severity ? sevChip(c.severity) : '<span class="sev s-none"><i></i>Sin daño registrado</span>'}<span class="lg-st lg-t-gray"><i></i>${esc(actionLabel(c.action))}</span>`;
   const form = document.createElement('form');
   form.className = 'op-form'; form.noValidate = true;
-  form.innerHTML = `<div class="cp-head">${st ? stateChip(st.state) : stateChip('none')}<div><b>${esc(name)}</b><small>${esc(systemsOf(kind, mt.parts()).find((s) => s.id === (mt.componentsFor(kind).find((c) => c.id === componentId) || {}).system)?.name || '')}</small></div></div>
-    ${mine.length ? `<div class="cp-prev"><h4>En esta orden</h4><div class="mt-list">${mine.map((c) => `<button type="button" class="mt-row" data-edit="${esc(c.id)}"><span class="mt-row-tx"><b>${esc(c.description || (c.issueId ? 'Falla reportada' : c.tireId ? 'Reemplazo de llantas' : 'Intervención'))}</b><small>${esc(fmtD(c.date))}${c.issueId ? ' · desde la falla reportada' : ''}</small>${line(c)}</span>${svcOf(c) ? `<span class="chev">${icon.chev}</span>` : ''}</button>`).join('')}</div></div>` : ''}
-    ${prev.length ? `<div class="cp-prev"><h4>Incidencias previas de este equipo</h4><div class="mt-list">${prev.slice(0, 8).map(({ c, o }) => `<a class="mt-row" href="${orderHref(o.id)}"><span class="mt-row-tx"><b>${esc(o.folio)}</b><small>${esc(fmtD(c.date))} · ${esc(c.description || '')}</small>${line(c)}</span><span class="chev">${icon.chev}</span></a>`).join('')}</div></div>` : '<p class="grp-note">Sin incidencias previas de este componente en el historial del equipo.</p>'}
-    <div class="cp-form" data-w><div class="grp-h solo"><h3>Registrar intervención</h3></div>
+  form.innerHTML = `<div class="cp-head">${st ? stateChip(st.state) : stateChip('none')}<div><b>${esc(name)}</b><small>${esc(systemsOf(kind, mt.parts()).find((s) => s.id === comp.system)?.name || '')}</small></div></div>
+    ${mine.length ? `<div class="cp-prev"><h4>En esta orden</h4><div class="mt-list">${mine.map((c) => `<button type="button" class="mt-row" data-edit="${esc(c.id)}"><span class="mt-row-tx"><b>${esc(c.description || (c.issueId ? 'Falla reportada' : c.tireId ? 'Reemplazo de llantas' : 'Intervención'))}</b><small>${esc(fmtD(c.date))}${c.issueId ? ' · desde la falla reportada' : ''}${both(c)}</small>${line(c)}</span>${svcOf(c) ? `<span class="chev">${icon.chev}</span>` : ''}</button>`).join('')}</div></div>` : ''}
+    ${prev.length ? `<div class="cp-prev"><h4>Incidencias previas de este equipo</h4><div class="mt-list">${prev.slice(0, 8).map(({ c, o }) => `<a class="mt-row" href="${orderHref(o.id)}"><span class="mt-row-tx"><b>${esc(o.folio)}</b><small>${esc(fmtD(c.date))} · ${esc(c.description || '')}${both(c)}</small>${line(c)}</span><span class="chev">${icon.chev}</span></a>`).join('')}</div></div>` : '<p class="grp-note">Sin incidencias previas de este componente en el historial del equipo.</p>'}
+    ${comp.legacy ? '<p class="grp-note" data-legacy>Registro anterior a la separación de llantas por lado. Para registrar una intervención nueva elige el lado izquierdo o derecho en el diagrama.</p>' : ''}
+    <div class="cp-form" data-w${comp.legacy ? ' hidden' : ''}><div class="grp-h solo"><h3>Registrar intervención</h3></div>
     <div class="fld" data-f="severity"><span class="fl">Gravedad</span>${segH('severity', SEVERITIES, '', true)}<span class="ferr"></span></div>
     <div class="fld"><span class="fl">Acción</span>${segH('action', DIAGRAM_ACTIONS, 'reparado')}<span class="fhint">Reemplazado se muestra en azul; la gravedad original se conserva en el detalle.</span></div>
     <label class="fld"><span class="fl">Descripción</span><textarea class="in" name="description" rows="2" placeholder="Qué se encontró o qué se hizo"></textarea></label>

@@ -139,7 +139,7 @@ export function componentStates(records) {
 }
 /* Numeración estable de los componentes intervenidos (para etiquetas del diagrama y del PDF): orden del catálogo */
 export function numbering(states, kind, custom = []) {
-  const order = componentsOf(kind, custom).map((c) => c.id), n = new Map();
+  const order = componentsOf(kind, custom, { withLegacy: true }).map((c) => c.id), n = new Map();
   [...states.keys()].sort((a, b) => (order.indexOf(a) === -1 ? 999 : order.indexOf(a)) - (order.indexOf(b) === -1 ? 999 : order.indexOf(b))).forEach((id, i) => n.set(id, i + 1));
   return n;
 }

@@ -138,7 +138,9 @@ try:
     tl=txt(pg,'.mt-page')
     ok(pg.locator('[data-tire]').count()==2 and 'pendientes de especificar' in tl and 'Eje 2' in tl,'reemplazo solo con cantidad: posiciones pendientes de especificar (no se inventan)')
     pg.locator('.dg [data-view="sistemas"]').click(); pg.wait_for_timeout(200)
-    ok(pg.evaluate(FILL_STATE,'llantas_trac').upper()=='#2563EB','las llantas de tracción con posición conocida se ven reemplazadas en el diagrama')
+    ok(pg.evaluate(FILL_STATE,'llantas_trac_izq').upper()=='#2563EB' and pg.evaluate(FILL_STATE,'llantas_trac_der').upper()=='#2563EB' and pg.evaluate(FILL_STATE,'llantas_del_izq').upper()!='#2563EB','las llantas de tracción con posición conocida se ven reemplazadas en el diagrama (cada lado por separado)')
+    tl=txt(pg,'.mt-page')
+    ok('Llantas de tracción · lado izquierdo' in tl and 'Llantas de tracción · lado derecho' in tl,'componentes intervenidos: llantas del lado izquierdo y del lado derecho por separado')
     # 9) Falla relacionada sin duplicar
     pg.locator('[data-linkiss]').click(); pg.wait_for_timeout(400); pg.locator('.picker .pk-row').first.click(); pg.wait_for_timeout(700)
     n_iss=ev(pg,"return m.issues().length")

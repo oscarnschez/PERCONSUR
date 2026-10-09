@@ -1,12 +1,12 @@
 /* Reglas del Taller (sin navegador): node maintenance_unit.mjs — también genera un PDF del reporte con pdf-lib */
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { componentsOf, componentOf, SYSTEMS, ORDER_STATUSES, isOpenStatus } from '../src/domain/maintenance/catalog.js';
+import { componentsOf, componentOf, SYSTEMS, ORDER_STATUSES, isOpenStatus, tireComponentOf, relatedIds } from '../src/domain/maintenance/catalog.js';
 import {
   durationText, toTs, fmtDT, equipmentCode, folioOf, validateOrder, parseKm, parseCount, latestReading, readingAge, odometerCheck, componentStates, numbering,
   STATE_COLORS, oilStatus, oilLine, positionsOf, positionLabel, validateTires, pendingPositions, availabilityOf, filterOrders, matchOrder, equipmentSummary,
 } from '../src/domain/maintenance/maintenance.js';
-import { viewsOf, componentViews, svgMarkup, pdfItems, tireSvg } from '../src/domain/maintenance/diagrams.js';
+import { viewsOf, componentViews, svgMarkup, pdfItems, tireSvg, diagramStates } from '../src/domain/maintenance/diagrams.js';
 import { buildMaintenanceReport } from '../src/domain/maintenance/report.js';
 import { modelToPdf } from '../src/domain/operators/statement.js';
 const ok = (c, m) => { console.log((c ? 'OK  ' : 'FAIL') + ' ' + m); if (!c) process.exitCode = 1; };
@@ -58,8 +58,19 @@ const custom = [{ id: 'x_1', kind: 'tolva', system: 'descarga', name: 'Lona' }];
 ok(componentOf('tolva', 'x_1', custom).name === 'Lona' && !componentOf('jaula', 'x_1', custom), 'componentes agregados por el usuario, solo para su tipo de equipo');
 const svg = svgMarkup('tractor', 'izq', { states: st, numbers: nums, interactive: true });
 ok(svg.includes('data-c="susp_tras"') && svg.includes('#2563EB') && svg.includes('class="dg-n"'), 'SVG interactivo con regiones, colores y números');
-const der = svgMarkup('tractor', 'der'), izq = svgMarkup('tractor', 'izq');
-ok(der !== izq && /M916,298/.test(der), 'vista lateral derecha reflejada (no la misma imagen)');
+const der = svgMarkup('tractor', 'der', { interactive: true }), izq = svgMarkup('tractor', 'izq', { interactive: true });
+ok(der !== izq && der.includes('data-c="llantas_trac_der"') && der.includes('data-c="llantas_del_der"') && !der.includes('_izq"') && izq.includes('data-c="llantas_trac_izq"') && !izq.includes('_der"'), 'lateral derecha reflejada y con las llantas del lado derecho; la izquierda con las del lado izquierdo');
+/* Llantas separadas por lado */
+const has = (k, v, ...ids) => { const m = svgMarkup(k, v, { interactive: true }); return ids.every((id) => m.includes(`data-c="${id}"`)); };
+ok(has('tractor', 'frente', 'llantas_del_izq', 'llantas_del_der') && has('tractor', 'trasera', 'llantas_trac_izq', 'llantas_trac_der') && has('tractor', 'sistemas', 'llantas_del_izq', 'llantas_del_der', 'llantas_trac_izq', 'llantas_trac_der'), 'frontal, trasera y esquema: llantas izquierdas y derechas seleccionables por separado');
+ok(['chasis', 'jaula', 'tolva'].every((k) => viewsOf(k).map((v) => v.id).join() === 'lado,lado_der,superior,trasera' && has(k, 'lado', 'llantas_izq') && has(k, 'lado_der', 'llantas_der') && !has(k, 'lado', 'llantas_der') && has(k, 'superior', 'llantas_izq', 'llantas_der') && has(k, 'trasera', 'llantas_izq', 'llantas_der')), 'remolques: lateral izquierda y derecha, y llantas por lado en todas las vistas');
+ok(tireComponentOf('tractor', 'I', 'dir') === 'llantas_del_izq' && tireComponentOf('tractor', 'D', 'trac') === 'llantas_trac_der' && tireComponentOf('jaula', 'D', 'carga') === 'llantas_der' && tireComponentOf('tolva', 'I', 'carga') === 'llantas_izq', 'cada posición de llanta marca el componente de su lado y de su eje');
+ok(componentOf('tractor', 'llantas_trac').legacy && !componentsOf('tractor').some((c) => c.legacy) && componentsOf('tractor', [], { withLegacy: true }).length === 42 && relatedIds('jaula', 'llantas_der').join() === 'llantas_der,llantas', 'componentes anteriores («ambos lados»): se leen, pero ya no se ofrecen para capturar');
+const legacy = diagramStates('tractor', componentStates([{ componentId: 'llantas_trac', action: 'reemplazado', replaced: true }, { componentId: 'llantas_trac_der', severity: 'total' }]));
+ok(legacy.get('llantas_trac_izq').state === 'reemplazado' && legacy.get('llantas_trac_der').state === 'reemplazado' && legacy.get('llantas_trac_der').items.length === 2, 'registros anteriores sin lado: se pintan en ambos lados (y se combinan con los del lado)');
+const lsvg = svgMarkup('tractor', 'sistemas', { states: componentStates([{ componentId: 'llantas_trac', action: 'reemplazado', replaced: true }]), numbers: new Map([['llantas_trac', 1]]), interactive: true });
+const blue = (id) => (lsvg.match(new RegExp(`data-c="${id}"[^]*?class="dg-shape" d="[^"]*" fill="([^"]+)"`)) || [])[1] === '#2563EB';
+ok(blue('llantas_trac_izq') && blue('llantas_trac_der') && !blue('llantas_del_izq') && lsvg.split('class="dg-n"').length - 1 === 2, 'esquema con un registro anterior: las llantas de tracción de ambos lados en azul y numeradas en cada lado');
 const items = pdfItems('jaula', 'lado', { states: componentStates([{ componentId: 'paneles', severity: 'moderado' }]), numbers: new Map([['paneles', 1]]) }, { x: 48, y: 100, w: 516, h: 200 });
 ok(items.items.some((i) => i.t === 'path' && i.fill === '#F97316') && items.w <= 516 && !items.items.some((i) => i.t === 'path' && /[A]/.test(i.d)), 'trazos del PDF: misma geometría, sin arcos (compatibles con pdf-lib)');
 
@@ -109,4 +120,9 @@ const png = readFileSync(new URL('../assets/brand/perconsur-mark.png', import.me
 const bytes = await modelToPdf(PDFLib, model.pages, { mark: new Uint8Array(png) }, { title: 'Prueba' });
 const back = await PDFLib.PDFDocument.load(bytes);
 ok(back.getPageCount() === model.pages.length && bytes.length > 5000 && bytes.length < 400000, `PDF vectorial válido (${model.pages.length} páginas, ${Math.round(bytes.length / 1024)} KB)`);
-ok(SYSTEMS.tractor.length === 8 && componentsOf('tractor').length === 38, 'catálogo del tractocamión: 8 sistemas, 38 componentes');
+ok(SYSTEMS.tractor.length === 8 && componentsOf('tractor').length === 40, 'catálogo del tractocamión: 8 sistemas, 40 componentes (llantas por lado)');
+/* Reporte: si solo se intervino el lado derecho, se muestra la lateral derecha (no la izquierda) */
+const rside = buildMaintenanceReport({ mode: 'orden', company: {}, equipment: { label: 'U21', kind: 'tractor', kindLabel: 'Tractocamión' }, parts: [],
+  entries: [{ order, services: [], components: [{ id: 'k1', orderId: 'o1', componentId: 'llantas_trac_der', action: 'reemplazado', replaced: true, date: tin }], issues: [], tires: [], oil: [], photos: [] }], issuedAt: tout, measure, imgs: { mark: { w: 100, h: 100 }, word: null } });
+const rtexts = rside.pages.flatMap((p) => p.items.filter((i) => i.t === 'text').map((i) => i.text)).join(' | ');
+ok(/LATERAL DERECHA/.test(rtexts) && !/LATERAL IZQUIERDA/.test(rtexts) && /Llantas de tracción · lado derecho/.test(rtexts), 'reporte: vista y nombre del lado intervenido (lateral derecha · llantas de tracción del lado derecho)');

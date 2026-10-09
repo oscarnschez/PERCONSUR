@@ -13,6 +13,27 @@ export const EQUIPMENT_KINDS = [
 ];
 export const kindLabel = (k) => (EQUIPMENT_KINDS.find(([x]) => x === k) || [null, 'Remolque sin clasificar'])[1];
 
+/* Componentes de versiones anteriores (antes de separar las llantas por lado): se conservan para leer y dibujar los
+   registros existentes (se pintan en ambos lados), pero ya no se ofrecen para capturar */
+const LEGACY = { legacy: true };
+const TRAILER_TIRES = [['llantas_izq', 'Llantas · lado izquierdo'], ['llantas_der', 'Llantas · lado derecho'], ['llantas', 'Llantas (ambos lados)', LEGACY]];
+export const LEGACY_ALIASES = {
+  tractor: { llantas_del: ['llantas_del_izq', 'llantas_del_der'], llantas_trac: ['llantas_trac_izq', 'llantas_trac_der'] },
+  chasis: { llantas: ['llantas_izq', 'llantas_der'] }, jaula: { llantas: ['llantas_izq', 'llantas_der'] }, tolva: { llantas: ['llantas_izq', 'llantas_der'] },
+};
+/* Un componente y los anteriores que también lo cubren (historial de «Llantas de tracción · lado izquierdo» incluye
+   los registros de «Llantas de tracción (ambos lados)») */
+export function relatedIds(kind, id) {
+  const al = LEGACY_ALIASES[kind] || {};
+  return [id, ...Object.keys(al).filter((k) => al[k].includes(id))];
+}
+/* Componente de llanta según el lado de la posición (E2-IE → izquierda) y el tipo de eje */
+export function tireComponentOf(kind, side, axleKind) {
+  const s = side === 'D' ? 'der' : 'izq';
+  if (kind === 'tractor') return `${axleKind === 'dir' ? 'llantas_del' : 'llantas_trac'}_${s}`;
+  return `llantas_${s}`;
+}
+
 /* Sistemas → componentes (id único dentro del tipo de equipo) */
 export const SYSTEMS = {
   tractor: [
@@ -23,39 +44,41 @@ export const SYSTEMS = {
     { id: 'direccion', name: 'Dirección', parts: [['direccion', 'Sistema de dirección'], ['terminales', 'Terminales'], ['caja_dir', 'Caja de dirección']] },
     { id: 'electrico', name: 'Sistema eléctrico', parts: [['baterias', 'Baterías'], ['alternador', 'Alternador'], ['marcha', 'Marcha'], ['luces', 'Luces'], ['cableado', 'Cableado']] },
     { id: 'cabina', name: 'Cabina y carrocería', parts: [['cabina', 'Cabina'], ['parabrisas', 'Parabrisas'], ['espejos', 'Espejos'], ['puertas', 'Puertas'], ['defensas', 'Defensas'], ['cofre', 'Cofre']] },
-    { id: 'neumaticos', name: 'Neumáticos', parts: [['llantas_del', 'Llantas delanteras'], ['llantas_trac', 'Llantas de tracción'], ['rines', 'Rines'], ['valvulas', 'Válvulas']] },
+    { id: 'neumaticos', name: 'Neumáticos', parts: [['llantas_del_izq', 'Llantas delanteras · lado izquierdo'], ['llantas_del_der', 'Llantas delanteras · lado derecho'],
+      ['llantas_trac_izq', 'Llantas de tracción · lado izquierdo'], ['llantas_trac_der', 'Llantas de tracción · lado derecho'], ['rines', 'Rines'], ['valvulas', 'Válvulas'],
+      ['llantas_del', 'Llantas delanteras (ambos lados)', LEGACY], ['llantas_trac', 'Llantas de tracción (ambos lados)', LEGACY]] },
   ],
   chasis: [
     { id: 'estructura', name: 'Estructura y acoplamiento', parts: [['estructura', 'Estructura'], ['largueros', 'Largueros'], ['patines', 'Patines'], ['acoplamiento', 'Quinta rueda / perno rey (acoplamiento)'], ['seguros', 'Seguros del contenedor']] },
-    { id: 'rodamiento', name: 'Rodamiento y frenos', parts: [['ejes', 'Ejes'], ['suspension', 'Suspensión'], ['frenos', 'Frenos'], ['llantas', 'Llantas']] },
+    { id: 'rodamiento', name: 'Rodamiento y frenos', parts: [['ejes', 'Ejes'], ['suspension', 'Suspensión'], ['frenos', 'Frenos'], ...TRAILER_TIRES] },
     { id: 'electrico', name: 'Sistema eléctrico', parts: [['luces', 'Luces'], ['conectores', 'Conectores']] },
   ],
   jaula: [
     { id: 'carroceria', name: 'Estructura y carrocería', parts: [['estructura', 'Estructura'], ['paneles', 'Paneles'], ['puertas', 'Puertas'], ['piso', 'Piso'], ['acoplamiento', 'Acoplamiento']] },
-    { id: 'rodamiento', name: 'Rodamiento y frenos', parts: [['ejes', 'Ejes'], ['frenos', 'Frenos'], ['suspension', 'Suspensión'], ['llantas', 'Llantas']] },
+    { id: 'rodamiento', name: 'Rodamiento y frenos', parts: [['ejes', 'Ejes'], ['frenos', 'Frenos'], ['suspension', 'Suspensión'], ...TRAILER_TIRES] },
     { id: 'electrico', name: 'Sistema eléctrico', parts: [['luces', 'Luces']] },
   ],
   tolva: [
     { id: 'carroceria', name: 'Estructura y caja', parts: [['estructura', 'Estructura'], ['caja', 'Caja']] },
     { id: 'descarga', name: 'Descarga', parts: [['descarga', 'Sistema de descarga'], ['compuertas', 'Compuertas'], ['hidraulico', 'Mecanismos hidráulicos (si aplica)']] },
-    { id: 'rodamiento', name: 'Rodamiento y frenos', parts: [['suspension', 'Suspensión'], ['ejes', 'Ejes'], ['frenos', 'Frenos'], ['llantas', 'Llantas']] },
+    { id: 'rodamiento', name: 'Rodamiento y frenos', parts: [['suspension', 'Suspensión'], ['ejes', 'Ejes'], ['frenos', 'Frenos'], ...TRAILER_TIRES] },
     { id: 'electrico', name: 'Sistema eléctrico', parts: [['luces', 'Luces']] },
   ],
 };
 /* Sistema «Otros» para los componentes agregados por el usuario */
 export const CUSTOM_SYSTEM = { id: 'otros', name: 'Otros componentes' };
 
-/* Componentes de un tipo de equipo (fijos + agregados por el usuario para ese tipo) */
-export function componentsOf(kind, custom = []) {
+/* Componentes de un tipo de equipo (fijos + agregados por el usuario para ese tipo); withLegacy: también los anteriores */
+export function componentsOf(kind, custom = [], { withLegacy = false } = {}) {
   const out = [];
-  for (const s of SYSTEMS[kind] || []) for (const [id, name] of s.parts) out.push({ id, name, system: s.id, systemName: s.name, custom: false });
+  for (const s of SYSTEMS[kind] || []) for (const [id, name, o] of s.parts) if (withLegacy || !(o && o.legacy)) out.push({ id, name, system: s.id, systemName: s.name, custom: false, legacy: !!(o && o.legacy) });
   for (const c of custom) if (c && c.kind === kind && !c.deletedAt) {
     const sys = (SYSTEMS[kind] || []).find((s) => s.id === c.system) || CUSTOM_SYSTEM;
     out.push({ id: c.id, name: c.name, system: sys.id, systemName: sys.name, custom: true });
   }
   return out;
 }
-export const componentOf = (kind, id, custom = []) => componentsOf(kind, custom).find((c) => c.id === id) || null;
+export const componentOf = (kind, id, custom = []) => componentsOf(kind, custom, { withLegacy: true }).find((c) => c.id === id) || null;
 export const systemsOf = (kind, custom = []) => {
   const list = (SYSTEMS[kind] || []).map((s) => ({ id: s.id, name: s.name }));
   if (custom.some((c) => c.kind === kind && !c.deletedAt && !list.some((s) => s.id === c.system))) list.push({ ...CUSTOM_SYSTEM });

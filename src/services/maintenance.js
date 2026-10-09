@@ -26,7 +26,7 @@ import { listAll } from './catalogs.js';
 import * as fuel from './fuel.js';
 import * as lg from './logistics.js';
 import { isWorking } from '../config/logistics.js';
-import { kindLabel, componentsOf, componentOf, ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS, isOpenStatus, orderStatusOf, severityLabel, actionLabel } from '../domain/maintenance/catalog.js';
+import { kindLabel, componentsOf, componentOf, tireComponentOf, ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS, isOpenStatus, orderStatusOf, severityLabel, actionLabel } from '../domain/maintenance/catalog.js';
 import {
   validateOrder, equipmentCode, folioOf, ymd, toTs, latestReading, readingAge, oilStatus, availabilityOf, equipmentKey, keyOfOrder,
   validateTires, positionsOf, TIRE_LAYOUTS, isOpenOrder, fmtDT, kmText, nf, durationText,
@@ -106,7 +106,7 @@ export function equipmentOfOrder(o) {
   return { type: o.equipmentType, id: o.vehicleId || o.trailerId, key: keyOfOrder(o), kind: o.kind, eco: s.eco || '', label: s.label || '—', placas: s.placas || '', sub: s.kindLabel || '', kindLabel: kindLabel(o.kind), missing: true };
 }
 export const parts = () => C().parts.filter((p) => !p.deletedAt);
-export const componentsFor = (kind) => componentsOf(kind, parts());
+export const componentsFor = (kind, opts) => componentsOf(kind, parts(), opts);
 export const componentName = (kind, id) => (componentOf(kind, id, parts()) || { name: 'Componente' }).name;
 
 /* ===== Consultas ===== */
@@ -377,7 +377,8 @@ export async function deleteOil(id) {
 }
 
 /* ===== Reemplazo de llantas ===== */
-const tireComponent = (o, axleKind) => (o.kind === 'tractor' ? (axleKind === 'dir' ? 'llantas_del' : 'llantas_trac') : 'llantas');
+/* Cada posición marca la llanta de su lado (E2-IE → izquierda) y de su eje (direccional o tracción en el tractocamión) */
+const tireComponent = (o, p) => tireComponentOf(o.kind, p.id.split('-')[1][0], p.axleKind);
 export async function saveTires(orderId, data) {
   await loadMaintenance();
   const o = requireOrder(orderId);
@@ -395,11 +396,11 @@ export async function saveTires(orderId, data) {
   const out = await upsert('tires', rec);
   /* Diagrama: las llantas de las posiciones conocidas quedan como componente reemplazado (sin posiciones no se supone cuáles) */
   const pos = positionsOf(layout || '').filter((p) => positions.includes(p.id));
-  const comps = [...new Set(pos.map((p) => tireComponent(o, p.axleKind)))];
+  const comps = [...new Set(pos.map((p) => tireComponent(o, p)))];
   for (const c of C().components.filter((x) => x.tireId === out.id && !comps.includes(x.componentId))) await hardDelete('components', c.id);
   for (const comp of comps) {
     const cur = C().components.find((x) => x.tireId === out.id && x.componentId === comp);
-    await upsert('components', { ...(cur || { id: db.uid('mc_') }), orderId, tireId: out.id, componentId: comp, severity: '', action: 'reemplazado', replaced: true, date: out.date, description: `Reemplazo de llantas (${pos.filter((p) => tireComponent(o, p.axleKind) === comp).length})` }, { audit: false });
+    await upsert('components', { ...(cur || { id: db.uid('mc_') }), orderId, tireId: out.id, componentId: comp, severity: '', action: 'reemplazado', replaced: true, date: out.date, description: `Reemplazo de llantas (${pos.filter((p) => tireComponent(o, p) === comp).length})` }, { audit: false });
   }
   const svc = C().services.find((s) => s.tireId === out.id);
   const desc = `${out.quantity} llanta${out.quantity === 1 ? '' : 's'}${positions.length ? ` · ${positions.length} posición${positions.length === 1 ? '' : 'es'} identificada${positions.length === 1 ? '' : 's'}` : ' · posiciones pendientes de especificar'}${out.brand ? ` · ${out.brand}` : ''}${out.size ? ` ${out.size}` : ''}`;
