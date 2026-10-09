@@ -29,7 +29,7 @@ body:not(.has-tabbar) .tabbar,html.kb-open .tabbar{display:none}
 /* «Administración» no cabe a 12 px en un celular angosto: ahí se muestra «Admin.» (el nombre accesible es completo) */
 .tl-s{display:none}
 /* Logotipo y módulos de cada sección: solo en el menú lateral de computadora (desktop.css) */
-.tb-brand,.tb-sub{display:none}
+.tb-brand,.tb-sub,.tb-copy{display:none}
 @media (max-width:439px){.tabbar .tl-l{display:none}.tabbar .tl-s{display:inline}}
 .tabbar a:active,.tabbar button:active{opacity:.6}
 .tab-plus{width:46px;height:32px;border-radius:var(--r-sm);background:var(--cta);color:var(--on-color);display:grid;place-items:center;margin-bottom:1px;transition:transform .14s}
@@ -213,6 +213,8 @@ html.kb-open .actionbar{display:none}
 .about img{width:36px;height:36px;object-fit:contain}
 .about span{font-weight:600;color:var(--ink-2)}
 .about small{font-size:var(--fs-footnote)}
+/* Aviso de derechos de autor (inicio de sesión y Ajustes) */
+.legal-copy{display:block;margin-top:6px;font-size:var(--fs-caption);color:var(--muted);text-align:center}
 .wordmark.sm{font-size:20px}
 .cat-form{padding-top:4px}
 .cat-form .btn-danger{margin-top:10px}

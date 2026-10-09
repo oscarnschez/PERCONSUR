@@ -11,6 +11,7 @@ import { createCustomerTrackingMap } from '../ui/maps/CustomerTrackingMap.js';
 import { esc } from '../domain/shared/format.js';
 import { ageText } from '../domain/gps/gps.js';
 import { icon, trailerIcon } from '../ui/components/icons.js';
+import { copyrightText } from '../config/legal.js';
 
 const root = document.getElementById('portal');
 const API = root ? root.dataset.api : '';
@@ -27,7 +28,7 @@ function frame() {
     <section class="pt-card" data-pt-card aria-live="polite"></section>
     <div class="pt-mapwrap" data-pt-mapwrap hidden><div class="pt-map" data-pt-map aria-label="Mapa con la ubicación de tu envío" role="region"></div><div class="pt-mapmsg" data-pt-mapmsg hidden></div></div>
     <section class="pt-route" data-pt-route hidden></section>
-    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación de tu envío solo mientras la entrega está en curso.</span></p><p class="pt-copy">PERCONSUR · Transporte de carga</p></footer>`;
+    <footer class="pt-foot"><p>${icon.info}<span>Este enlace es personal. Muestra la ubicación de tu envío solo mientras la entrega está en curso.</span></p><p class="pt-copy">PERCONSUR · Transporte de carga</p><p class="pt-legal">${esc(copyrightText())}</p></footer>`;
 }
 function routeHTML(t) {
   return `<div class="pt-rt"><span class="pt-rt-dot a" aria-hidden="true"></span><div><small>Origen</small><b>${esc(t.origin || '—')}</b></div></div>

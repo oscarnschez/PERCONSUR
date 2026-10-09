@@ -17,6 +17,7 @@
 import { AUTH } from '../config/auth.js';
 import { icon } from '../ui/components/icons.js';
 import { APP_VERSION, APP_BUILD } from '../config/reference.js';
+import { copyrightText } from '../config/legal.js';
 
 const SESSION_KEY = 'pcs-session';
 const GUARD_KEY = 'pcs-auth-guard';
@@ -111,7 +112,7 @@ function showLogin() {
         <p class="login-msg" id="lg-msg" role="alert" aria-live="assertive"></p>
         <button type="submit" class="btn-primary block lg" id="lg-go"><span>Entrar</span></button>
       </form>
-      <p class="login-foot">Versión ${APP_VERSION} | ${APP_BUILD}</p>
+      <p class="login-foot">Versión ${APP_VERSION} | ${APP_BUILD}<br><small class="legal-copy">${copyrightText()}</small></p>
     </div>`;
   document.body.appendChild(root);
   hideSplash();

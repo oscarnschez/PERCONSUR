@@ -39,6 +39,7 @@ import { registerSW, onUpdateReady, applyUpdate, warmCache } from './services/pw
 import { tryLibs } from './services/libs.js';
 import { icon } from './ui/components/icons.js';
 import { initScrollHints } from './ui/components/scrollHints.js';
+import { copyrightShort } from './config/legal.js';
 import { toast } from './ui/components/toast.js';
 import { actionSheet } from './ui/components/sheet.js';
 import { openNewSheet, draftRoute, discardDraft } from './ui/flows.js';
@@ -59,7 +60,8 @@ function mountTabbar() {
   nav.className = 'tabbar';
   nav.setAttribute('aria-label', 'Navegación principal');
   /* Celular: barra inferior de 5 secciones. Computadora (≥1024 px): la misma navegación como menú lateral, con el
-     logotipo, «Nuevo» arriba y los módulos de cada sección (tb-brand y tb-sub solo se muestran ahí). */
+     logotipo, «Nuevo» arriba, los módulos de cada sección y el aviso de derechos de autor al pie (tb-brand, tb-sub y
+     tb-copy solo se muestran ahí). */
   const sub = (key, mods) => `<div class="tb-sub" data-sub="${key}">${mods.map((m) => `<a href="#${m.route}">${m.nav || m.title}</a>`).join('')}</div>`;
   nav.innerHTML = `
     <div class="tb-brand" aria-hidden="true"><img src="./assets/brand/perconsur-mark.png" alt=""><span class="wordmark">PERCONSUR</span></div>
@@ -69,7 +71,8 @@ function mountTabbar() {
     <button type="button" class="tab-new" data-tab="new" aria-label="Nuevo documento"><span class="tab-plus">${icon.plus}</span><span>Nuevo</span></button>
     <a href="#/administracion" data-tab="admin" aria-label="Administración">${icon.briefcase}<span class="tl-l">Administración</span><span class="tl-s" aria-hidden="true">Admin.</span></a>
     ${sub('admin', ADMIN_MODULES)}
-    <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>`;
+    <a href="#/ajustes" data-tab="settings">${icon.gear}<span>Ajustes</span></a>
+    <p class="tb-copy">${copyrightShort()}</p>`;
   document.body.appendChild(nav);
   nav.querySelector('.tab-new').addEventListener('click', openNewSheet);
   window.addEventListener('routechange', (e) => {

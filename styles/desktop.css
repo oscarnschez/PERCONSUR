@@ -39,6 +39,7 @@
   .tb-sub{display:flex;flex-direction:column;gap:1px;margin:0 0 8px}
   .tb-sub a{min-height:40px;padding-left:46px;font-size:var(--fs-subhead);font-weight:500;color:var(--muted)}
   .tb-sub a.on{background:none;color:var(--tint);font-weight:600}
+  .tb-copy{order:8;display:block;margin:10px 12px 0;font-size:var(--fs-caption);line-height:1.4;color:var(--muted)}
 
   /* ===== Marco de las pantallas ===== */
   body.has-tabbar .page{max-width:960px;padding:calc(var(--sat) + 28px) 40px calc(var(--sab) + 48px)}
