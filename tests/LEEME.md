@@ -12,6 +12,8 @@ PCS_TEST_USER='usuario' PCS_TEST_PASS='contraseña' python3 e2e.py
 - `python3 operators.py` — módulo Operadores: fórmula del balance con los ejemplos oficiales, comisión ampliada, validaciones, resumen, CSV, respaldo.
 - `python3 v140.py` — versión 1.4: navegación, perfil, remolques por división, combustible, Excel y respaldo.
 - `node fuel_unit.mjs` — cálculos de combustible (sin navegador).
+- `node tariffs_unit.mjs` — Tarifario (sin navegador): 170 tarifas con monto importadas de la hoja (solo Tolva y Jaula sencillas), nombres y zonas unificados, búsqueda por origen y destino sin acentos ni espacios, filtro por zona y agrupación.
+- `python3 tariffs.py` — Administración → Tarifario: tarjeta del módulo, zonas, búsqueda por origen, planta destino, zona, sin resultados y acceso desde el menú lateral de computadora.
 - `node docs_unit.mjs` — diseño de documentos de DOCGEN 3.1 (sin navegador): código de barras Code 128-B del folio, íconos, estructura de la nota de entrega, el anexo y la asignación, y el modelo de páginas de los reportes (título condensado, etiquetas espaciadas, secciones numeradas, banda y pie).
 - `python3 logistics.py` — Logística: asignación con unidad/operador/remolque del catálogo, avisos de doble asignación, filtros y buscador, Inicio → Unidades en operación en vivo, historial, protección del catálogo y respaldo.
 - `node logistics_unit.mjs` — reglas de Logística: estados, regla de Inicio, filtros, buscador y conflictos (sin navegador).

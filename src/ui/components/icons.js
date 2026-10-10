@@ -1,6 +1,8 @@
 /* Íconos de línea propios (24×24, trazo 1.8). */
 const I = (d, extra = '', cls = '') => `<svg class="ic${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"${extra}>${d}</svg>`;
 export const icon = {
+  /* Etiqueta de precio (Tarifario) */
+  tag: I('<path d="M3.5 12.4V4.5a1 1 0 0 1 1-1h7.9l8.1 8.1a1.5 1.5 0 0 1 0 2.1l-6.3 6.3a1.5 1.5 0 0 1-2.1 0z"/><circle cx="8.2" cy="8.2" r="1.6"/>'),
   cash: I('<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.6"/><path d="M6.5 9.5v.01M17.5 14.5v.01"/>'),
   home: I('<path d="M3.5 10.5 12 3.8l8.5 6.7"/><path d="M5.5 9v10.2h5V14h3v5.2h5V9"/>'),
   docs: I('<path d="M7 3.5h7l4 4V20a.5.5 0 0 1-.5.5h-10A.5.5 0 0 1 7 20z"/><path d="M14 3.5V8h4"/><path d="M4.5 7v14.5H15"/>'),

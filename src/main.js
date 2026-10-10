@@ -32,6 +32,7 @@ import { loadMaintenance } from './services/maintenance.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
+import { tariffsScreen } from './ui/screens/tariffs.js';
 import { reconcileMirrors } from './services/drafts.js';
 import { autoMigrate } from './services/migration.js';
 import { applyTheme } from './services/theme.js';
@@ -139,6 +140,7 @@ function routes() {
   route('/operadores/:id/estado', capture(statementScreen), { name: 'wizard' });
   route('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
   route('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
+  route('/tarifario', tariffsScreen, { name: 'tar', tabs: true, tab: 'admin' });
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/compartir', syncSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });

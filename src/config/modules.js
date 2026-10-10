@@ -11,6 +11,7 @@ export const OPERATION_MODULES = [
 export const ADMIN_MODULES = [
   { key: 'operadores', title: 'Operadores', desc: 'Información y control de operadores.', route: '/operadores', icon: 'people' },
   { key: 'cobranza', title: 'Cobranza', desc: 'Viajes y demoras en planta por cobrar y pagados; reporte en PDF.', route: '/cobranza', icon: 'cash' },
+  { key: 'tarifario', title: 'Tarifario', desc: 'Tarifas de transporte sencillo por zona, ciudad de origen y planta destino.', route: '/tarifario', icon: 'tag' },
   { key: 'documentos', title: 'Documentos', desc: 'Historial de documentos generados.', route: '/documentos', icon: 'docs' },
   { key: 'catalogos', title: 'Catálogos', desc: 'Unidades, remolques, operadores, destinos y demás registros.', route: '/catalogos', icon: 'catalog' },
 ];

@@ -6,6 +6,7 @@ import { operatorList } from '../../services/operators.js';
 import * as fuel from '../../services/fuel.js';
 import * as billing from '../../services/billing.js';
 import { summarize } from '../../domain/billing/billing.js';
+import { tariffRoutes, tariffStats } from '../../domain/tariffs/tariffs.js';
 import { listAll } from '../../services/catalogs.js';
 import { money } from '../../domain/operators/money.js';
 import { fleetSummary, fuelRange } from '../../domain/fuel/fuel.js';
@@ -21,9 +22,9 @@ const card = (m, meta) => `<a class="mod-card" href="#${m.route}"><span class="m
 export async function adminScreen() {
   const docs = await listDocuments(), ops = operatorList();
   await billing.loadBilling();
-  const cob = summarize(billing.items()), nDue = cob.trips.due.n + cob.delays.due.n;
+  const cob = summarize(billing.items()), nDue = cob.trips.due.n + cob.delays.due.n, tf = tariffStats(tariffRoutes());
   const meta = { operadores: `${ops.length} operador${ops.length === 1 ? '' : 'es'}`, cobranza: nDue ? `Por cobrar: ${money(cob.due)} | ${nDue} pendiente${nDue === 1 ? '' : 's'}` : 'Sin pendientes por cobrar', documentos: `${docs.length} documento${docs.length === 1 ? '' : 's'}`,
-    catalogos: `${listAll('vehicles').length} unidades | ${listAll('trailers').length} remolques` };
+    catalogos: `${listAll('vehicles').length} unidades | ${listAll('trailers').length} remolques`, tarifario: `${tf.routes} rutas | ${tf.zones} zonas` };
   return screen(`<div class="page wide hub"><header class="page-top"><h1 class="title">Administración</h1></header>
     <div class="mod-list">${ADMIN_MODULES.map((m) => card(m, meta[m.key])).join('')}</div></div>`);
 }
