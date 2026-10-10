@@ -22,6 +22,8 @@ import { loadEmpties } from './empties.js';
 import { loadGeocodes } from './geocode.js';
 import { loadFuel } from './fuel.js';
 import { loadMaintenance } from './maintenance.js';
+import { loadTariffs } from './tariffs.js';
+import { sanitizeSheet } from '../domain/tariffs/tariffs.js';
 import { ORDER_TYPES, ORDER_STATUSES, SEVERITIES, ACTIONS, WORK_STATUSES, WORK_TYPES, TIRE_REASONS } from '../domain/maintenance/catalog.js';
 import { TIRE_LAYOUTS } from '../domain/maintenance/maintenance.js';
 import { SYNC_SETTINGS } from '../domain/sync/sync.js';
@@ -35,6 +37,8 @@ DATA_STORES.push('fuelRecords', 'tripBilling', 'logisticsOperations', 'tripAttac
 const MT_STORES = ['maintenanceOrders', 'maintenanceServices', 'maintenanceIssues', 'maintenanceComponents', 'tireReplacements', 'oilChanges',
   'maintenanceAttachments', 'maintenanceEvents', 'maintenanceProfiles', 'maintenanceParts'];
 DATA_STORES.push(...MT_STORES);
+/* Tarifas (v11): un registro por apartado con sus rutas */
+DATA_STORES.push('tariffSheets');
 /* Ajustes que nunca se importan: control interno, la clave del GPS y la dirección del GPS (un respaldo no puede
    cambiar a dónde se envía la clave de este dispositivo), los avisos pendientes de rastreo de este dispositivo y la
    configuración de Información compartida (clave, papel e identificador de este dispositivo) */
@@ -101,6 +105,7 @@ export function sanitizeImport(data) {
   data.oilChanges = rowsOf('oilChanges').filter((r) => typeof r.orderId === 'string').map((r) => ({ ...r, odometer: Math.max(0, numOr(r.odometer)), liters: r.liters == null ? null : Math.max(0, numOr(r.liters)), date: ts(r.date) }));
   data.maintenanceProfiles = rowsOf('maintenanceProfiles').filter((r) => typeof r.id === 'string').map((r) => ({ ...r, oilKm: r.oilKm == null ? null : Math.max(0, numOr(r.oilKm)), oilDays: r.oilDays == null ? null : Math.max(0, numOr(r.oilDays)), tireLayout: TIRE_LAYOUTS[r.tireLayout] ? r.tireLayout : null }));
   data.maintenanceParts = rowsOf('maintenanceParts').filter((r) => typeof r.id === 'string' && okKind(r.kind) && typeof r.name === 'string');
+  data.tariffSheets = rowsOf('tariffSheets').map(sanitizeSheet).filter(Boolean);
   return data;
 }
 
@@ -148,6 +153,7 @@ export async function inspectBackup(file) {
         `Control de vacíos: ${n('emptyContainers')} contenedores, ${n('emptyContainerEvents')} movimientos, ${n('yards')} patios`,
         `Ubicaciones de destinos en el mapa: ${(obj.data.geocodes || []).filter((g) => g && g.precision !== 'none').length}`,
         `Taller: ${n('maintenanceOrders')} órdenes, ${n('maintenanceIssues')} fallas, ${n('oilChanges')} cambios de aceite, ${n('tireReplacements')} reemplazos de llantas`,
+        `Tarifas: ${n('tariffSheets')} apartado${n('tariffSheets') === 1 ? '' : 's'}, ${(obj.data.tariffSheets || []).reduce((t, x) => t + (x && Array.isArray(x.routes) ? x.routes.length : 0), 0)} rutas`,
         `Archivos: ${n('attachments')}`, `Creado: ${obj.exportedAt ? new Date(obj.exportedAt).toLocaleString('es-MX') : 'sin fecha'}`,
       ],
     };
@@ -234,6 +240,8 @@ export async function importBackup(info) {
     if (s === 'emptyContainers') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'tripAttachments') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     if (s === 'logisticsOperations') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
+    /* Tarifas: la versión más reciente de cada apartado; la copia sembrada sin cambios siempre cede ante la del respaldo */
+    if (s === 'tariffSheets') { for (const r of rows) { const cur = await db.get(s, r.id); if (!cur || cur.source === 'seed' || (r.updatedAt || 0) > (cur.updatedAt || 0)) await db.put(s, r); } continue; }
     /* Ubicaciones de direcciones: un punto fijado a mano nunca se reemplaza por uno buscado automáticamente */
     if (s === 'geocodes') {
       for (const r of rows) {
@@ -257,5 +265,5 @@ export async function importBackup(info) {
 }
 /* Vuelve a leer de la base local todo lo que las pantallas guardan en memoria (después de importar o de recibir la
    información compartida) */
-export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); }
+export async function reloadAll() { await loadSettings(); await loadCatalogs(); await loadCompanies(); await loadOperatorData(); resetBillingCache(); await loadLogistics(true); await loadTripAttachments(true); await loadEmpties(true); await loadGeocodes(true); await loadFuel(true); await loadMaintenance(true); await loadTariffs(true); }
 const reload = reloadAll;

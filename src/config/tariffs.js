@@ -1,5 +1,7 @@
 /*
- * Tarifario de transporte SENCILLO (Tolva y Jaula) por zona, ciudad de origen y planta destino. Importes en pesos (MXN).
+ * Siembra inicial del apartado «BAYER INBOUND 2026» de Tarifas: transporte SENCILLO (Tolva y Jaula) por zona, ciudad de
+ * origen y planta destino. Importes en pesos (MXN). Se carga una sola vez en la base del dispositivo (services/tariffs.js);
+ * desde ahí las tarifas se editan en la app, se respaldan y se comparten como cualquier otro registro.
  * Origen: hoja «PERCONSUR_PROPUESTA.xlsx» (columna PERCONSUR). Solo se registran las combinaciones que tienen monto;
  * las que venían vacías (Tolva/Jaula full, Torton y rutas sin tarifa) no se incluyen.
  * Limpieza aplicada al importar: nombres con espacios y acentos, «Bajio zona C» = «Bajío zona C», «Pacifico» = «Pacífico» y
@@ -8,6 +10,7 @@
  */
 export const TARIFF_CONFIG = 'Sencillo';
 export const TARIFF_SOURCE = 'PERCONSUR_PROPUESTA.xlsx';
+export const TARIFF_SEED_SHEET = { id: 'tfs_bayer_inbound_2026', name: 'BAYER INBOUND 2026' };
 
 export const TARIFFS = [
   ['Occidente', 'Sayula', 'Planta Nextipac', 'Tolva', 21200],
