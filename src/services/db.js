@@ -19,10 +19,11 @@
  *   maintenanceAttachments, maintenanceEvents, maintenanceProfiles, maintenanceParts   Taller (v10): órdenes por equipo
  *     (vehicleId o trailerId del catálogo), trabajos, fallas, intervenciones por componente (datos del diagrama),
  *     llantas, aceite, fotos, bitácora, intervalos y ejes por equipo, y componentes agregados por el usuario
+ *   tariffSheets   Tarifas (v11): un registro por apartado (p. ej. BAYER INBOUND 2026) con sus rutas y montos
  * La sincronización entre dispositivos (services/sync.js) lee y escribe estos mismos stores (ver onWrite / setWriteGuard).
  */
 const DB_NAME = 'perconsur';
-const DB_VERSION = 10;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller */
+const DB_VERSION = 11;  /* v2: control de operadores | v3: estados de cuenta | v4: combustible | v5: cobranza | v6: logística | v7: adjuntos de viajes | v8: control de vacíos | v9: ubicación de direcciones | v10: taller | v11: tarifas */
 
 export const S = {
   documents: 'documents', drafts: 'drafts', operators: 'operators', vehicles: 'vehicles', trailers: 'trailers',
@@ -37,6 +38,7 @@ export const S = {
   maintenanceComponents: 'maintenanceComponents', tireReplacements: 'tireReplacements', oilChanges: 'oilChanges',
   maintenanceAttachments: 'maintenanceAttachments', maintenanceEvents: 'maintenanceEvents', maintenanceProfiles: 'maintenanceProfiles',
   maintenanceParts: 'maintenanceParts',
+  tariffSheets: 'tariffSheets',
 };
 
 let dbp = null;
@@ -96,6 +98,8 @@ export function openDB() {
       mk(S.maintenanceEvents, { keyPath: 'id' }, [['orderId', 'orderId']]);
       mk(S.maintenanceProfiles, { keyPath: 'id' });
       mk(S.maintenanceParts, { keyPath: 'id' });
+      /* v11 — Tarifas: un registro por apartado con sus rutas (zona, ciudad de origen, planta destino y monto por unidad) */
+      mk(S.tariffSheets, { keyPath: 'id' });
     };
     req.onsuccess = () => {
       const db = req.result;

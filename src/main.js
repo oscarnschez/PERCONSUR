@@ -29,10 +29,11 @@ import { syncSettingsScreen } from './ui/screens/syncSettings.js';
 import { workshopScreen, workshopEquipmentScreen, workshopOrderScreen } from './ui/screens/workshop.js';
 import { workshopOrderReportScreen, workshopEquipmentReportScreen } from './ui/screens/workshopReport.js';
 import { loadMaintenance } from './services/maintenance.js';
+import { seedTariffsIfNeeded } from './services/tariffs.js';
 import { billingScreen } from './ui/screens/billing.js';
 import { tripImportScreen } from './ui/screens/tripImport.js';
 import { billingReportScreen } from './ui/screens/billingReport.js';
-import { tariffsScreen } from './ui/screens/tariffs.js';
+import { tariffSheetsScreen, tariffSheetScreen, tariffReportScreen } from './ui/screens/tariffs.js';
 import { reconcileMirrors } from './services/drafts.js';
 import { autoMigrate } from './services/migration.js';
 import { applyTheme } from './services/theme.js';
@@ -140,7 +141,10 @@ function routes() {
   route('/operadores/:id/estado', capture(statementScreen), { name: 'wizard' });
   route('/cobranza', billingScreen, { name: 'cob', tabs: true, tab: 'admin' });
   route('/cobranza/reporte', billingReportScreen, { name: 'wizard' });
-  route('/tarifario', tariffsScreen, { name: 'tar', tabs: true, tab: 'admin' });
+  route('/tarifas', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });
+  route('/tarifas/:id', tariffSheetScreen, { name: 'tar', tabs: true, tab: 'admin' });
+  route('/tarifas/:id/pdf', tariffReportScreen, { name: 'wizard' });
+  route('/tarifario', tariffSheetsScreen, { name: 'tar', tabs: true, tab: 'admin' });   /* dirección de la versión 1.21 */
   route('/ajustes', settingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/gps', gpsSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
   route('/ajustes/compartir', syncSettingsScreen, { name: 'settings', tabs: true, tab: 'settings' });
@@ -184,7 +188,7 @@ async function boot() {
     try { localStorage.setItem('pcs-version', APP_VERSION); } catch (e) { /* */ }
     /* Siembra, borradores y migración escriben registros: no aplican en un dispositivo de consulta */
     const ro = isReadOnly();
-    if (!ro) { await seedIfNeeded(); await seedYardsIfNeeded(); await reconcileMirrors(); }
+    if (!ro) { await seedIfNeeded(); await seedYardsIfNeeded(); await seedTariffsIfNeeded(); await reconcileMirrors(); }
     const mig = ro ? null : await autoMigrate().catch((e) => { console.warn('migración', e); return null; });
     routes();
     mountTabbar();
