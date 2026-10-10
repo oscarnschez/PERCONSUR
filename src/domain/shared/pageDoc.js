@@ -90,6 +90,13 @@ export function createDoc({ measure, imgs = {}, company = {}, head = {}, cont = 
     while (t.length > 1 && W(t + '…', s, b) > maxW) t = t.slice(0, -1);
     return t.trimEnd() + '…';
   }
+  /* Igual que fit() pero con las opciones de text() (espaciado, condensado, mayúsculas) */
+  function fitW(str, o, maxW) {
+    let t = pdfSafe(o.up ? up(str) : str);
+    if (textW(t, o) <= maxW) return t;
+    while (t.length > 1 && textW(t + '…', o) > maxW) t = t.slice(0, -1);
+    return t.trimEnd() + '…';
+  }
   /* Ajuste a varias líneas; si no cabe, la última termina en «…» */
   function wrap(str, s, b, maxW, maxLines = 2) {
     const words = pdfSafe(str).split(' ').filter(Boolean);
@@ -140,7 +147,16 @@ export function createDoc({ measure, imgs = {}, company = {}, head = {}, cont = 
     if (tw > avail) ts = Math.max(13, ts * avail / tw);
     text(RX, y + ts * 0.74, head.title, { s: ts, b: true, up: true, sx: SQ, c: DOC.ink, a: 'end' });
     y += ts * 0.74;
-    if (head.sub) { y += 12; text(RX, y, fit(up(head.sub), 8.2, false, avail), { s: 8.2, c: DOC.mute, tr: TR, a: 'end' }); }
+    /* Subtítulo espaciado: si no cabe junto al bloque de la empresa pasa a un segundo renglón, cortando en los «·» */
+    if (head.sub) {
+      const so = { s: 8.2, c: DOC.mute, tr: TR, a: 'end' }, lines = [];
+      for (const sg of up(head.sub).split(' · ')) {
+        const cur = lines[lines.length - 1];
+        if (cur && textW(`${cur} · ${sg}`, so) <= avail) lines[lines.length - 1] = `${cur} · ${sg}`; else lines.push(sg);
+      }
+      if (lines.length > 2) lines.splice(1, lines.length, lines.slice(1).join(' · '));
+      lines.forEach((l, i) => { y += i ? 10.4 : 12; text(RX, y, fitW(l, so, avail), so); });
+    }
     const bc = head.folio ? code128(head.folio) : null;
     /* 1 módulo = 0.75 pt (1 px de DOCGEN); un folio muy largo se angosta para no invadir el bloque de la empresa */
     if (bc) { const k = Math.min(0.75, avail / bc.mods), x0 = RX - bc.mods * k, bh = 19.5; y += 7; bc.bars.forEach(([p, n]) => rect(x0 + p * k, y, n * k, bh, { fill: '#1A2233' })); y += bh; }

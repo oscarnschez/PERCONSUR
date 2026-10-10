@@ -1,9 +1,11 @@
 /*
  * Tarifas (Administración)
- *   #/tarifas            apartados (p. ej. BAYER INBOUND 2026): crear, entrar
- *   #/tarifas/:id        tarifas del apartado por zona, con búsqueda por origen y filtros por planta y zona;
- *                        agregar, editar y eliminar tarifas; cambiar nombre o eliminar el apartado
+ *   #/tarifas            apartados (p. ej. BAYER INBOUND 2026): crear con su división (Puerto o Campo), entrar
+ *   #/tarifas/:id        tarifas del apartado por zona, con búsqueda y filtros; agregar, editar y eliminar tarifas y
+ *                        (División Puerto) cargos adicionales; cambiar nombre o eliminar el apartado
  *   #/tarifas/:id/pdf    PDF del apartado (vista previa = documento real, generar, ver, compartir, guardar)
+ * División Campo: origen libre, planta destino, Tolva y Jaula. División Puerto: origen Manzanillo de forma predeterminada,
+ * ciudad destino y un monto por ruta, más los cargos adicionales. Todos los importes son antes de impuestos.
  * En un dispositivo de consulta no se muestran los controles de edición (la base además rechaza escrituras).
  */
 import { screen, el, on } from '../../core/dom.js';
@@ -11,7 +13,7 @@ import { back, go } from '../../core/router.js';
 import { esc, fmtSize } from '../../domain/shared/format.js';
 import { money, centsInput } from '../../domain/operators/money.js';
 import { todayStr, fmtDate } from '../../domain/operators/balance.js';
-import { UNITS, zonesOf, destinationsOf, filterRoutes, groupByZone, tariffStats, plantShort } from '../../domain/tariffs/tariffs.js';
+import { DIVISIONS, TAX_NOTE, divisionOf, zonesOf, destinationsOf, filterRoutes, groupByZone, tariffStats, plantShort } from '../../domain/tariffs/tariffs.js';
 import { tariffReportFilename } from '../../domain/tariffs/report.js';
 import * as tf from '../../services/tariffs.js';
 import { listAll } from '../../services/catalogs.js';
@@ -25,52 +27,74 @@ import { toast } from '../components/toast.js';
 import { formSheet, fail, readMoney, moneyIn } from './operatorForms.js';
 
 const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
-const UNIT_ICON = { Tolva: 'trTolva', Jaula: 'trJaula' };
+const UNIT_ICON = { Tolva: 'trTolva', Jaula: 'trJaula', Sencillo: 'container' };
+const DIV_ICON = { campo: 'sprout', puerto: 'containers' };
 const textIn = (name, label, value, { list = '', ph = '', cap = 'words' } = {}) => `<label class="fld" data-f="${name}"><span class="fl">${label}</span><input class="in" name="${name}" value="${esc(value || '')}"${list ? ` list="${list}"` : ''} placeholder="${esc(ph)}" autocomplete="off" autocapitalize="${cap}" enterkeyhint="next"><span class="ferr" data-err="${name}"></span></label>`;
 const datalist = (id, items) => `<datalist id="${id}">${[...new Set(items)].filter(Boolean).map((v) => `<option value="${esc(v)}"></option>`).join('')}</datalist>`;
-const sheetMeta = (s) => { const st = tariffStats(s.routes); return `${plural(st.routes, 'ruta', 'rutas')} | ${plural(st.origins, 'origen', 'orígenes')} | ${plural(st.zones, 'zona', 'zonas')}`; };
+const destText = (D, dest) => (D.key === 'campo' ? plantShort(dest) : dest);
+const clearErrors = (f) => f.querySelectorAll('.has-err').forEach((x) => { x.classList.remove('has-err'); const m = x.querySelector('.ferr'); if (m) m.textContent = ''; });
+function sheetMeta(s) {
+  const st = tariffStats(s.routes);
+  return divisionOf(s).key === 'puerto'
+    ? `${plural(st.routes, 'ruta', 'rutas')} | ${plural(st.dests, 'destino', 'destinos')} | ${plural(s.extras.length, 'cargo adicional', 'cargos adicionales')}`
+    : `${plural(st.routes, 'ruta', 'rutas')} | ${plural(st.origins, 'origen', 'orígenes')} | ${plural(st.zones, 'zona', 'zonas')}`;
+}
 
-/* ===== Apartado: nuevo o cambio de nombre ===== */
+/* ===== Apartado: nuevo (con su división) o cambio de nombre ===== */
 function openSheetNameForm(sheet, onSaved) {
-  formSheet({
+  let division = 'puerto';
+  const { form } = formSheet({
     title: sheet ? 'Cambiar nombre del apartado' : 'Nuevo apartado', saveLabel: sheet ? 'Guardar nombre' : 'Crear apartado',
     html: `${textIn('name', 'Nombre del apartado', sheet ? sheet.name : '', { ph: 'Ej. BAYER INBOUND 2026', cap: 'characters' })}
-      <p class="fhint">Agrupa las tarifas de un cliente, proyecto o temporada. Todas en configuración de transporte sencillo (Tolva y Jaula).</p>`,
-    onSubmit: async (form, sh) => {
-      const r = sheet ? await tf.renameSheet(sheet.id, form.elements.name.value) : await tf.createSheet(form.elements.name.value);
-      if (r.error) { fail(form, 'name', r.error); return; }
+      ${sheet
+    ? `<p class="fhint tf-sheetname">${icon[DIV_ICON[divisionOf(sheet).key]]}<span>${esc(divisionOf(sheet).label)}</span></p>`
+    : `<div class="fld" data-f="division"><span class="fl">División de PERCONSUR que usa este tarifario</span><div class="seg big">${['puerto', 'campo'].map((k) => DIVISIONS[k]).map((d) => `<button type="button" class="seg-b${d.key === division ? ' on' : ''}" data-div="${d.key}" aria-pressed="${d.key === division}">${d.key === 'puerto' ? 'Puerto' : 'Campo'}</button>`).join('')}</div></div>
+      <p class="fhint" data-divhint></p>`}`,
+    onSubmit: async (f, sh) => {
+      const r = sheet ? await tf.renameSheet(sheet.id, f.elements.name.value) : await tf.createSheet(f.elements.name.value, division);
+      if (r.error) { fail(f, 'name', r.error); return; }
       sh.close(); toast(sheet ? 'Nombre actualizado' : 'Apartado creado');
       onSaved(r.sheet);
     },
   });
+  const hint = form.querySelector('[data-divhint]');
+  const paint = () => {
+    form.querySelectorAll('[data-div]').forEach((b) => { const on1 = b.dataset.div === division; b.classList.toggle('on', on1); b.setAttribute('aria-pressed', on1); });
+    if (hint) hint.textContent = division === 'puerto'
+      ? 'Origen Manzanillo de forma predeterminada, ciudad destino y un monto por ruta. Incluye los cargos adicionales: sobrepeso $3,000 y arrastre local en Manzanillo de vacíos $2,000 y de llenos $5,000. Importes antes de impuestos.'
+      : 'Ciudad de origen, planta destino y montos de Tolva y Jaula sencillas. Importes antes de impuestos.';
+  };
+  form.addEventListener('click', (e) => { const b = e.target.closest('[data-div]'); if (b) { division = b.dataset.div; paint(); } });
+  paint();
 }
 
 /* ===== Tarifa (ruta): agregar, editar o eliminar ===== */
 function openRouteForm(sheet, route, prefill, onSaved) {
-  const editing = !!route, r = route || { zone: prefill.zone || '', origin: '', dest: prefill.dest || '', rates: {} };
-  const plants = [...destinationsOf(sheet.routes), ...listAll('plants').map((p) => p.name)];
+  const D = divisionOf(sheet), editing = !!route;
+  const r = route || { zone: prefill.zone || '', origin: D.defaultOrigin, dest: prefill.dest || '', rates: {} };
+  const dests = D.key === 'campo' ? [...destinationsOf(sheet.routes), ...listAll('plants').map((p) => p.name)] : destinationsOf(sheet.routes);
   const { form } = formSheet({
     title: editing ? 'Editar tarifa' : 'Agregar tarifa', saveLabel: editing ? 'Guardar cambios' : 'Agregar tarifa',
-    html: `<p class="fhint tf-sheetname">${icon.tag}<span>${esc(sheet.name)} · transporte sencillo</span></p>
-      ${textIn('zone', 'Zona', r.zone, { list: 'tf-dl-zones', ph: 'Ej. Bajío zona A' })}
-      ${textIn('origin', 'Ciudad de origen', r.origin, { list: 'tf-dl-origins', ph: 'Ej. Irapuato' })}
-      ${textIn('dest', 'Planta destino', r.dest, { list: 'tf-dl-plants', ph: 'Ej. Planta Nextipac' })}
-      <div class="row2">${UNITS.map((u) => moneyIn(u, `${u} sencilla`, r.rates[u] != null ? centsInput(r.rates[u]) : '', 'Sin tarifa')).join('')}</div>
-      <p class="fhint">Deja vacío el tipo de unidad que no tenga tarifa; se necesita al menos un monto. Importes en pesos (MXN).</p>
-      ${datalist('tf-dl-zones', zonesOf(sheet.routes))}${datalist('tf-dl-origins', sheet.routes.map((x) => x.origin))}${datalist('tf-dl-plants', plants)}`,
+    html: `<p class="fhint tf-sheetname">${icon.tag}<span>${esc(sheet.name)} · ${esc(D.label)} · transporte sencillo</span></p>
+      ${textIn('zone', 'Zona', r.zone, { list: 'tf-dl-zones', ph: D.key === 'puerto' ? 'Ej. Occidente' : 'Ej. Bajío zona A' })}
+      ${textIn('origin', 'Ciudad de origen', r.origin, { list: 'tf-dl-origins', ph: D.key === 'puerto' ? 'Manzanillo' : 'Ej. Irapuato' })}
+      ${textIn('dest', D.destLabel, r.dest, { list: 'tf-dl-dests', ph: D.key === 'puerto' ? 'Ej. Guadalajara' : 'Ej. Planta Nextipac' })}
+      <div class="${D.units.length > 1 ? 'row2' : ''}">${D.units.map((u) => moneyIn(u, D.unitLabel(u), r.rates[u] != null ? centsInput(r.rates[u]) : '', D.units.length > 1 ? 'Sin tarifa' : '0.00')).join('')}</div>
+      <p class="fhint">${D.units.length > 1 ? 'Deja vacío el tipo de unidad que no tenga tarifa; se necesita al menos un monto. ' : ''}Importes en pesos (MXN), antes de impuestos.</p>
+      ${datalist('tf-dl-zones', zonesOf(sheet.routes))}${datalist('tf-dl-origins', [D.defaultOrigin, ...sheet.routes.map((x) => x.origin)])}${datalist('tf-dl-dests', dests)}`,
     onSubmit: async (f, sh) => {
       /* Los avisos de un intento anterior (p. ej. ruta repetida) se recalculan completos */
-      f.querySelectorAll('.has-err').forEach((x) => { x.classList.remove('has-err'); const m = x.querySelector('.ferr'); if (m) m.textContent = ''; });
+      clearErrors(f);
       const rates = {};
-      for (const u of UNITS) {
-        const m = readMoney(f, u, { label: `el monto de ${u}` });
+      for (const u of D.units) {
+        const m = readMoney(f, u, { label: `el monto de ${D.unitLabel(u).toLowerCase()}` });
         if (m.error) { fail(f, u, m.error); return; }
         rates[u] = m.value > 0 ? m.value : null;
       }
       const res = await tf.saveRoute(sheet.id, { zone: f.elements.zone.value, origin: f.elements.origin.value, dest: f.elements.dest.value, rates }, editing ? route.id : null);
       if (res.errors) {
         const [k, msg] = Object.entries(res.errors)[0];
-        fail(f, k === 'rates' ? UNITS[0] : k, msg); return;
+        fail(f, k === 'rates' ? D.units[0] : k, msg); return;
       }
       sh.close(); toast(editing ? 'Tarifa actualizada' : 'Tarifa agregada');
       onSaved(res.route);
@@ -78,13 +102,42 @@ function openRouteForm(sheet, route, prefill, onSaved) {
     del: editing ? {
       label: 'Eliminar tarifa',
       fn: async () => {
-        if (!(await confirmDestructive('¿Eliminar esta tarifa?', `${route.origin} → ${plantShort(route.dest)} se quitará del apartado ${sheet.name}.`))) return false;
+        if (!(await confirmDestructive('¿Eliminar esta tarifa?', `${route.origin} → ${destText(D, route.dest)} se quitará del apartado ${sheet.name}.`))) return false;
         await tf.deleteRoute(sheet.id, route.id); toast('Tarifa eliminada'); onSaved(null);
         return true;
       },
     } : null,
   });
-  if (!editing) setTimeout(() => form.elements[r.zone ? 'origin' : 'zone'].focus(), 300);
+  if (!editing) setTimeout(() => form.elements[!r.zone ? 'zone' : !r.origin ? 'origin' : 'dest'].focus(), 300);
+}
+
+/* ===== Cargo adicional (División Puerto): agregar, editar o eliminar ===== */
+function openExtraForm(sheet, extra, onSaved) {
+  const editing = !!extra;
+  formSheet({
+    title: editing ? 'Editar cargo adicional' : 'Agregar cargo adicional', saveLabel: editing ? 'Guardar cambios' : 'Agregar cargo',
+    html: `<p class="fhint tf-sheetname">${icon.tag}<span>${esc(sheet.name)}</span></p>
+      ${textIn('label', 'Concepto', editing ? extra.label : '', { ph: 'Ej. Sobrepeso', cap: 'sentences' })}
+      ${moneyIn('amount', 'Importe', editing ? centsInput(extra.amount) : '')}
+      <p class="fhint">Importe en pesos (MXN), antes de impuestos.</p>`,
+    onSubmit: async (f, sh) => {
+      clearErrors(f);
+      const m = readMoney(f, 'amount', { label: 'el importe del cargo' });
+      if (m.error) { fail(f, 'amount', m.error); return; }
+      const res = await tf.saveExtra(sheet.id, { label: f.elements.label.value, amount: m.value }, editing ? extra.id : null);
+      if (res.errors) { const [k, msg] = Object.entries(res.errors)[0]; fail(f, k, msg); return; }
+      sh.close(); toast(editing ? 'Cargo actualizado' : 'Cargo agregado');
+      onSaved();
+    },
+    del: editing ? {
+      label: 'Eliminar cargo',
+      fn: async () => {
+        if (!(await confirmDestructive('¿Eliminar este cargo?', `«${extra.label}» se quitará del apartado ${sheet.name}.`))) return false;
+        await tf.deleteExtra(sheet.id, extra.id); toast('Cargo eliminado'); onSaved();
+        return true;
+      },
+    } : null,
+  });
 }
 
 /* ===== #/tarifas: apartados ===== */
@@ -94,14 +147,14 @@ export async function tariffSheetsScreen() {
   const s = screen(`<div class="page tf-page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Administración</span></button>${ro ? '' : `<button type="button" class="btn-ghost sm" data-add>${icon.plus}<span>Nuevo apartado</span></button>`}</header>
     <h1 class="title">Tarifas</h1>
-    <p class="page-lead">Tarifas de transporte agrupadas por apartado (cliente o proyecto). Dentro de cada apartado se organizan por zona, ciudad de origen y planta destino.</p>
+    <p class="page-lead">Tarifas de transporte agrupadas por apartado (cliente o proyecto); cada apartado pertenece a la División Puerto o a la División Campo. ${TAX_NOTE}</p>
     <div data-list></div>
   </div>`);
   const root = s.el, list = root.querySelector('[data-list]');
   function draw() {
     const all = tf.sheets();
     list.innerHTML = all.length
-      ? `<div class="mod-list">${all.map((x) => `<a class="mod-card" href="#/tarifas/${esc(x.id)}"><span class="mod-ic">${icon.tag}</span><span class="mod-tx"><b>${esc(x.name)}</b><small>Transporte sencillo · Tolva y Jaula</small><span class="mod-meta">${sheetMeta(x)}</span></span><span class="chev">${icon.chev}</span></a>`).join('')}</div>`
+      ? `<div class="mod-list">${all.map((x) => { const D = divisionOf(x); return `<a class="mod-card" href="#/tarifas/${esc(x.id)}"><span class="mod-ic">${icon[DIV_ICON[D.key]]}</span><span class="mod-tx"><b>${esc(x.name)}</b><small>${esc(D.label)} · ${esc(D.summary)}</small><span class="mod-meta">${sheetMeta(x)}</span></span><span class="chev">${icon.chev}</span></a>`; }).join('')}</div>`
       : `<div class="empty"><p><b class="empty-t">Aún no hay apartados</b>${ro ? 'El dispositivo que captura la información aún no ha compartido tarifas.' : 'Crea un apartado para agrupar las tarifas de un cliente o proyecto.'}</p>${ro ? '' : `<button type="button" class="btn-primary sm" data-add>${icon.plus}<span>Nuevo apartado</span></button>`}</div>`;
   }
   on(root, 'click', '[data-back]', () => back('/administracion'));
@@ -111,10 +164,19 @@ export async function tariffSheetsScreen() {
 }
 
 /* ===== #/tarifas/:id: tarifas del apartado ===== */
-function routeCard(o, ro) {
+function routeCard(D, o, ro) {
   return `<article class="tf-card"><h3 class="tf-o">${esc(o.origin)}</h3>
-    <table class="tf-t"><thead><tr><th scope="col">Planta destino</th>${UNITS.map((u) => `<th scope="col" class="r"><span class="tf-u">${icon[UNIT_ICON[u]]}${u}</span></th>`).join('')}</tr></thead>
-    <tbody>${o.routes.map((r) => `<tr${ro ? '' : ` data-route="${esc(r.id)}" tabindex="0" aria-label="Editar tarifa ${esc(o.origin)} a ${esc(plantShort(r.dest))}"`}><td>${esc(plantShort(r.dest))}${ro ? '' : `<span class="tf-ed" aria-hidden="true">${icon.edit}</span>`}</td>${UNITS.map((u) => `<td class="r${r.rates[u] == null ? ' tf-miss' : ''}">${r.rates[u] != null ? money(r.rates[u]) : '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></article>`;
+    <table class="tf-t"><thead><tr><th scope="col">${esc(D.destLabel)}</th>${D.units.map((u) => `<th scope="col" class="r"><span class="tf-u">${icon[UNIT_ICON[u]]}${esc(D.units.length > 1 ? u : D.unitLabel(u))}</span></th>`).join('')}</tr></thead>
+    <tbody>${o.routes.map((r) => `<tr${ro ? '' : ` data-route="${esc(r.id)}" tabindex="0" aria-label="Editar tarifa ${esc(o.origin)} a ${esc(destText(D, r.dest))}"`}><td>${esc(destText(D, r.dest))}${ro ? '' : `<span class="tf-ed" aria-hidden="true">${icon.edit}</span>`}</td>${D.units.map((u) => `<td class="r${r.rates[u] == null ? ' tf-miss' : ''}">${r.rates[u] != null ? money(r.rates[u]) : '—'}</td>`).join('')}</tr>`).join('')}</tbody></table></article>`;
+}
+function extrasSection(sheet, ro) {
+  const xs = sheet.extras;
+  return `<section class="tf-zone tf-extras">
+    <div class="sec-hrow"><h2 class="sec-h">Cargos adicionales</h2>${ro ? '' : `<button type="button" class="btn-ghost sm" data-xadd>${icon.plus}<span>Agregar cargo</span></button>`}</div>
+    ${xs.length ? `<article class="tf-card"><table class="tf-t"><thead><tr><th scope="col">Concepto</th><th scope="col" class="r">Importe</th></tr></thead>
+      <tbody>${xs.map((x) => `<tr${ro ? '' : ` data-extra="${esc(x.id)}" tabindex="0" aria-label="Editar cargo ${esc(x.label)}"`}><td>${esc(x.label)}${ro ? '' : `<span class="tf-ed" aria-hidden="true">${icon.edit}</span>`}</td><td class="r">${money(x.amount)}</td></tr>`).join('')}</tbody></table></article>`
+    : '<p class="grp-note">Sin cargos adicionales.</p>'}
+  </section>`;
 }
 
 export async function tariffSheetScreen({ id }) {
@@ -126,18 +188,21 @@ export async function tariffSheetScreen({ id }) {
     on(s.el, 'click', '[data-back]', () => back('/tarifas'));
     return s;
   }
-  let zone = '', dest = '', origin = '';
+  const D = divisionOf(tf.sheetById(id)), puerto = D.key === 'puerto';
+  let zone = '', dest = '', text = '';
   const s = screen(`<div class="page wide tf-page">
     <header class="nav-top"><button type="button" class="nav-back" data-back>${icon.back}<span>Tarifas</span></button>${ro ? '' : `<button type="button" class="icon-btn" data-w data-more aria-label="Opciones del apartado">${icon.more}</button>`}</header>
+    <p class="tf-div">${icon[DIV_ICON[D.key]]}<span>${esc(D.label)}</span></p>
     <h1 class="title" data-name></h1>
-    <p class="page-lead">Tarifas por zona, ciudad de origen y planta destino. Configuración de transporte <b>sencillo</b> (Tolva y Jaula); importes en pesos (MXN).</p>
+    <p class="page-lead">${puerto ? 'Tarifas por zona y ciudad destino, con origen en Manzanillo.' : 'Tarifas por zona, ciudad de origen y planta destino.'} Configuración de transporte <b>sencillo</b>${puerto ? '' : ' (Tolva y Jaula)'}; importes en pesos (MXN), <b>antes de impuestos</b>.</p>
     <div class="tiles tf-tiles" data-tiles></div>
     <div class="tf-acts">${ro ? '' : `<button type="button" class="btn-primary sm" data-add>${icon.plus}<span>Agregar tarifa</span></button>`}<a class="btn-secondary sm" data-pdf href="#/tarifas/${esc(id)}/pdf">${icon.file}<span>Generar PDF</span></a></div>
-    <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" data-origin placeholder="Buscar ciudad de origen" aria-label="Buscar por ciudad de origen" autocomplete="off" autocorrect="off" enterkeyhint="search"></label>
-    <div class="chips filters" role="group" aria-label="Planta destino" data-dests></div>
+    <label class="search"><span class="search-ic">${icon.search}</span><input type="search" class="search-in" data-text placeholder="${puerto ? 'Buscar ciudad destino u origen' : 'Buscar ciudad de origen'}" aria-label="${puerto ? 'Buscar por ciudad destino u origen' : 'Buscar por ciudad de origen'}" autocomplete="off" autocorrect="off" enterkeyhint="search"></label>
+    ${puerto ? '' : '<div class="chips filters" role="group" aria-label="Planta destino" data-dests></div>'}
     <div class="chips filters" role="group" aria-label="Zona" data-zones></div>
     <div data-list></div>
-    ${ro ? '' : '<p class="grp-note center">Toca una ruta para cambiar sus montos o eliminarla. Solo se guardan rutas con al menos un monto.</p>'}
+    ${puerto ? '<div data-extras></div>' : ''}
+    ${ro ? '' : `<p class="grp-note center">Toca una ${puerto ? 'ruta o un cargo' : 'ruta'} para cambiar su monto o eliminarlo. Solo se guardan rutas con monto.</p>`}
   </div>`);
   const root = s.el, listEl = root.querySelector('[data-list]');
   const sheet = () => tf.sheetById(id);
@@ -149,48 +214,53 @@ export async function tariffSheetScreen({ id }) {
     if (zone && !zones.includes(zone)) zone = '';
     if (dest && !plants.includes(dest)) dest = '';
     root.querySelector('[data-name]').textContent = sh.name;
-    root.querySelector('[data-tiles]').innerHTML = `<div class="tile"><small>Rutas</small><b>${st.routes}</b></div><div class="tile"><small>Orígenes</small><b>${st.origins}</b></div><div class="tile"><small>Zonas</small><b>${st.zones}</b></div>`;
+    root.querySelector('[data-tiles]').innerHTML = `<div class="tile"><small>Rutas</small><b>${st.routes}</b></div>`
+      + (puerto ? `<div class="tile"><small>Destinos</small><b>${st.dests}</b></div>` : `<div class="tile"><small>Orígenes</small><b>${st.origins}</b></div>`)
+      + `<div class="tile"><small>Zonas</small><b>${st.zones}</b></div>`;
     const chip = (attr, v, label, cur, ic = '') => `<button type="button" class="chip${v === cur ? ' on' : ''}" ${attr}="${esc(v)}" aria-pressed="${v === cur}">${ic}${esc(label)}</button>`;
-    root.querySelector('[data-dests]').innerHTML = chip('data-dest', '', 'Todas las plantas', dest) + plants.map((p) => chip('data-dest', p, plantShort(p), dest, icon.building)).join('');
-    root.querySelector('[data-zones]').innerHTML = chip('data-zone', '', 'Todas las zonas', zone) + zones.map((z) => chip('data-zone', z, z, zone)).join('');
-    root.querySelector('[data-pdf]').classList.toggle('disabled', !all.length);
+    const dEl = root.querySelector('[data-dests]');
+    if (dEl) dEl.innerHTML = chip('data-dest', '', 'Todas las plantas', dest) + plants.map((p) => chip('data-dest', p, plantShort(p), dest, icon.building)).join('');
+    root.querySelector('[data-zones]').innerHTML = zones.length > 1 ? chip('data-zone', '', 'Todas las zonas', zone) + zones.map((z) => chip('data-zone', z, z, zone)).join('') : '';
+    root.querySelector('[data-pdf]').classList.toggle('disabled', !all.length && !(puerto && sh.extras.length));
+    const xEl = root.querySelector('[data-extras]');
+    if (xEl) xEl.innerHTML = extrasSection(sh, ro);
     if (!all.length) {
-      listEl.innerHTML = `<div class="empty"><p><b class="empty-t">Sin tarifas en este apartado</b>${ro ? 'Aún no se han registrado tarifas.' : 'Agrega la primera tarifa: zona, ciudad de origen, planta destino y el monto de Tolva o Jaula.'}</p>${ro ? '' : `<button type="button" class="btn-primary sm" data-add>${icon.plus}<span>Agregar tarifa</span></button>`}</div>`;
+      listEl.innerHTML = `<div class="empty"><p><b class="empty-t">Sin tarifas en este apartado</b>${ro ? 'Aún no se han registrado tarifas.' : `Agrega la primera tarifa: zona, ${puerto ? 'ciudad destino (origen Manzanillo)' : 'ciudad de origen, planta destino'} y el monto${puerto ? '' : ' de Tolva o Jaula'}.`}</p>${ro ? '' : `<button type="button" class="btn-primary sm" data-add>${icon.plus}<span>Agregar tarifa</span></button>`}</div>`;
       return;
     }
-    const list = filterRoutes(all, { zone, origin, dest });
+    const list = filterRoutes(all, puerto ? { zone, text } : { zone, origin: text, dest });
     if (!list.length) {
-      listEl.innerHTML = `<div class="empty"><p><b class="empty-t">Sin tarifas</b>No hay rutas con ese origen${dest ? ` hacia ${esc(plantShort(dest))}` : ''}${zone ? ` en ${esc(zone)}` : ''}.</p><button type="button" class="btn-secondary sm" data-clear>Quitar filtros</button></div>`;
+      listEl.innerHTML = `<div class="empty"><p><b class="empty-t">Sin tarifas</b>No hay rutas con esa búsqueda${dest ? ` hacia ${esc(plantShort(dest))}` : ''}${zone ? ` en ${esc(zone)}` : ''}.</p><button type="button" class="btn-secondary sm" data-clear>Quitar filtros</button></div>`;
       return;
     }
-    const filtered = zone || dest || origin;
+    const filtered = zone || dest || text;
     listEl.innerHTML = `${filtered ? `<p class="tf-count" role="status">${plural(list.length, 'ruta encontrada', 'rutas encontradas')}</p>` : ''}
-      ${groupByZone(list, all).map((g) => `<section class="tf-zone">
-        <div class="sec-hrow"><h2 class="sec-h">${esc(g.zone)}</h2><small class="tf-n">${plural(g.origins.length, 'origen', 'orígenes')} · ${plural(g.routes.length, 'ruta', 'rutas')}</small></div>
-        <div class="tf-grid">${g.origins.map((o) => routeCard(o, ro)).join('')}</div>
+      ${groupByZone(list, all, { alphaDest: puerto }).map((g) => `<section class="tf-zone">
+        <div class="sec-hrow"><h2 class="sec-h">${esc(g.zone)}</h2><small class="tf-n">${puerto ? '' : `${plural(g.origins.length, 'origen', 'orígenes')} · `}${plural(g.routes.length, 'ruta', 'rutas')}</small></div>
+        <div class="tf-grid">${g.origins.map((o) => routeCard(D, o, ro)).join('')}</div>
       </section>`).join('')}`;
   }
-  const edit = (routeId) => {
-    const sh = sheet(), r = sh && sh.routes.find((x) => x.id === routeId);
-    if (r) openRouteForm(sh, r, {}, draw);
-  };
+  const editRoute = (routeId) => { const sh = sheet(), r = sh && sh.routes.find((x) => x.id === routeId); if (r) openRouteForm(sh, r, {}, draw); };
+  const editExtra = (xid) => { const sh = sheet(), x = sh && sh.extras.find((e) => e.id === xid); if (x) openExtraForm(sh, x, draw); };
 
   on(root, 'click', '[data-back]', () => back('/tarifas'));
   on(root, 'click', '[data-zone]', (e, b) => { zone = b.dataset.zone; draw(); });
   on(root, 'click', '[data-dest]', (e, b) => { dest = b.dataset.dest; draw(); });
-  on(root, 'click', '[data-clear]', () => { zone = ''; dest = ''; origin = ''; root.querySelector('[data-origin]').value = ''; draw(); });
+  on(root, 'click', '[data-clear]', () => { zone = ''; dest = ''; text = ''; root.querySelector('[data-text]').value = ''; draw(); });
   on(root, 'click', '[data-add]', () => openRouteForm(sheet(), null, { zone, dest }, draw));
-  on(root, 'click', '[data-route]', (e, tr) => edit(tr.dataset.route));
-  on(root, 'keydown', '[data-route]', (e, tr) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); edit(tr.dataset.route); } });
+  on(root, 'click', '[data-xadd]', () => openExtraForm(sheet(), null, draw));
+  on(root, 'click', '[data-route]', (e, tr) => editRoute(tr.dataset.route));
+  on(root, 'click', '[data-extra]', (e, tr) => editExtra(tr.dataset.extra));
+  on(root, 'keydown', '[data-route],[data-extra]', (e, tr) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (tr.dataset.route) editRoute(tr.dataset.route); else editExtra(tr.dataset.extra); } });
   on(root, 'click', '[data-more]', async () => {
     const sh = sheet();
-    const v = await actionSheet({ title: sh.name, message: sheetMeta(sh), actions: [{ label: 'Cambiar nombre', value: 'rename' }, { label: 'Eliminar apartado', value: 'del', style: 'destructive' }] });
+    const v = await actionSheet({ title: sh.name, message: `${divisionOf(sh).label} | ${sheetMeta(sh)}`, actions: [{ label: 'Cambiar nombre', value: 'rename' }, { label: 'Eliminar apartado', value: 'del', style: 'destructive' }] });
     if (v === 'rename') openSheetNameForm(sh, draw);
     if (v === 'del' && await confirmDestructive('¿Eliminar el apartado?', `${sh.name} y sus ${plural(sh.routes.length, 'tarifa', 'tarifas')} se eliminarán. Esta acción no se puede deshacer.`, 'Eliminar apartado')) {
       await tf.deleteSheet(sh.id); toast('Apartado eliminado'); go('/tarifas', { replace: true });
     }
   });
-  root.querySelector('[data-origin]').addEventListener('input', (e) => { origin = e.target.value.trim(); draw(); });
+  root.querySelector('[data-text]').addEventListener('input', (e) => { text = e.target.value.trim(); draw(); });
   draw();
   return s;
 }
@@ -231,7 +301,10 @@ export async function tariffReportScreen({ id }) {
       $('[data-pages]').innerHTML = tariffSVGs(p).join('');
       const pc = p.model.pages.length, st = p.model.stats;
       $('[data-pagecount]').textContent = `${pc} página${pc === 1 ? '' : 's'}`;
-      $('[data-note]').innerHTML = [`${sheet.name}`, `${plural(st.routes, 'ruta', 'rutas')} de ${plural(st.origins, 'ciudad de origen', 'ciudades de origen')} en ${plural(st.zones, 'zona', 'zonas')}.`, 'Transporte sencillo (Tolva y Jaula), importes en MXN.'].map(esc).join('<br>');
+      const D = divisionOf(sheet), puerto = D.key === 'puerto';
+      $('[data-note]').innerHTML = [`${sheet.name} · ${D.label}`,
+        puerto ? `${plural(st.routes, 'ruta', 'rutas')} desde ${D.defaultOrigin} a ${plural(st.dests, 'ciudad destino', 'ciudades destino')} en ${plural(st.zones, 'zona', 'zonas')}${sheet.extras.length ? `, más ${plural(sheet.extras.length, 'cargo adicional', 'cargos adicionales')}` : ''}.` : `${plural(st.routes, 'ruta', 'rutas')} de ${plural(st.origins, 'ciudad de origen', 'ciudades de origen')} en ${plural(st.zones, 'zona', 'zonas')}.`,
+        `Transporte sencillo${puerto ? '' : ' (Tolva y Jaula)'}, importes en MXN antes de impuestos.`].map(esc).join('<br>');
     } catch (e) {
       console.error(e); prepared = null;
       $('[data-pages]').innerHTML = '<p class="grp-note center warn-t">No se pudo preparar la vista previa. Intenta de nuevo.</p>';

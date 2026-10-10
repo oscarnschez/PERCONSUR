@@ -277,11 +277,16 @@ html.sync-refresh #view>*{animation:none!important}
 .tf-u .ic{width:18px;height:18px}
 @media (min-width:700px){.tf-grid{grid-template-columns:repeat(auto-fill,minmax(330px,1fr))}}
 .tf-acts{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
-.tf-t tr[data-route]{cursor:pointer}
-.tf-t tr[data-route]:hover td{background:var(--fill)}
-.tf-t tr[data-route]:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.tf-t tr[data-route],.tf-t tr[data-extra]{cursor:pointer}
+.tf-t tr[data-route]:hover td,.tf-t tr[data-extra]:hover td{background:var(--fill)}
+.tf-t tr[data-route]:focus-visible,.tf-t tr[data-extra]:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
 .tf-ed{display:inline-flex;margin-left:6px;vertical-align:-2px;color:var(--muted)}
 .tf-ed .ic{width:14px;height:14px}
 .tf-t td.tf-miss{font-weight:400;color:var(--muted)}
 .tf-sheetname{display:flex;align-items:center;gap:6px;margin:0 0 12px;font-weight:600;color:var(--ink-2)}
 .tf-sheetname .ic{width:16px;height:16px;flex:none}
+/* División del apartado (Puerto o Campo) sobre el nombre y cargos adicionales de División Puerto */
+.tf-div{display:flex;align-items:center;gap:6px;margin:0 0 2px;font-size:var(--fs-footnote);font-weight:600;color:var(--blue);text-transform:uppercase;letter-spacing:.04em}
+.tf-div .ic{width:16px;height:16px;flex:none}
+.tf-extras{max-width:560px}
+.tf-extras .grp-note{margin:0 4px}

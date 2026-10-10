@@ -1,16 +1,18 @@
 /*
  * Tarifas — almacenamiento (store tariffSheets: un registro por apartado con sus rutas).
- * Apartado: { id, name, config:'Sencillo', routes:[{ id, zone, origin, dest, rates:{ Tolva, Jaula } }], createdAt, updatedAt, source }
- * La primera vez se siembra «BAYER INBOUND 2026» con el tarifario de PERCONSUR (config/tariffs.js); a partir de ahí todo
- * se edita en la app, se respalda y se comparte con los demás dispositivos como cualquier otro registro.
+ * Apartado: { id, name, division:'campo'|'puerto', config:'Sencillo', routes:[{ id, zone, origin, dest, rates }],
+ *             extras:[{ id, label, amount }], createdAt, updatedAt, source }
+ * La primera vez se siembra «BAYER INBOUND 2026» (División Campo) con el tarifario de PERCONSUR (config/tariffs.js); a partir
+ * de ahí todo se edita en la app, se respalda y se comparte con los demás dispositivos como cualquier otro registro.
  */
 import * as db from './db.js';
 import { getSetting, setSetting } from './settings.js';
-import { seedSheet, checkRoute, upsertRoute, checkSheetName } from '../domain/tariffs/tariffs.js';
+import { seedSheet, newSheet, checkRoute, checkExtra, upsertRoute, checkSheetName, sanitizeSheet } from '../domain/tariffs/tariffs.js';
 
 let cache = null;
+/* Al leer se normaliza cada apartado (los de la versión 1.22 no tenían división ni cargos: quedan en División Campo) */
 export async function loadTariffs(force = false) {
-  if (!cache || force) cache = await db.all(db.S.tariffSheets);
+  if (!cache || force) cache = (await db.all(db.S.tariffSheets)).map(sanitizeSheet).filter(Boolean);
   return cache;
 }
 /* Apartados en orden de creación */
@@ -33,12 +35,12 @@ async function save(sheet) {
   await loadTariffs(true);
   return s;
 }
+const need = (id) => { const s = sheetById(id); if (!s) throw new Error('El apartado ya no existe.'); return s; };
 
-/* Ruta nueva (id null) o editada; devuelve { sheet } o { errors } (ver checkRoute) */
+/* Ruta nueva (id null) o editada; devuelve { sheet, route } o { errors } (ver checkRoute) */
 export async function saveRoute(sheetId, input, id = null) {
-  const sheet = sheetById(sheetId);
-  if (!sheet) throw new Error('El apartado ya no existe.');
-  const r = checkRoute(input, sheet.routes, id);
+  const sheet = need(sheetId);
+  const r = checkRoute(input, sheet.routes, id, sheet.division);
   if (r.errors) return r;
   const route = { ...r.route, id: id || db.uid('r_') };
   return { sheet: await save({ ...sheet, routes: upsertRoute(sheet.routes, route) }), route };
@@ -49,12 +51,25 @@ export async function deleteRoute(sheetId, id) {
   return save({ ...sheet, routes: sheet.routes.filter((r) => r.id !== id) });
 }
 
-/* Apartados: crear, renombrar y eliminar */
-export async function createSheet(name) {
+/* Cargos adicionales del apartado (sobrepeso, arrastres…): { sheet, extra } o { errors } */
+export async function saveExtra(sheetId, input, id = null) {
+  const sheet = need(sheetId);
+  const r = checkExtra(input, sheet.extras, id);
+  if (r.errors) return r;
+  const extra = { ...r.extra, id: id || db.uid('x_') };
+  return { sheet: await save({ ...sheet, extras: upsertRoute(sheet.extras, extra) }), extra };
+}
+export async function deleteExtra(sheetId, id) {
+  const sheet = sheetById(sheetId);
+  if (!sheet) return null;
+  return save({ ...sheet, extras: sheet.extras.filter((x) => x.id !== id) });
+}
+
+/* Apartados: crear (con su división), renombrar y eliminar */
+export async function createSheet(name, division) {
   const r = checkSheetName(name, sheets());
   if (r.error) return r;
-  const now = Date.now();
-  return { sheet: await save({ id: db.uid('tfs_'), name: r.name, config: 'Sencillo', routes: [], createdAt: now, source: 'user' }) };
+  return { sheet: await save(newSheet({ id: db.uid('tfs_'), name: r.name, division })) };
 }
 export async function renameSheet(id, name) {
   const sheet = sheetById(id);
